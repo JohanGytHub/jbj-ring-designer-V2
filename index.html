@@ -908,7 +908,6 @@ function openSwatchZoom(name){
     lb=h('div',{id:'swatchLightbox'});
     document.body.appendChild(lb);
   }
-  // (Re)build contents if the box/img aren't present yet (static #swatchLightbox starts empty)
   if(!lb.querySelector('img')){
     lb.className='swatch-lightbox';
     lb.onclick=(e)=>{if(e.target===lb)lb.classList.remove('open');};
@@ -4372,14 +4371,7 @@ document.addEventListener('DOMContentLoaded', init);
       wrapped.__v2wrapped=true; window[fn]=wrapped;
     }
   });
-  // Swatch lightbox: add X when it opens (observe class change)
-  (function(){
-    var lb=document.getElementById('swatchLightbox');
-    if(lb){
-      new MutationObserver(function(){ if(lb.classList.contains('open')) ensureX(lb,null); })
-        .observe(lb,{attributes:true,attributeFilter:['class']});
-    }
-  })();
+  // Swatch lightbox already has its own outer .slb-close X — do not inject an inner X.
 
   // Section 3: remove the "Custom Inlays" Yes/No block (inlays are opt-in via Section 4)
   function stripInlayToggle(host){
