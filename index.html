@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Design Your Ring — Jewelry by Johan</title>
+<title>Custom Band &amp; Inlay Designer — Jewelry by Johan</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -524,6 +524,7 @@ body.staff-mode{padding-bottom:64px}
 .v2-app{max-width:1400px;margin:0 auto;min-height:100vh;min-height:100dvh}
 .v2-header{text-align:left;padding:18px 24px;position:relative}
 .v2-header h1{font-family:var(--font-display);font-weight:500;font-size:1.3rem;letter-spacing:.04em;color:var(--text)}
+.v2-header h2{font-family:var(--font-body);font-weight:400;font-size:.82rem;line-height:1.4;color:var(--text-muted);margin-top:6px;max-width:34rem;margin-left:auto;margin-right:auto}
 .v2-header .tagline{font-size:.58rem;color:var(--gold);letter-spacing:.28em;text-transform:uppercase;margin-top:4px}
 .v2-theme-btn{position:absolute;top:18px;right:20px;background:var(--glass);border:1px solid var(--border);border-radius:999px;width:36px;height:36px;cursor:pointer;color:var(--text-dim)}
 
@@ -647,8 +648,8 @@ body.staff-mode{padding-bottom:64px}
 
 <div class="v2-app">
   <header class="v2-header">
-    <h1>Design Your Ring</h1>
-    <div class="tagline">Jewelry by Johan</div>
+    <h1>Custom Band &amp; Inlay Designer</h1>
+    <h2>Choose your metal, width, and finish — then make it yours with a custom inlay</h2>
     <button class="v2-theme-btn" id="v2-theme-btn" aria-label="Toggle theme">◐</button>
   </header>
   <div id="v2-error-host"></div>
@@ -4147,7 +4148,7 @@ document.addEventListener('DOMContentLoaded', init);
       case 'compose': if(window.renderComposePanel) renderComposePanel(document.getElementById('controlsCol')); break;
       case 'sleeve':  renderSleevePanel(host);  break;
       case 'finish':  host.innerHTML=''; renderFinishPanel(host);  break;
-      case 'summary': host.innerHTML=''; renderSummaryPanel(host); injectFontSelect(host); break;
+      case 'summary': host.innerHTML=''; renderSummaryPanel(host); injectFontSelect(host); applyWoodSleeveEngravingRule(host); break;
     }
   }
 
@@ -4428,6 +4429,38 @@ document.addEventListener('DOMContentLoaded', init);
   function applyEngPreviewFont(font){
     var prev=document.querySelector('.summary-section .engraving-preview');
     if(prev){ prev.style.fontFamily=engFontStack(font); prev.style.fontStyle='normal'; }
+  }
+  // ---- Wood sleeve: laser engraving not available ----
+  function isWoodSleeve(){
+    var sl=state.sleeve;
+    return !!(sl && typeof DATA!=='undefined' && DATA && DATA.m && DATA.m[sl] && DATA.m[sl].g==='Woods');
+  }
+  function applyWoodSleeveEngravingRule(host){
+    if(!host) return;
+    // locate the engraving .summary-section (the one whose h4 mentions "Engraving")
+    var engSection=null, secs=host.querySelectorAll('.summary-section');
+    for(var i=0;i<secs.length;i++){ var hd=secs[i].querySelector('h4'); if(hd && /engraving/i.test(hd.textContent||'')){ engSection=secs[i]; break; } }
+    if(!engSection) return;
+    if(isWoodSleeve()){
+      // clear any engraving so nothing wood-related is sent to the quote worker
+      state.engraving=''; state.engravingFont='';
+      // hide the interactive engraving controls, keep only a note
+      Array.prototype.forEach.call(engSection.children,function(el){
+        if(el.tagName==='H4') return;
+        el.style.display='none';
+      });
+      // remove the injected font selector if present
+      var fw=host.querySelector('.eng-font-wrap'); if(fw) fw.style.display='none';
+      if(!engSection.querySelector('.eng-wood-note')){
+        var note=document.createElement('p');
+        note.className='eng-wood-note';
+        note.style.fontSize='.8rem'; note.style.color='var(--text-muted)'; note.style.lineHeight='1.5'; note.style.margin='6px 0 0';
+        note.textContent='Laser engraving isn\u2019t available on a wood inner sleeve.';
+        engSection.appendChild(note);
+      }
+    }
+    // non-wood path needs no action: the summary is fully re-rendered each open,
+    // so the engraving controls come back automatically.
   }
   function injectFontSelect(host){
     if(!host) return;
