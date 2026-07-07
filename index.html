@@ -555,7 +555,16 @@ body.staff-mode{padding-bottom:64px}
   min-height:280px;padding:20px;
 }
 .v2-preview{flex-direction:column;gap:10px}
-.v2-preview #dragCaption{font-family:var(--font-body);font-size:.8rem;font-weight:500;letter-spacing:.02em;color:var(--text);opacity:.85;text-align:center;user-select:none;pointer-events:none}
+.v2-preview #dragCaption{display:flex;align-items:center;justify-content:center;gap:28px;font-family:var(--font-body);font-size:.8rem;font-weight:500;letter-spacing:.02em;color:var(--text);opacity:.85;user-select:none}
+.v2-preview #dragCaption .drag-hint{pointer-events:none}
+.v2-preview #dragCaption .reset-image-btn{font-family:inherit;font-size:inherit;font-weight:500;letter-spacing:inherit;color:var(--text);background:var(--bg2,transparent);border:1px solid var(--border);border-radius:999px;padding:5px 14px;cursor:pointer;opacity:1;transition:background .15s,box-shadow .15s}
+.v2-preview #dragCaption .reset-image-btn:hover{background:var(--bg3);box-shadow:var(--shadow-sm)}
+.v2-preview #dragCaption .reset-image-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.v2-preview #crossSectionHost{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:4px}
+.v2-preview #crossSectionHost .cs-label{font-family:var(--font-body);font-size:.62rem;font-weight:600;letter-spacing:.18em;color:var(--text-muted);text-transform:uppercase}
+.v2-preview #crossSectionHost #profileDisplay{display:none}
+.v2-preview #crossSectionHost #profileImg{width:120px;height:auto;display:block;border-radius:10px}
+.v2-preview #crossSectionHost #profileName{font-family:var(--font-display);font-size:.95rem;font-weight:500;color:var(--text)}
 .v2-preview #ringPreview{width:100%;display:flex;align-items:center;justify-content:center}
 .v2-preview #ringPreview canvas{max-width:100%;height:auto;display:block;margin:0 auto}
 
@@ -675,7 +684,7 @@ body.staff-mode{padding-bottom:64px}
 
   <div class="v2-layout">
     <!-- LEFT: live ring viewer (fixed desktop / pinned-top mobile) -->
-    <aside class="v2-preview"><div id="ringPreview"></div><div id="dragCaption">↔ Drag to rotate</div></aside>
+    <aside class="v2-preview"><div id="ringPreview"></div><div id="dragCaption"><span class="drag-hint">↔ Drag to rotate</span><button type="button" id="resetImageBtn" class="reset-image-btn">⟳ Reset image</button></div><div id="crossSectionHost"><div class="cs-label">PROFILE CROSS-SECTION</div></div></aside>
 
     <!-- RIGHT: numbered collapsible list -->
     <div class="acc-stack" id="v2-acc-stack">
@@ -4163,7 +4172,7 @@ document.addEventListener('DOMContentLoaded', init);
     switch(id){
       case 'size':    renderSizePanel(host);    break;
       case 'metal':   renderMetalPanel(host);   break;
-      case 'width':   renderWidthPanel(host); stripInlayToggle(host);   break;
+      case 'width':   renderWidthPanel(host);   break;
       case 'compose': if(window.renderComposePanel) renderComposePanel(document.getElementById('controlsCol')); break;
       case 'sleeve':  renderSleevePanel(host);  break;
       case 'finish':  host.innerHTML=''; renderFinishPanel(host);  break;
@@ -4197,6 +4206,9 @@ document.addEventListener('DOMContentLoaded', init);
 
   // ---- Update all header summaries + filled badges + price visibility ----
   function refreshHeaders(){
+    // Base-metal-only hides the whole Inlays section from the accordion
+    var cp=panelEl('compose');
+    if(cp) cp.style.display = (state.wantsInlays===false) ? 'none' : '';
     V2_STEPS.forEach(function(st){
       const p=panelEl(st.id); if(!p) return;
       const txt=summaryText(st.id);
@@ -4259,6 +4271,11 @@ document.addEventListener('DOMContentLoaded', init);
   // engine navButtons() calls goToStep(state.step±1); map index -> section + open it
   window.goToStep=function(idx){
     if(idx<0) idx=0; if(idx>V2_STEPS.length-1) idx=V2_STEPS.length-1;
+    // Base-metal-only: skip the Inlays section (index 3) in both directions
+    if(V2_STEPS[idx] && V2_STEPS[idx].id==='compose' && state.wantsInlays===false){
+      idx = (idx > (state.step||0)) ? idx+1 : idx-1;
+      if(idx<0) idx=0; if(idx>V2_STEPS.length-1) idx=V2_STEPS.length-1;
+    }
     openSection(V2_STEPS[idx].id);
     var p=panelEl(V2_STEPS[idx].id); if(p) p.scrollIntoView({behavior:'smooth',block:'start'});
   };
@@ -4521,8 +4538,21 @@ document.addEventListener('DOMContentLoaded', init);
   window.__V2_ROUTER__={ openSection, toggleSection, render:function(){ renderAll(); refreshHeaders(); updatePriceBar(); }, V2_STEPS, updatePriceBar, applyDependencyRules, rerenderSection };
 
   document.addEventListener('DOMContentLoaded', async function(){
+    // Move the profile cross-section display from the hidden scaffold into the visible host under the ring
+    try{
+      var csHost=document.getElementById('crossSectionHost');
+      var pd=document.getElementById('profileDisplay');
+      var pi=document.getElementById('profileImg');
+      var pn=document.getElementById('profileName');
+      if(csHost && pi && pn){ csHost.appendChild(pd); csHost.appendChild(pi); csHost.appendChild(pn); }
+    }catch(e){}
     const tb=document.getElementById('v2-theme-btn');
     if(tb) tb.onclick=function(){ if(window.toggleTheme) toggleTheme(); };
+    const rib=document.getElementById('resetImageBtn');
+    if(rib) rib.onclick=function(){
+      try{ if(typeof ringView!=='undefined'){ ringView.elevation=0; ringView.azimuth=90; ringView._hintShown=false; } }catch(e){}
+      if(window.renderRing){ try{ renderRing(); }catch(e){} }
+    };
     // accordion header clicks
     document.querySelectorAll('.acc-head[data-sec]').forEach(function(h){
       h.onclick=function(){ toggleSection(h.getAttribute('data-sec')); };
