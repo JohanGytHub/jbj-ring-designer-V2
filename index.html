@@ -604,8 +604,25 @@ body.staff-mode{padding-bottom:64px}
 
 /* price: bottom-right of the list, hidden by default (JS toggles display) */
 .v2-price{
-  display:none;text-align:right;padding:16px 24px;
-  font-family:var(--font-display);font-size:2rem;font-weight:500;color:var(--gold);
+  position:fixed;right:20px;bottom:20px;z-index:9000;
+  display:flex;flex-direction:column;align-items:flex-end;gap:2px;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:12px 20px;
+  box-shadow:0 6px 22px rgba(0,0,0,.18);
+  font-family:var(--font-display);color:var(--gold);
+  pointer-events:none;transition:opacity .18s ease;
+}
+.v2-price .v2-price-label{
+  font-family:var(--font-body,inherit);font-size:.62rem;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);
+  line-height:1;
+}
+.v2-price .v2-price-amount{
+  font-size:1.9rem;font-weight:500;line-height:1.05;color:var(--gold);
+}
+@media(max-width:767px){
+  .v2-price{right:12px;bottom:12px;padding:9px 15px}
+  .v2-price .v2-price-amount{font-size:1.45rem}
 }
 
 /* error banner host */
@@ -718,7 +735,7 @@ body.staff-mode{padding-bottom:64px}
       <section class="acc-panel" id="acc-panel-compose">
         <button class="acc-head" type="button" data-sec="compose" aria-expanded="false" aria-controls="acc-body-compose">
           <span class="acc-num">4</span><span class="acc-tick" aria-hidden="true">✓</span>
-          <span class="acc-titles"><span class="acc-title">Add/Delete Inlays</span><span class="acc-summary" id="acc-sum-compose"></span></span>
+          <span class="acc-titles"><span class="acc-title">Add/Remove Inlays</span><span class="acc-summary" id="acc-sum-compose"></span></span>
           <span class="acc-chev">▶</span>
         </button>
         <div class="acc-body-wrap"><div class="acc-body-inner"><div class="acc-body" id="acc-body-compose"><div id="controlsCol"></div></div></div></div>
@@ -751,8 +768,8 @@ body.staff-mode{padding-bottom:64px}
         <div class="acc-body-wrap"><div class="acc-body-inner"><div class="acc-body" id="acc-body-summary"></div></div></div>
       </section>
 
-      <!-- price: hidden for retail until Summary open; always for staff -->
-      <div class="v2-price" id="v2-price">—</div>
+      <!-- sticky running total: always visible to retail + staff -->
+      <div class="v2-price" id="v2-price"><span class="v2-price-label">Estimated Total</span><span class="v2-price-amount" id="v2-price-amount">—</span></div>
     </div>
   </div>
 </div>
@@ -4167,10 +4184,26 @@ document.addEventListener('DOMContentLoaded', init);
   function panelEl(id){ return document.getElementById('acc-panel-'+id); }
 
   // ---- Render one section's real controls via the verbatim engine builder ----
+  // Remove the engine's "You can also visit a local jeweler for a free ring size measurement." line.
+  // The engine re-renders the size panel on every size click, so a one-shot removal reappears —
+  // an observer on the static size host strips it on every render.
+  function stripJewelerLine(host){
+    if(!host) return;
+    host.querySelectorAll('p').forEach(function(p){
+      if(/local jeweler for a free ring size measurement/i.test(p.textContent||'')) p.remove();
+    });
+  }
+  function installJewelerLineObserver(){
+    var host=document.getElementById('acc-body-size'); if(!host) return;
+    if(host.__v2jeweler) return; host.__v2jeweler=true;
+    new MutationObserver(function(){ stripJewelerLine(host); }).observe(host,{childList:true,subtree:true});
+    stripJewelerLine(host);
+  }
+
   function rerenderSection(id){
     const host = bodyEl(id); if(!host) return;
     switch(id){
-      case 'size':    renderSizePanel(host);    break;
+      case 'size':    renderSizePanel(host); stripJewelerLine(host); break;
       case 'metal':   renderMetalPanel(host);   break;
       case 'width':   renderWidthPanel(host);   break;
       case 'compose': if(window.renderComposePanel) renderComposePanel(document.getElementById('controlsCol')); break;
@@ -4221,10 +4254,8 @@ document.addEventListener('DOMContentLoaded', init);
   // ---- Price (retail: only when summary open; staff: always) ----
   function updatePriceBar(){
     const bar=document.getElementById('v2-price'); if(!bar) return;
-    const isStaff = document.body.classList.contains('staff-mode');
-    const show = isStaff || state._openSection==='summary';
-    bar.style.display = show?'block':'none';
-    if(!show) return;
+    const amt=document.getElementById('v2-price-amount')||bar;
+    bar.style.display='flex';   // always visible to retail + staff
     let total=null;
     try{
       if(typeof DATA!=='undefined' && DATA && DATA.p && state.baseMetal){
@@ -4232,7 +4263,7 @@ document.addEventListener('DOMContentLoaded', init);
         if(r && typeof r.total==='number') total=r.total;
       }
     }catch(e){ total=null; }
-    bar.textContent = (total==null)?'—':('$'+total.toFixed(2));
+    amt.textContent = (total==null)?'—':('$'+total.toFixed(2));
   }
 
   // ---- Central hook fired after every engine selection (via updatePrice wrapper) ----
@@ -4247,15 +4278,13 @@ document.addEventListener('DOMContentLoaded', init);
   }
 
   function installUpdateHook(){
-    if(typeof window.updatePrice!=='function' || window.updatePrice.__v2wrapped) return;
-    var orig=window.updatePrice;
-    var wrapped=function(){
-      var r; try{ r=orig.apply(this,arguments); }catch(e){}
-      try{ onSelection(); }catch(e){}
-      return r;
-    };
-    wrapped.__v2wrapped=true;
-    window.updatePrice=wrapped;
+    // Engine's updatePrice is a bare function (not on window), so it can't be wrapped.
+    // It repaints #priceAmount on every price change — observe that and mirror the sticky bar.
+    var pa=document.getElementById('priceAmount');
+    if(pa && !pa.__v2observed){
+      pa.__v2observed=true;
+      new MutationObserver(function(){ try{ updatePriceBar(); }catch(e){} }).observe(pa,{childList:true,characterData:true,subtree:true});
+    }
   }
 
   // ---- Accordion open/collapse: one at a time; same header toggles closed ----
@@ -4283,8 +4312,14 @@ document.addEventListener('DOMContentLoaded', init);
   window.onBack=function(){ window.goToStep((state.step||0)-1); };
 
   function openSection(id){
+    // Sections 3-6 (Width, Inlays, Sleeve, Finish) require a base metal first
+    if(id && ['width','compose','sleeve','finish'].indexOf(id)>=0 && !state.baseMetal){
+      if(window.showRuleToast) try{ showRuleToast('Please choose a Base Metal first (Section 2) before making changes here.'); }catch(e){}
+      id='metal';   // send them to Base Metal instead
+    }
     state._openSection=id; syncStep(id);
     if(id){ state._touched=state._touched||{}; state._touched[id]=true; }
+    if(id==='compose'){ try{ reclaimTrailingBaseMetal(); }catch(e){} rerenderSection('compose'); }
     if(id==='summary'){ closeBand(); rerenderSection('summary'); if(window.renderRing){try{renderRing();}catch(e){}} }
     V2_STEPS.forEach(function(st){
       const p=panelEl(st.id); if(!p) return;
@@ -4325,6 +4360,22 @@ document.addEventListener('DOMContentLoaded', init);
   }
 
   function renderAll(){ V2_STEPS.forEach(function(st){ rerenderSection(st.id); }); }
+
+  // --- Remove discontinued materials from the catalog (engine-safe: mutate DATA, not _ED_BASE) ---
+  var _REMOVED_MATERIALS=['Perfect Meteorite','Seymchan Meteorite'];
+  function pruneMaterials(){
+    try{
+      if(typeof DATA==='undefined' || !DATA || !DATA.m) return;
+      // clone DATA.m so we don't mutate the shared _ED_BASE.m reference used by the engine
+      var m=Object.assign({},DATA.m);
+      _REMOVED_MATERIALS.forEach(function(name){ if(m[name]) delete m[name]; });
+      DATA.m=m;
+      // drop any strips/selections that referenced a removed material
+      if(state && Array.isArray(state.strips)){
+        state.strips=state.strips.filter(function(st){ return _REMOVED_MATERIALS.indexOf(st.material)<0; });
+      }
+    }catch(e){}
+  }
 
   // --- Close the band: push base-metal remainder + consolidate (replicates engine goToStep leave-compose) ---
   function closeBand(){
@@ -4397,18 +4448,54 @@ document.addEventListener('DOMContentLoaded', init);
     frame.appendChild(x);
   }
 
-  // Wrap the engine strip modals: clamp width + guarantee X after they render
-  ['openAddStripModal','openEditStripModal'].forEach(function(fn){
-    if(typeof window[fn]==='function' && !window[fn].__v2wrapped){
-      var orig=window[fn];
-      var wrapped=function(){
-        var r=orig.apply(this,arguments);
-        setTimeout(function(){ clampModalWidth(); ensureX(document.getElementById('addStripModal'),'#addStripModalInner'); }, 0);
-        return r;
-      };
-      wrapped.__v2wrapped=true; window[fn]=wrapped;
+  // Hide the engine's own inner × on the strip modal (router provides the outer .v2-modal-x)
+  function hideInnerModalX(){
+    var inner=document.getElementById('addStripModalInner'); if(!inner) return;
+    // the engine's × is a direct-child <button> (absolutely positioned, text = × glyph); hide it, router adds the outer X
+    inner.querySelectorAll(':scope > button').forEach(function(b){
+      if(b.classList.contains('btn')) return;
+      var txt=(b.textContent||'').trim();
+      var absPos=(b.style && b.style.position==='absolute');
+      if(absPos || txt==='\u00d7' || txt==='x' || txt==='X'){ b.style.display='none'; }
+    });
+  }
+  // Re-hide the engine's inner × whenever the modal re-renders (width change rebuilds it)
+  var _innerXObserver=null;
+  function watchInnerModalX(){
+    var inner=document.getElementById('addStripModalInner'); if(!inner) return;
+    if(_innerXObserver) return;
+    _innerXObserver=new MutationObserver(function(){ hideInnerModalX(); });
+    _innerXObserver.observe(inner,{childList:true,subtree:true});
+  }
+
+  // If the band was auto-closed with a trailing base-metal remainder, reclaim it so the
+  // engine sees the real free width when opening the Add-Inlay modal (fixes false "no room").
+  function reclaimTrailingBaseMetal(){
+    if(!state.strips || state.strips.length<2 || !state.baseMetal) return;
+    var used=state.strips.reduce(function(a,st){return a+st.width;},0);
+    var remaining=state.ringWidth-used;
+    if(remaining>=0.25) return;                 // band isn't full; nothing was auto-closed
+    var last=state.strips[state.strips.length-1];
+    if(last && last.material===state.baseMetal){ // pop the auto-close remainder back into free space
+      if(window.pushUndo) try{pushUndo();}catch(e){}
+      state.strips.pop();
     }
-  });
+  }
+
+  // The engine's openAddStripModal/openEditStripModal are bare functions (not on window),
+  // so they can't be wrapped. Instead watch the static #addStripModalInner: on every render
+  // hide the engine's duplicate inner ×, clamp width, and ensure the outer X exists.
+  function onStripModalRender(){
+    hideInnerModalX();
+    clampModalWidth();
+    ensureX(document.getElementById('addStripModal'),'#addStripModalInner');
+    hideInnerModalX();
+  }
+  function installStripModalObserver(){
+    var inner=document.getElementById('addStripModalInner'); if(!inner) return;
+    if(inner.__v2observed) return; inner.__v2observed=true;
+    new MutationObserver(function(){ onStripModalRender(); }).observe(inner,{childList:true,subtree:true});
+  }
   // Swatch lightbox already has its own outer .slb-close X — do not inject an inner X.
 
   // Section 3: remove the "Custom Inlays" Yes/No block (inlays are opt-in via Section 4)
@@ -4559,6 +4646,9 @@ document.addEventListener('DOMContentLoaded', init);
     });
     if(window.fetchSpotPrices){ try{ await fetchSpotPrices(); }catch(e){} }
     await v2LoadPricing();
+    pruneMaterials();
+    installStripModalObserver();
+    installJewelerLineObserver();
     installUpdateHook();
     installQuoteFontHook();
     renderAll();
