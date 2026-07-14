@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JBJ Pricing Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:20px;max-width:1400px;margin:0 auto}
+h1{color:#daa520;margin-bottom:6px;font-size:1.5rem}
+.subtitle{color:#999;margin-bottom:20px;font-size:.9rem}
+.section{background:#16213e;border:1px solid #333;border-radius:8px;padding:16px;margin-bottom:16px}
+.section h2{color:#daa520;font-size:1.1rem;margin-bottom:10px}
+label{display:block;color:#ccc;margin-bottom:4px;font-size:.85rem}
+input,select{width:100%;padding:8px;border:1px solid #444;border-radius:4px;background:#0f3460;color:#eee;margin-bottom:10px;font-size:.9rem}
+button{padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:.9rem;font-weight:600}
+.btn-primary{background:#daa520;color:#1a1a2e}
+.btn-primary:hover{background:#c9941a}
+.btn-danger{background:#c0392b;color:#fff;font-size:.8rem;padding:6px 14px}
+.btn-secondary{background:#444;color:#eee}
+.btn-save{background:#27ae60;color:#fff;font-size:.95rem;padding:10px 24px;animation:pulse 1.5s infinite}
+.btn-save:hover{background:#2ecc71}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(46,204,113,.5)}50%{box-shadow:0 0 0 6px rgba(46,204,113,0)}}
+#log{background:#0a0a1a;border:1px solid #333;border-radius:4px;padding:10px;min-height:120px;max-height:300px;overflow-y:auto;font-family:monospace;font-size:.8rem;white-space:pre-wrap;word-break:break-all}
+.log-ok{color:#2ecc71}.log-err{color:#e74c3c}.log-info{color:#3498db}
+.status{display:inline-block;padding:3px 10px;border-radius:4px;font-size:.8rem;font-weight:600}
+.status-ok{background:#27ae60;color:#fff}
+.status-err{background:#c0392b;color:#fff}
+.status-load{background:#f39c12;color:#1a1a2e}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.stat{background:#0f3460;border:1px solid #333;border-radius:6px;padding:10px;text-align:center}
+.stat .num{font-size:1.5rem;color:#daa520;font-weight:700}
+.stat .lbl{font-size:.75rem;color:#999}
+table{min-width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem;margin-top:8px}
+th,td{padding:5px 8px;border-right:1px solid #333;border-bottom:1px solid #333;text-align:left;white-space:nowrap}
+th{background:#0f3460;color:#daa520;position:sticky;top:0;z-index:2;border-top:1px solid #333}
+th:first-child{position:sticky;left:0;z-index:3;border-left:1px solid #333;max-width:180px;white-space:normal}
+td{background:#16213e}
+td:first-child{position:sticky;left:0;z-index:1;background:#1a2744;font-weight:600;border-left:1px solid #333;white-space:normal;max-width:180px}
+td.editable{cursor:pointer;transition:background .15s}
+td.editable:hover{background:#1e3a5f}
+td.changed{background:#1a3a1a !important;outline:1px solid #2ecc71}
+td.editing{padding:2px}
+td.editing input{width:100%;padding:3px 6px;border:1px solid #daa520;border-radius:3px;background:#0a1628;color:#fff;font-size:.82rem;margin:0}
+.search-box{margin-bottom:8px}
+.search-box input{margin-bottom:0}
+.changes-bar{display:none;background:#1a3a1a;border:1px solid #27ae60;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;gap:12px}
+.changes-bar.visible{display:flex}
+.changes-bar .count{color:#2ecc71;font-weight:700;font-size:1rem}
+.changes-bar .hint{color:#aaa;font-size:.82rem;flex:1}
+.source-bar{display:none;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:.85rem;align-items:center;gap:10px}
+.source-bar.visible{display:flex}
+.source-bar.src-kv{background:#0f2a4a;border:1px solid #3498db}
+.source-bar.src-kv #sourceLabel{color:#3498db;font-weight:700}
+.source-bar.src-local{background:#2a1a0f;border:1px solid #e67e22}
+.source-bar.src-local #sourceLabel{color:#e67e22;font-weight:700}
+#sourceDetail{color:#aaa;flex:1}
+.hint-muted{color:#666;font-weight:400}
+.btn-row{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+.file-hidden{display:none}
+.hidden{display:none}
+.filter-row{display:flex;gap:8px;margin-bottom:8px}
+.cat-select{width:200px}
+.search-flex{flex:1}
+.table-scroll{max-height:calc(100vh - 120px);overflow:auto}
+.cell-table{color:#3498db}
+.cell-empty{color:#555}
+.empty-hint{color:#999;padding:10px}
+</style>
+</head>
+<body>
+<h1>JBJ Pricing Manager</h1>
+<p class="subtitle">View and update ring designer prices stored in Cloudflare KV</p>
+
+<div class="section">
+<h2>Connection</h2>
+<label>Worker URL</label>
+<input id="workerUrl" value="https://jbj-spot-prices.johan-475.workers.dev/pricing" placeholder="https://your-worker.workers.dev/pricing">
+<label>API Key <span class="hint-muted">(only needed for Upload / Save)</span></label>
+<input id="apiKey" type="password" placeholder="Your PRICING_API_KEY">
+<div class="btn-row">
+<button class="btn-primary" onclick="fetchPricing()">Download from KV</button>
+<button class="btn-secondary" onclick="browseLocal()">Open Local File</button>
+<button class="btn-secondary" onclick="uploadPricing()">Upload New Prices</button>
+<button class="btn-secondary" onclick="downloadJson()">Export JSON File</button>
+<input type="file" id="fileInput" accept=".json" class="file-hidden" onchange="handleFile(event)">
+<input type="file" id="localFileInput" accept=".json" class="file-hidden" onchange="handleLocalFile(event)">
+</div>
+</div>
+
+<div class="source-bar" id="sourceBar">
+<span id="sourceLabel"></span>
+<span id="sourceDetail"></span>
+</div>
+
+<div class="changes-bar" id="changesBar">
+<span class="count" id="changeCount">0 changes</span>
+<span class="hint">Click a price cell to edit. Press Enter or Tab to confirm. Esc to cancel.</span>
+<button class="btn-danger" onclick="discardChanges()">Discard All</button>
+<button class="btn-save" onclick="saveChanges()">Save Changes to KV</button>
+</div>
+
+<div class="section hidden" id="statsSection">
+<h2>Current Pricing Data <span id="statusBadge" class="status"></span></h2>
+<div class="grid" id="statsGrid"></div>
+</div>
+
+<div class="section hidden" id="browseSection">
+<h2>Browse Prices</h2>
+<div class="filter-row">
+<select id="priceCategory" onchange="renderTable()" class="cat-select">
+<option value="base_prices">Base Prices</option>
+<option value="width_prices">Width-Based Prices</option>
+<option value="meteorite_prices">Meteorite Prices</option>
+<option value="mokume_prices">Mokume Prices</option>
+<option value="formula_constants">Formula Constants</option>
+<option value="misc_costs">Misc Costs</option>
+<option value="material_groups">Material Groups</option>
+</select>
+<div class="search-box search-flex"><input id="searchBox" placeholder="Search material name..." oninput="renderTable()"></div>
+</div>
+<div id="tableContainer" class="table-scroll"></div>
+</div>
+
+<div class="section">
+<h2>Log</h2>
+<div id="log"></div>
+</div>
+
+<script>
+let currentData = null;
+let originalData = null; // snapshot for change detection
+let changeCount = 0;
+let dataSource = null; // 'kv' or 'local'
+
+function setSource(type, detail) {
+  dataSource = type;
+  const bar = document.getElementById('sourceBar');
+  const label = document.getElementById('sourceLabel');
+  const det = document.getElementById('sourceDetail');
+  bar.className = 'source-bar visible src-' + type;
+  if (type === 'kv') {
+    label.textContent = '● Connected to KV';
+    det.textContent = detail || '';
+  } else {
+    label.textContent = '● Local File';
+    det.textContent = detail || '';
+  }
+}
+
+function log(msg, cls='log-info') {
+  const el = document.getElementById('log');
+  const t = new Date().toLocaleTimeString();
+  el.innerHTML += `<span class="${cls}">[${t}] ${msg}</span>\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateChangesBar() {
+  const bar = document.getElementById('changesBar');
+  const countEl = document.getElementById('changeCount');
+  if (changeCount > 0) {
+    bar.classList.add('visible');
+    countEl.textContent = changeCount + ' change' + (changeCount === 1 ? '' : 's');
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+function discardChanges() {
+  if (!originalData) return;
+  if (!confirm('Discard all unsaved changes and reload from the original download?')) return;
+  currentData = JSON.parse(JSON.stringify(originalData));
+  changeCount = 0;
+  updateChangesBar();
+  renderTable();
+  log('All changes discarded — reverted to downloaded data.', 'log-info');
+}
+
+async function saveChanges() {
+  const url = document.getElementById('workerUrl').value;
+  const key = document.getElementById('apiKey').value;
+  if (!key) { log('Enter your API Key first!', 'log-err'); alert('Enter your API Key to save changes to KV.'); return; }
+  const srcNote = dataSource === 'local' ? '\n\nSource: LOCAL FILE — this will overwrite live KV pricing.' : '';
+  if (!confirm('Upload ' + changeCount + ' change(s) to live pricing?\nThis will affect customer-facing prices within ~1 hour.' + srcNote)) return;
+
+  // Bump version
+  const oldVer = currentData._version || '21.0';
+  const parts = oldVer.split('.');
+  parts[parts.length - 1] = String(Number(parts[parts.length - 1]) + 1);
+  currentData._version = parts.join('.');
+  currentData._updated = new Date().toISOString().split('T')[0];
+
+  const body = JSON.stringify(currentData);
+  log('Saving ' + changeCount + ' change(s) to KV (' + (body.length/1024).toFixed(1) + ' KB)...');
+
+  try {
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+      body: body
+    });
+    const result = await r.json();
+    if (result.ok) {
+      log('Saved! Version ' + currentData._version + ', ' + result.materials + ' materials.', 'log-ok');
+      originalData = JSON.parse(JSON.stringify(currentData));
+      changeCount = 0;
+      updateChangesBar();
+      setSource('kv', 'Version ' + currentData._version + ' — Updated ' + currentData._updated);
+      showStats();
+      renderTable();
+    } else {
+      log('Save failed: ' + (result.error || JSON.stringify(result)), 'log-err');
+    }
+  } catch(e) { log('Save error: ' + e.message, 'log-err'); }
+}
+
+function downloadJson() {
+  if (!currentData) { log('No data loaded yet.', 'log-err'); return; }
+  const blob = new Blob([JSON.stringify(currentData, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'jbj-pricing.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  log('Exported jbj-pricing.json (' + (blob.size/1024).toFixed(1) + ' KB)', 'log-ok');
+}
+
+async function fetchPricing() {
+  const url = document.getElementById('workerUrl').value;
+  log('Fetching pricing from ' + url + '...');
+  try {
+    const r = await fetch(url);
+    if (!r.ok) { const e = await r.text(); throw new Error(e); }
+    currentData = await r.json();
+    if (currentData.error) { log('Error: ' + currentData.error, 'log-err'); return; }
+    originalData = JSON.parse(JSON.stringify(currentData));
+    changeCount = 0;
+    updateChangesBar();
+    const ver = currentData._version || '?';
+    const upd = currentData._updated || currentData._uploaded || '?';
+    setSource('kv', 'Version ' + ver + ' — Updated ' + upd);
+    log('Pricing loaded from KV! Version: ' + ver + ', Updated: ' + upd, 'log-ok');
+    showStats();
+    renderTable();
+  } catch(e) { log('Fetch failed: ' + e.message, 'log-err'); }
+}
+
+function browseLocal() {
+  document.getElementById('localFileInput').click();
+}
+
+function handleLocalFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  log('Reading local file: ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)...');
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      const parsed = JSON.parse(evt.target.result);
+      if (!parsed.base_prices && !parsed.material_groups) {
+        log('File does not look like a valid pricing JSON — missing base_prices or material_groups.', 'log-err');
+        return;
+      }
+      currentData = parsed;
+      originalData = JSON.parse(JSON.stringify(parsed));
+      changeCount = 0;
+      updateChangesBar();
+      const ver = currentData._version || '?';
+      const upd = currentData._updated || currentData._uploaded || '?';
+      setSource('local', file.name + ' — Version ' + ver + ' — Updated ' + upd);
+      log('Loaded from local file: ' + file.name + ' (Version ' + ver + ', ' + Object.keys(parsed.base_prices || {}).length + ' materials)', 'log-ok');
+      showStats();
+      renderTable();
+    } catch(err) {
+      log('Invalid JSON in ' + file.name + ': ' + err.message, 'log-err');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function uploadPricing() {
+  document.getElementById('fileInput').click();
+}
+
+async function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = document.getElementById('workerUrl').value;
+  const key = document.getElementById('apiKey').value;
+  if (!key) { log('Enter your API Key first!', 'log-err'); return; }
+
+  log('Reading ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)...');
+  const text = await file.text();
+  try { JSON.parse(text); } catch(e) { log('Invalid JSON: ' + e.message, 'log-err'); return; }
+
+  log('Uploading to ' + url + '...');
+  try {
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+      body: text
+    });
+    const result = await r.json();
+    if (result.ok) {
+      log('Upload successful! ' + result.materials + ' materials, ' + (result.size/1024).toFixed(1) + ' KB', 'log-ok');
+      await fetchPricing();
+    } else {
+      log('Upload failed: ' + (result.error || JSON.stringify(result)), 'log-err');
+    }
+  } catch(e) { log('Upload error: ' + e.message, 'log-err'); }
+  e.target.value = '';
+}
+
+function showStats() {
+  if (!currentData) return;
+  document.getElementById('statsSection').classList.remove('hidden');
+  document.getElementById('browseSection').classList.remove('hidden');
+  const badge = document.getElementById('statusBadge');
+  badge.textContent = 'v' + (currentData._version || '?');
+  badge.className = 'status status-ok';
+
+  const bp = currentData.base_prices ? Object.keys(currentData.base_prices).length : 0;
+  const wp = currentData.width_prices ? Object.keys(currentData.width_prices).length : 0;
+  const mp = currentData.meteorite_prices ? (Array.isArray(currentData.meteorite_prices) ? currentData.meteorite_prices.length : Object.keys(currentData.meteorite_prices).length) : 0;
+  const mk = currentData.mokume_prices ? (Array.isArray(currentData.mokume_prices) ? currentData.mokume_prices.length : 0) : 0;
+  const mg = currentData.material_groups ? Object.keys(currentData.material_groups).length : 0;
+
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat"><div class="num">${mg}</div><div class="lbl">Material Groups</div></div>
+    <div class="stat"><div class="num">${bp}</div><div class="lbl">Base Prices</div></div>
+    <div class="stat"><div class="num">${wp}</div><div class="lbl">Width Tables</div></div>
+    <div class="stat"><div class="num">${mp}</div><div class="lbl">Meteorite Entries</div></div>
+    <div class="stat"><div class="num">${mk}</div><div class="lbl">Mokume Entries</div></div>
+  `;
+}
+
+// ── INLINE EDIT HELPERS ─────────────────────────────────────
+function makeEditable(td, currentVal, onCommit) {
+  td.classList.add('editable');
+  td.addEventListener('click', function handler() {
+    if (td.classList.contains('editing')) return;
+    td.classList.add('editing');
+    const raw = (currentVal !== undefined && currentVal !== null) ? currentVal : '';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = raw;
+    td.textContent = '';
+    td.appendChild(inp);
+    inp.focus();
+    inp.select();
+
+    function commit() {
+      const newRaw = inp.value.trim();
+      td.classList.remove('editing');
+      let newVal;
+      if (newRaw === '' || newRaw === '—') {
+        newVal = undefined;
+      } else {
+        const n = Number(newRaw);
+        newVal = isNaN(n) ? newRaw : n;
+      }
+      const changed = onCommit(newVal);
+      if (changed) {
+        td.classList.add('changed');
+      }
+      renderTable();
+    }
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { td.classList.remove('editing'); renderTable(); }
+    });
+  });
+}
+
+function isChanged(origVal, newVal) {
+  if (origVal === undefined && newVal === undefined) return false;
+  if (origVal === undefined || newVal === undefined) return true;
+  return origVal !== newVal;
+}
+
+function cellChanged(cat, path) {
+  if (!originalData) return false;
+  let origVal = originalData;
+  let curVal = currentData;
+  const keys = Array.isArray(path) ? path : [path];
+  for (const k of [cat, ...keys]) {
+    origVal = origVal && origVal[k];
+    curVal = curVal && curVal[k];
+  }
+  return isChanged(origVal, curVal);
+}
+
+// ── RENDER ──────────────────────────────────────────────────
+function renderTable() {
+  if (!currentData) return;
+  const cat = document.getElementById('priceCategory').value;
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  const container = document.getElementById('tableContainer');
+
+  if (cat === 'base_prices') {
+    const data = currentData.base_prices || {};
+    let keys = Object.keys(data).filter(k => k.toLowerCase().includes(search));
+    const allCols = new Set();
+    keys.forEach(k => Object.keys(data[k]).forEach(c => allCols.add(c)));
+    const cols = [...allCols].sort();
+    let html = '<table><tr><th>Material</th>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+    keys.forEach(k => {
+      html += '<tr><td><b>' + k + '</b></td>';
+      cols.forEach(c => {
+        const v = data[k][c];
+        const ch = cellChanged('base_prices', [k, c]);
+        if (Array.isArray(v)) {
+          html += '<td class="cell-table">[table]</td>';
+        } else {
+          const display = v !== undefined ? '$' + (typeof v === 'number' ? v.toFixed(2) : v) : '<span class="cell-empty">—</span>';
+          html += '<td class="editable' + (ch ? ' changed' : '') + '" data-cat="base_prices" data-mat="' + k.replace(/"/g,'&quot;') + '" data-col="' + c + '">' + display + '</td>';
+        }
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    container.innerHTML = html;
+    // Attach edit handlers
+    container.querySelectorAll('td.editable[data-cat="base_prices"]').forEach(td => {
+      const mat = td.dataset.mat, col = td.dataset.col;
+      const cur = data[mat] ? data[mat][col] : undefined;
+      makeEditable(td, cur, (newVal) => {
+        if (!currentData.base_prices[mat]) currentData.base_prices[mat] = {};
+        const old = currentData.base_prices[mat][col];
+        if (newVal === undefined) { delete currentData.base_prices[mat][col]; }
+        else { currentData.base_prices[mat][col] = newVal; }
+        if (isChanged(old, newVal)) { changeCount++; updateChangesBar(); return true; }
+        return false;
+      });
+    });
+
+  } else if (cat === 'width_prices') {
+    const data = currentData.width_prices || {};
+    let keys = Object.keys(data).filter(k => k.toLowerCase().includes(search));
+    // Build full width grid per material
+    keys.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+    // Collect all widths
+    const allW = new Set();
+    keys.forEach(k => data[k].forEach(([w]) => allW.add(w)));
+    const widths = [...allW].sort((a,b) => a - b);
+    let html = '<table><tr><th>Material</th>' + widths.map(w => '<th>' + w + 'mm</th>').join('') + '</tr>';
+    keys.forEach(k => {
+      const byW = {};
+      data[k].forEach(([w,p]) => { byW[w] = p; });
+      html += '<tr><td><b>' + k + '</b></td>';
+      widths.forEach(w => {
+        const v = byW[w];
+        const origArr = originalData && originalData.width_prices && originalData.width_prices[k];
+        const origByW = {};
+        if (origArr) origArr.forEach(([ow,op]) => { origByW[ow] = op; });
+        const ch = isChanged(origByW[w], v);
+        const display = v !== undefined ? '$' + (typeof v === 'number' ? v.toFixed(2) : v) : '<span class="cell-empty">—</span>';
+        html += '<td class="editable' + (ch ? ' changed' : '') + '" data-cat="width_prices" data-mat="' + k.replace(/"/g,'&quot;') + '" data-w="' + w + '">' + display + '</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    container.innerHTML = html;
+    container.querySelectorAll('td.editable[data-cat="width_prices"]').forEach(td => {
+      const mat = td.dataset.mat, w = Number(td.dataset.w);
+      const arr = data[mat] || [];
+      const existing = arr.find(([ew]) => ew === w);
+      makeEditable(td, existing ? existing[1] : undefined, (newVal) => {
+        let a = currentData.width_prices[mat] || [];
+        a = a.filter(([ew]) => ew !== w);
+        if (newVal !== undefined) a.push([w, newVal]);
+        a.sort((x,y) => x[0] - y[0]);
+        currentData.width_prices[mat] = a;
+        changeCount++; updateChangesBar(); return true;
+      });
+    });
+
+  } else if (cat === 'meteorite_prices') {
+    const arr = currentData.meteorite_prices || [];
+    const grouped = {};
+    arr.forEach((r,i) => {
+      if (!grouped[r.m]) grouped[r.m] = [];
+      grouped[r.m].push({...r, _idx: i});
+    });
+    let matNames = Object.keys(grouped).filter(k => k.toLowerCase().includes(search));
+    matNames.sort();
+    const allWidths = new Set();
+    matNames.forEach(m => grouped[m].forEach(r => allWidths.add(r.w)));
+    const widths = [...allWidths].sort((a,b) => a - b);
+    let html = '<table><tr><th>Material</th>' + widths.map(w => '<th>' + w + 'mm</th>').join('') + '</tr>';
+    matNames.forEach(m => {
+      const byW = {};
+      grouped[m].forEach(r => { byW[r.w] = r; });
+      html += '<tr><td><b>' + m + '</b></td>';
+      widths.forEach(w => {
+        const r = byW[w];
+        const v = r ? (r.mm || r.pt || 0) : undefined;
+        const origArr = originalData ? originalData.meteorite_prices || [] : [];
+        const origR = origArr.find(o => o.m === m && o.w === w);
+        const origV = origR ? (origR.mm || origR.pt || 0) : undefined;
+        const ch = isChanged(origV, v);
+        const display = v !== undefined ? '$' + v.toFixed(2) : '<span class="cell-empty">—</span>';
+        html += '<td class="editable' + (ch ? ' changed' : '') + '" data-cat="meteorite_prices" data-mat="' + m.replace(/"/g,'&quot;') + '" data-w="' + w + '">' + display + '</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    container.innerHTML = html;
+    container.querySelectorAll('td.editable[data-cat="meteorite_prices"]').forEach(td => {
+      const mat = td.dataset.mat, w = Number(td.dataset.w);
+      const arr = currentData.meteorite_prices;
+      const idx = arr.findIndex(r => r.m === mat && r.w === w);
+      const cur = idx >= 0 ? (arr[idx].mm || arr[idx].pt || 0) : undefined;
+      makeEditable(td, cur, (newVal) => {
+        if (idx >= 0) {
+          if (newVal === undefined) arr.splice(idx, 1);
+          else arr[idx].mm = newVal;
+        } else if (newVal !== undefined) {
+          arr.push({m: mat, w: w, mm: newVal});
+          arr.sort((a,b) => a.m.localeCompare(b.m) || a.w - b.w);
+        }
+        changeCount++; updateChangesBar(); return true;
+      });
+    });
+
+  } else if (cat === 'mokume_prices') {
+    const arr = currentData.mokume_prices || [];
+    let html = '<table><tr><th>Width (mm)</th><th>Price</th></tr>';
+    arr.forEach(([w, p], i) => {
+      const show = !search || String(w).includes(search) || String(p).includes(search);
+      if (!show) return;
+      const origArr = originalData ? originalData.mokume_prices || [] : [];
+      const origEntry = origArr.find(([ow]) => ow === w);
+      const ch = isChanged(origEntry ? origEntry[1] : undefined, p);
+      html += `<tr><td>${w}mm</td><td class="editable${ch ? ' changed' : ''}" data-cat="mokume_prices" data-idx="${i}">$${typeof p === 'number' ? p.toFixed(2) : p}</td></tr>`;
+    });
+    html += '</table>';
+    container.innerHTML = html;
+    container.querySelectorAll('td.editable[data-cat="mokume_prices"]').forEach(td => {
+      const idx = Number(td.dataset.idx);
+      makeEditable(td, currentData.mokume_prices[idx][1], (newVal) => {
+        if (newVal !== undefined) {
+          currentData.mokume_prices[idx][1] = newVal;
+          changeCount++; updateChangesBar(); return true;
+        }
+        return false;
+      });
+    });
+
+  } else if (cat === 'misc_costs') {
+    const mc = currentData.misc_costs || {};
+    let html = '<table><tr><th>Cost Type</th><th>Amount</th></tr>';
+    Object.entries(mc).forEach(([k,v]) => {
+      const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const ch = cellChanged('misc_costs', [k]);
+      html += `<tr><td>${label}</td><td class="editable${ch ? ' changed' : ''}" data-cat="misc_costs" data-key="${k}">$${v}</td></tr>`;
+    });
+    html += '</table>';
+    container.innerHTML = html;
+    container.querySelectorAll('td.editable[data-cat="misc_costs"]').forEach(td => {
+      const key = td.dataset.key;
+      makeEditable(td, currentData.misc_costs[key], (newVal) => {
+        if (newVal !== undefined) {
+          currentData.misc_costs[key] = newVal;
+          changeCount++; updateChangesBar(); return true;
+        }
+        return false;
+      });
+    });
+
+  } else if (cat === 'formula_constants') {
+    const f = currentData.formula_constants || {};
+    let rows = [];
+    function flatten(obj, prefix) {
+      Object.entries(obj).forEach(([k,v]) => {
+        const path = prefix ? prefix + '.' + k : k;
+        if (typeof v === 'object' && !Array.isArray(v)) flatten(v, path);
+        else rows.push({path, val: v});
+      });
+    }
+    flatten(f, '');
+    let html = '<table><tr><th>Constant</th><th>Value</th></tr>';
+    rows.forEach(r => {
+      const origF = originalData ? originalData.formula_constants || {} : {};
+      let origVal = origF;
+      for (const k of r.path.split('.')) { origVal = origVal && origVal[k]; }
+      const ch = isChanged(origVal, r.val);
+      html += `<tr><td>${r.path}</td><td class="editable${ch ? ' changed' : ''}" data-cat="formula_constants" data-path="${r.path}">${JSON.stringify(r.val)}</td></tr>`;
+    });
+    html += '</table>';
+    container.innerHTML = html;
+    container.querySelectorAll('td.editable[data-cat="formula_constants"]').forEach(td => {
+      const path = td.dataset.path;
+      let cur = currentData.formula_constants;
+      for (const k of path.split('.')) { cur = cur && cur[k]; }
+      makeEditable(td, cur, (newVal) => {
+        if (newVal === undefined) return false;
+        const keys = path.split('.');
+        let obj = currentData.formula_constants;
+        for (let i = 0; i < keys.length - 1; i++) { obj = obj[keys[i]]; }
+        obj[keys[keys.length - 1]] = newVal;
+        changeCount++; updateChangesBar(); return true;
+      });
+    });
+
+  } else if (cat === 'material_groups') {
+    const mg = currentData.material_groups || {};
+    const byGroup = {};
+    Object.entries(mg).forEach(([mat, grp]) => {
+      if (!byGroup[grp]) byGroup[grp] = [];
+      byGroup[grp].push(mat);
+    });
+    const groups = Object.keys(byGroup).sort();
+    let html = '<table><tr><th>Group</th><th>Material</th></tr>';
+    groups.forEach(g => {
+      const mats = byGroup[g].filter(m => m.toLowerCase().includes(search)).sort();
+      mats.forEach((m, i) => {
+        html += '<tr><td>' + (i === 0 ? '<b>' + g + '</b> (' + mats.length + ')' : '') + '</td><td>' + m + '</td></tr>';
+      });
+    });
+    html += '</table>';
+    container.innerHTML = html;
+  } else {
+    container.innerHTML = '<p class="empty-hint">Select a category above to browse.</p>';
+  }
+}
+</script>
+</body>
+</html>
