@@ -4184,12 +4184,20 @@ document.addEventListener('DOMContentLoaded', init);
   function panelEl(id){ return document.getElementById('acc-panel-'+id); }
 
   // ---- Render one section's real controls via the verbatim engine builder ----
-  // Remove the engine's "You can also visit a local jeweler for a free ring size measurement." line
+  // Remove the engine's "You can also visit a local jeweler for a free ring size measurement." line.
+  // The engine re-renders the size panel on every size click, so a one-shot removal reappears —
+  // an observer on the static size host strips it on every render.
   function stripJewelerLine(host){
     if(!host) return;
     host.querySelectorAll('p').forEach(function(p){
       if(/local jeweler for a free ring size measurement/i.test(p.textContent||'')) p.remove();
     });
+  }
+  function installJewelerLineObserver(){
+    var host=document.getElementById('acc-body-size'); if(!host) return;
+    if(host.__v2jeweler) return; host.__v2jeweler=true;
+    new MutationObserver(function(){ stripJewelerLine(host); }).observe(host,{childList:true,subtree:true});
+    stripJewelerLine(host);
   }
 
   function rerenderSection(id){
@@ -4270,15 +4278,13 @@ document.addEventListener('DOMContentLoaded', init);
   }
 
   function installUpdateHook(){
-    if(typeof window.updatePrice!=='function' || window.updatePrice.__v2wrapped) return;
-    var orig=window.updatePrice;
-    var wrapped=function(){
-      var r; try{ r=orig.apply(this,arguments); }catch(e){}
-      try{ onSelection(); }catch(e){}
-      return r;
-    };
-    wrapped.__v2wrapped=true;
-    window.updatePrice=wrapped;
+    // Engine's updatePrice is a bare function (not on window), so it can't be wrapped.
+    // It repaints #priceAmount on every price change — observe that and mirror the sticky bar.
+    var pa=document.getElementById('priceAmount');
+    if(pa && !pa.__v2observed){
+      pa.__v2observed=true;
+      new MutationObserver(function(){ try{ updatePriceBar(); }catch(e){} }).observe(pa,{childList:true,characterData:true,subtree:true});
+    }
   }
 
   // ---- Accordion open/collapse: one at a time; same header toggles closed ----
@@ -4313,6 +4319,7 @@ document.addEventListener('DOMContentLoaded', init);
     }
     state._openSection=id; syncStep(id);
     if(id){ state._touched=state._touched||{}; state._touched[id]=true; }
+    if(id==='compose'){ try{ reclaimTrailingBaseMetal(); }catch(e){} rerenderSection('compose'); }
     if(id==='summary'){ closeBand(); rerenderSection('summary'); if(window.renderRing){try{renderRing();}catch(e){}} }
     V2_STEPS.forEach(function(st){
       const p=panelEl(st.id); if(!p) return;
@@ -4475,19 +4482,20 @@ document.addEventListener('DOMContentLoaded', init);
     }
   }
 
-  // Wrap the engine strip modals: clamp width + guarantee X after they render
-  ['openAddStripModal','openEditStripModal'].forEach(function(fn){
-    if(typeof window[fn]==='function' && !window[fn].__v2wrapped){
-      var orig=window[fn];
-      var wrapped=function(){
-        if(fn==='openAddStripModal'){ try{ reclaimTrailingBaseMetal(); }catch(e){} }
-        var r=orig.apply(this,arguments);
-        setTimeout(function(){ watchInnerModalX(); hideInnerModalX(); clampModalWidth(); ensureX(document.getElementById('addStripModal'),'#addStripModalInner'); hideInnerModalX(); }, 0);
-        return r;
-      };
-      wrapped.__v2wrapped=true; window[fn]=wrapped;
-    }
-  });
+  // The engine's openAddStripModal/openEditStripModal are bare functions (not on window),
+  // so they can't be wrapped. Instead watch the static #addStripModalInner: on every render
+  // hide the engine's duplicate inner ×, clamp width, and ensure the outer X exists.
+  function onStripModalRender(){
+    hideInnerModalX();
+    clampModalWidth();
+    ensureX(document.getElementById('addStripModal'),'#addStripModalInner');
+    hideInnerModalX();
+  }
+  function installStripModalObserver(){
+    var inner=document.getElementById('addStripModalInner'); if(!inner) return;
+    if(inner.__v2observed) return; inner.__v2observed=true;
+    new MutationObserver(function(){ onStripModalRender(); }).observe(inner,{childList:true,subtree:true});
+  }
   // Swatch lightbox already has its own outer .slb-close X — do not inject an inner X.
 
   // Section 3: remove the "Custom Inlays" Yes/No block (inlays are opt-in via Section 4)
@@ -4639,6 +4647,8 @@ document.addEventListener('DOMContentLoaded', init);
     if(window.fetchSpotPrices){ try{ await fetchSpotPrices(); }catch(e){} }
     await v2LoadPricing();
     pruneMaterials();
+    installStripModalObserver();
+    installJewelerLineObserver();
     installUpdateHook();
     installQuoteFontHook();
     renderAll();
