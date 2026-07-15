@@ -1071,25 +1071,25 @@ function calcPrice(){
     breakdown.push({label:`${bm} (Base Metal)`, price:pCost});
     total+=misc('precious_base_metal');
     breakdown.push({label:`Precious Base Metal Misc`, price:misc('precious_base_metal')});
-  } else if(DATA.p[bm] && DATA.p[bm].per_mm_base){
-    // Per-mm pricing (e.g. Metal Mokume)
-    const cost=DATA.p[bm].per_mm_base*state.ringWidth;
-    total+=cost;
-    breakdown.push({label:`${bm} (Base Metal, ${state.ringWidth}mm)`, price:cost});
-    total+=misc('non_precious_base_metal');
-    breakdown.push({label:`Base Metal Misc`, price:misc('non_precious_base_metal')});
   } else {
     const pData=DATA.p[bm];
     if(pData){
-      let cost=0;
-      if(hasNonMetalInlays && pData.sleeve_with_inlay) cost=pData.sleeve_with_inlay;
-      else if(pData.sleeve) cost=pData.sleeve;
-      else if(pData.full_ring) cost=pData.full_ring;
-      else if(pData.fixed_price) cost=pData.fixed_price;
-      total+=cost;
-      breakdown.push({label:`${bm} (Base Metal)`, price:cost});
-      total+=misc('non_precious_base_metal');
-      breakdown.push({label:`Base Metal Misc`, price:misc('non_precious_base_metal')});
+      // PIRO base-material path: fixed component first, then a static full-ring
+      // component, then a width-driven base. Sleeve prices belong to Step 5 only.
+      let cost=null;
+      let baseLabel=`${bm} (Base Metal)`;
+      if(pData.fixed_price!=null) cost=pData.fixed_price;
+      else if(pData.full_ring!=null) cost=pData.full_ring;
+      else if(pData.per_mm_base!=null){
+        cost=pData.per_mm_base*state.ringWidth;
+        baseLabel=`${bm} (Base Metal, ${state.ringWidth}mm)`;
+      }
+      if(cost!=null){
+        total+=cost;
+        breakdown.push({label:baseLabel, price:cost});
+        total+=misc('non_precious_base_metal');
+        breakdown.push({label:`Base Metal Misc`, price:misc('non_precious_base_metal')});
+      }
     }
   }
   
@@ -1210,18 +1210,15 @@ function staffBaseMetalPrice(name,widthMm){
   const w=widthMm||state.ringWidth||8;
   try{
     const hasInlays=state.strips.some(st=>!isMetal(st.material));
-    const hasNonMetalInlays=state.strips.some(st=>!isMetal(st.material)&&!isMetalGroup(st.material));
     if(isPrecious(name)){
       if(!state.ringSize)return null;
       return calcPreciousMetalCost(name,w,state.ringSize,hasInlays);
     }
     const pd=DATA.p[name];
     if(!pd)return null;
-    if(pd.per_mm_base)return pd.per_mm_base*w;
-    if(hasNonMetalInlays&&pd.sleeve_with_inlay)return pd.sleeve_with_inlay;
-    if(pd.sleeve)return pd.sleeve;
-    if(pd.full_ring)return pd.full_ring;
-    if(pd.fixed_price)return pd.fixed_price;
+    if(pd.fixed_price!=null)return pd.fixed_price;
+    if(pd.full_ring!=null)return pd.full_ring;
+    if(pd.per_mm_base!=null)return pd.per_mm_base*w;
     return null;
   }catch(e){return null;}
 }
