@@ -133,6 +133,59 @@ let originalData = null; // snapshot for change detection
 let changeCount = 0;
 let dataSource = null; // 'kv' or 'local'
 
+const REQUIRED_MISC_COST_KEYS = ['precious_base_metal', 'non_precious_base_metal', 'precious_inlay', 'non_precious_inlay', 'precious_sleeve', 'non_precious_sleeve'];
+const REQUIRED_FORMULA_NUMBER_PATHS = [
+  'ring_thickness_mm', 'inlay_depth_mm', 'pinstripe_depth_mm', 'scrap_multiplier',
+  'troy_oz_to_grams', 'sleeve_thickness_mm', 'precious_markup',
+  'millimeters_per_centimeter', 'cubic_millimeters_per_cubic_centimeter',
+  'currency_minor_unit_multiplier', 'base_ring_diameter.ring_size_multiplier_mm',
+  'base_ring_diameter.intercept_mm', 'pinstripe_outer_diameter.base_mm',
+  'pinstripe_outer_diameter.ring_size_multiplier_mm', 'pinstripe_outer_diameter.reference_ring_size',
+  'karat_factors.10K', 'karat_factors.14K', 'karat_factors.18K', 'karat_factors.Platinum',
+  'karat_factors.Silver', 'densities_g_per_cm3.Gold_all_karats',
+  'densities_g_per_cm3.Platinum', 'densities_g_per_cm3.Silver',
+  'fixed_costs.desprue', 'fixed_costs.pinstripe_bench_labor'
+];
+
+function pricingValue(source, path) {
+  return path.split('.').reduce((value, key) => value == null ? undefined : value[key], source);
+}
+
+function pricingValidationErrors(data) {
+  const errors = [];
+  if (!data || !data.base_prices || !data.material_groups) errors.push('base_prices and material_groups are required');
+  const formula = data && data.formula_constants;
+  if (!formula || typeof formula !== 'object') {
+    errors.push('formula_constants is required');
+  } else {
+    REQUIRED_FORMULA_NUMBER_PATHS.forEach(path => {
+      const value = pricingValue(formula, path);
+      if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('formula_constants.' + path + ' must be a finite number');
+    });
+    const productionMode = pricingValue(formula, 'precious_production_mode');
+    if (typeof productionMode !== 'string' || !productionMode) {
+      errors.push('formula_constants.precious_production_mode must be a non-empty string');
+    } else {
+      ['fixed_costs.printing_', 'fixed_costs.cast_labor_'].forEach(prefix => {
+        const path = prefix + productionMode;
+        const value = pricingValue(formula, path);
+        if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('formula_constants.' + path + ' must be a finite number');
+      });
+    }
+  }
+  REQUIRED_MISC_COST_KEYS.forEach(key => {
+    const value = data && data.misc_costs && data.misc_costs[key];
+    if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('misc_costs.' + key + ' must be a finite number');
+  });
+  return errors;
+}
+
+function reportPricingValidation(data, context) {
+  const errors = pricingValidationErrors(data);
+  if (errors.length) log(context + ' is incomplete: ' + errors.join('; '), 'log-err');
+  return errors;
+}
+
 function setSource(type, detail) {
   dataSource = type;
   const bar = document.getElementById('sourceBar');
@@ -180,6 +233,8 @@ async function saveChanges() {
   const url = document.getElementById('workerUrl').value;
   const key = document.getElementById('apiKey').value;
   if (!key) { log('Enter your API Key first!', 'log-err'); alert('Enter your API Key to save changes to KV.'); return; }
+  const validationErrors = reportPricingValidation(currentData, 'Pricing data');
+  if (validationErrors.length) { alert('Pricing data is incomplete. Correct the Formula Constants or Misc Costs entries before uploading.'); return; }
   const srcNote = dataSource === 'local' ? '\n\nSource: LOCAL FILE — this will overwrite live KV pricing.' : '';
   if (!confirm('Upload ' + changeCount + ' change(s) to live pricing?\nThis will affect customer-facing prices within ~1 hour.' + srcNote)) return;
 
@@ -240,6 +295,7 @@ async function fetchPricing() {
     const upd = currentData._updated || currentData._uploaded || '?';
     setSource('kv', 'Version ' + ver + ' — Updated ' + upd);
     log('Pricing loaded from KV! Version: ' + ver + ', Updated: ' + upd, 'log-ok');
+    reportPricingValidation(currentData, 'Live KV pricing');
     showStats();
     renderTable();
   } catch(e) { log('Fetch failed: ' + e.message, 'log-err'); }
@@ -269,6 +325,7 @@ function handleLocalFile(e) {
       const upd = currentData._updated || currentData._uploaded || '?';
       setSource('local', file.name + ' — Version ' + ver + ' — Updated ' + upd);
       log('Loaded from local file: ' + file.name + ' (Version ' + ver + ', ' + Object.keys(parsed.base_prices || {}).length + ' materials)', 'log-ok');
+      reportPricingValidation(currentData, 'Local pricing file');
       showStats();
       renderTable();
     } catch(err) {
@@ -292,7 +349,10 @@ async function handleFile(e) {
 
   log('Reading ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)...');
   const text = await file.text();
-  try { JSON.parse(text); } catch(e) { log('Invalid JSON: ' + e.message, 'log-err'); return; }
+  let parsed;
+  try { parsed = JSON.parse(text); } catch(e) { log('Invalid JSON: ' + e.message, 'log-err'); return; }
+  const validationErrors = reportPricingValidation(parsed, 'Pricing file');
+  if (validationErrors.length) { alert('Pricing file is incomplete. Correct the Formula Constants or Misc Costs entries before uploading.'); return; }
 
   log('Uploading to ' + url + '...');
   try {
@@ -333,6 +393,29 @@ function showStats() {
     <div class="stat"><div class="num">${mp}</div><div class="lbl">Meteorite Entries</div></div>
     <div class="stat"><div class="num">${mk}</div><div class="lbl">Mokume Entries</div></div>
   `;
+}
+
+function addFormulaConstant() {
+  if (!currentData) { log('Load pricing data first.', 'log-err'); return; }
+  const path = prompt('Formula constant path (for example, base_ring_diameter.ring_size_multiplier_mm):');
+  if (!path) return;
+  if (!/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$/.test(path)) { alert('Use letters, numbers, underscores, and dots only.'); return; }
+  const rawValue = prompt('Value as JSON (for example, 0.8128 or "solid"):');
+  if (rawValue === null) return;
+  let value;
+  try { value = JSON.parse(rawValue); } catch (e) { alert('Enter a valid JSON value.'); return; }
+  if (!currentData.formula_constants || typeof currentData.formula_constants !== 'object') currentData.formula_constants = {};
+  const keys = path.split('.');
+  let target = currentData.formula_constants;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!target[keys[i]] || typeof target[keys[i]] !== 'object' || Array.isArray(target[keys[i]])) target[keys[i]] = {};
+    target = target[keys[i]];
+  }
+  target[keys[keys.length - 1]] = value;
+  changeCount++; updateChangesBar();
+  document.getElementById('priceCategory').value = 'formula_constants';
+  renderTable();
+  log('Added formula_constants.' + path + '. Save Changes to KV to publish it.', 'log-ok');
 }
 
 // ── INLINE EDIT HELPERS ─────────────────────────────────────
@@ -581,7 +664,7 @@ function renderTable() {
       });
     }
     flatten(f, '');
-    let html = '<table><tr><th>Constant</th><th>Value</th></tr>';
+    let html = '<div class="filter-row"><button class="btn-secondary" onclick="addFormulaConstant()">Add Formula Constant</button><span class="hint">All formula amounts and parameters must be maintained here and uploaded to KV.</span></div><table><tr><th>Constant</th><th>Value</th></tr>';
     rows.forEach(r => {
       const origF = originalData ? originalData.formula_constants || {} : {};
       let origVal = origF;
