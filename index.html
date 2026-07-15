@@ -868,6 +868,95 @@ const state = {
 };
 
 const QUOTE_WORKER_URL = 'https://jbj-ring-quote.johan-475.workers.dev/';
+/* Paste immediately after the existing `const QUOTE_WORKER_URL = ...` line in index.html.
+ * Replace the endpoint with the deployed audit Worker URL.  This module records a snapshot
+ * after every configuration interaction and flushes it on page hide / crash-prone exits.
+ */
+/* Paste immediately after the existing `const QUOTE_WORKER_URL = ...` line in index.html.
+ * Replace the endpoint with the deployed audit Worker URL.  This module records a snapshot
+ * after every configuration interaction and flushes it on page hide / crash-prone exits.
+ */
+const RING_AUDIT_URL = 'https://jbj-ring-designer-audit.johan-475.workers.dev/v1/events';
+const RING_AUDIT_CONSENT_KEY = 'jbj-ring-audit-consent-v1';
+const RING_AUDIT_VISITOR_KEY = 'jbj-ring-audit-visitor-v1';
+
+const ringAudit = (() => {
+  const sessionId = crypto.randomUUID().replaceAll('-', '');
+  let visitorId = localStorage.getItem(RING_AUDIT_VISITOR_KEY);
+  let consent = localStorage.getItem(RING_AUDIT_CONSENT_KEY) === 'granted';
+  let sequence = 0, queue = [], timer = null, lastState = '';
+  const id = () => crypto.randomUUID().replaceAll('-', '');
+  const snapshot = () => ({
+    step: state.step, baseMetal: state.baseMetal, ringWidth: state.ringWidth, profile: state.profile,
+    wantsInlays: state.wantsInlays, strips: state.strips.map(s => ({ ...s })), sleeve: state.sleeve,
+    finish: state.finish, ringSize: state.ringSize, engraving: state.engraving, email: state.email,
+    notes: state.notes, pricingVersion: state.pricing?._version || null, total: calcPrice()?.total || null
+  });
+  const meta = () => ({
+    userAgent: navigator.userAgent, language: navigator.language, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    screen: `${screen.width}x${screen.height}`, viewport: `${innerWidth}x${innerHeight}`, referrer: document.referrer || null,
+    path: location.pathname, staffMode: _staffMode
+  });
+  function ensureIdentity() {
+    if (!consent) return false;
+    if (!visitorId) { visitorId = id(); localStorage.setItem(RING_AUDIT_VISITOR_KEY, visitorId); }
+    return true;
+  }
+  function record(type, name, payload = {}) {
+    if (!ensureIdentity()) return;
+    const current = snapshot();
+    const serialized = JSON.stringify(current);
+    // Avoid duplicate state records caused by bubbling browser events, while preserving named actions.
+    if (type === 'state' && serialized === lastState) return;
+    lastState = serialized;
+    queue.push({ id: id(), sequence: ++sequence, occurredAt: new Date().toISOString(), type, name,
+      stepId: STEPS[state.step]?.id || null, email: state.email || null, state: current, payload });
+    if (queue.length >= 10) flush(); else { clearTimeout(timer); timer = setTimeout(flush, 1200); }
+  }
+  function flush(useBeacon = false) {
+    clearTimeout(timer);
+    if (!queue.length || !ensureIdentity()) return;
+    const events = queue.splice(0);
+    const data = JSON.stringify({ consent: true, visitorId, sessionId, clientMeta: meta(), events });
+    if (useBeacon && navigator.sendBeacon) {
+      navigator.sendBeacon(RING_AUDIT_URL, new Blob([data], { type: 'text/plain;charset=UTF-8' }));
+      return;
+    }
+    fetch(RING_AUDIT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: data, keepalive: true }).catch(() => {
+      queue.unshift(...events); // preserve for a later retry while this page remains open
+    });
+  }
+  function grantConsent() { consent = true; localStorage.setItem(RING_AUDIT_CONSENT_KEY, 'granted'); record('lifecycle', 'consent_granted'); }
+  function revokeConsent() { record('lifecycle', 'consent_revoked'); flush(true); consent = false; localStorage.removeItem(RING_AUDIT_CONSENT_KEY); }
+  function installConsentNotice() {
+    if (consent || document.getElementById('ringAuditNotice')) return;
+    const notice = document.createElement('section');
+    notice.id = 'ringAuditNotice';
+    notice.setAttribute('role', 'dialog');
+    notice.setAttribute('aria-label', 'Ring Designer activity notice');
+    notice.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:20000;max-width:720px;margin:auto;padding:16px 18px;background:#fff;color:#222;border:1px solid #b9954b;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);font:14px/1.45 Arial,sans-serif';
+    notice.innerHTML = '<strong>Save your ring design progress?</strong><p style="margin:6px 0 12px">With your permission, we record your design selections and activity to save progress, support quotes, and improve the Ring Designer. Your email is linked only after you enter it. See our Privacy Policy for retention and deletion information.</p><button type="button" data-audit-accept style="margin-right:8px;padding:8px 12px">Allow and continue</button><button type="button" data-audit-decline style="padding:8px 12px">Continue without saving activity</button>';
+    notice.querySelector('[data-audit-accept]').onclick = () => { grantConsent(); notice.remove(); };
+    notice.querySelector('[data-audit-decline]').onclick = () => notice.remove();
+    document.body.appendChild(notice);
+  }
+  document.addEventListener('click', e => {
+    const target = e.target.closest('button,a,input,select,textarea,[role="button"]');
+    if (target) record('action', 'click', { tag: target.tagName, id: target.id || null, label: (target.innerText || target.getAttribute('aria-label') || '').trim().slice(0, 200) });
+  });
+  document.addEventListener('change', e => record('state', 'field_change', { id: e.target.id || null, name: e.target.name || null, type: e.target.type || e.target.tagName }));
+  document.addEventListener('input', e => { if (e.target.matches('input,textarea,select')) record('state', 'field_input', { id: e.target.id || null, name: e.target.name || null }); });
+  window.addEventListener('error', e => { record('exit', 'javascript_error', { message: e.message, source: e.filename, line: e.lineno }); flush(true); });
+  window.addEventListener('unhandledrejection', e => { record('exit', 'unhandled_rejection', { reason: String(e.reason).slice(0, 1000) }); flush(true); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { record('exit', 'page_hidden'); flush(true); } });
+  window.addEventListener('pagehide', () => { record('exit', 'pagehide'); flush(true); });
+  document.addEventListener('DOMContentLoaded', () => {
+    if (consent) record('lifecycle', 'session_started');
+    else installConsentNotice();
+  });
+  return { record, flush, grantConsent, revokeConsent, installConsentNotice, get visitorId() { return visitorId; } };
+})();
+
 // Unicode-safe base64 helpers (btoa/atob crash on non-Latin-1 chars like accented names or emoji)
 function utoa(str){return btoa(unescape(encodeURIComponent(str)));}
 function atou(b64){return decodeURIComponent(escape(atob(b64)));}
