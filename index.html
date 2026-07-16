@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Custom Band &amp; Inlay Designer — Jewelry by Johan</title>
 <meta name="description" content="Free online custom ring builder from Jewelry by Johan. Design and build your own wedding band with inlays like meteorite, dinosaur bone, wood, antler, mokume, and more â choose your metal, width, profile, and finish, then get an instant price and quote.">
 <meta name="keywords" content="custom ring builder, design your own wedding band, meteorite ring, dinosaur bone ring, wood inlay ring, antler ring, mokume gane ring, custom wedding ring designer, inlay ring builder">
@@ -555,7 +555,7 @@ body.staff-mode{padding-bottom:64px}
   min-height:280px;padding:20px;
 }
 .v2-preview{flex-direction:column;gap:10px}
-.v2-preview #dragCaption{display:flex;align-items:center;justify-content:center;gap:28px;font-family:var(--font-body);font-size:.8rem;font-weight:500;letter-spacing:.02em;color:var(--text);opacity:.85;user-select:none}
+.v2-preview #dragCaption{display:flex;align-items:center;justify-content:center;gap:28px;font-family:var(--font-body);font-size:.8rem;font-weight:500;letter-spacing:.02em;color:var(--text);opacity:.85;-webkit-user-select:none;user-select:none}
 .v2-preview #dragCaption .drag-hint{pointer-events:none}
 .v2-preview #dragCaption .reset-image-btn{font-family:inherit;font-size:inherit;font-weight:500;letter-spacing:inherit;color:var(--text);background:var(--bg2,transparent);border:1px solid var(--border);border-radius:999px;padding:5px 14px;cursor:pointer;opacity:1;transition:background .15s,box-shadow .15s}
 .v2-preview #dragCaption .reset-image-btn:hover{background:var(--bg3);box-shadow:var(--shadow-sm)}
@@ -670,12 +670,13 @@ body.staff-mode{padding-bottom:64px}
 .eng-font-label{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--text-muted);margin-bottom:6px}
 .eng-font-select{width:100%;padding:12px 16px;background:var(--input-bg);border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem;color:var(--text);outline:none;cursor:pointer}
 .eng-font-select:focus{border-color:var(--gold);box-shadow:0 0 0 4px var(--gold-wash)}
+#v1-scaffold{position:absolute;left:-99999px;top:0;width:1px;height:1px;overflow:hidden;pointer-events:none}
 </style>
 </head>
 <body>
 <!-- Hidden V1 DOM scaffold: satisfies verbatim engine init() without altering it.
      #ringPreview and #controlsCol MOVED into visible accordion below. -->
-<div id="v1-scaffold" aria-hidden="true" style="position:absolute;left:-99999px;top:0;width:1px;height:1px;overflow:hidden;pointer-events:none">
+<div id="v1-scaffold" aria-hidden="true">
   <button id="themeToggle"></button><span id="iconSun"></span><span id="iconMoon"></span>
   <div id="stepsBar"></div>
   <div class="main-content"><div class="main-layout">
@@ -877,13 +878,11 @@ const QUOTE_WORKER_URL = 'https://jbj-ring-quote.johan-475.workers.dev/';
  * after every configuration interaction and flushes it on page hide / crash-prone exits.
  */
 const RING_AUDIT_URL = 'https://jbj-ring-designer-audit.johan-475.workers.dev/v1/events';
-const RING_AUDIT_CONSENT_KEY = 'jbj-ring-audit-consent-v1';
 const RING_AUDIT_VISITOR_KEY = 'jbj-ring-audit-visitor-v1';
 
 const ringAudit = (() => {
   const sessionId = crypto.randomUUID().replaceAll('-', '');
   let visitorId = localStorage.getItem(RING_AUDIT_VISITOR_KEY);
-  let consent = localStorage.getItem(RING_AUDIT_CONSENT_KEY) === 'granted';
   let sequence = 0, queue = [], timer = null, lastState = '';
   const id = () => crypto.randomUUID().replaceAll('-', '');
   const snapshot = () => ({
@@ -898,7 +897,6 @@ const ringAudit = (() => {
     path: location.pathname, staffMode: _staffMode
   });
   function ensureIdentity() {
-    if (!consent) return false;
     if (!visitorId) { visitorId = id(); localStorage.setItem(RING_AUDIT_VISITOR_KEY, visitorId); }
     return true;
   }
@@ -917,7 +915,7 @@ const ringAudit = (() => {
     clearTimeout(timer);
     if (!queue.length || !ensureIdentity()) return;
     const events = queue.splice(0);
-    const data = JSON.stringify({ consent: true, visitorId, sessionId, clientMeta: meta(), events });
+    const data = JSON.stringify({ visitorId, sessionId, clientMeta: meta(), events });
     if (useBeacon && navigator.sendBeacon) {
       navigator.sendBeacon(RING_AUDIT_URL, new Blob([data], { type: 'text/plain;charset=UTF-8' }));
       return;
@@ -925,20 +923,6 @@ const ringAudit = (() => {
     fetch(RING_AUDIT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: data, keepalive: true }).catch(() => {
       queue.unshift(...events); // preserve for a later retry while this page remains open
     });
-  }
-  function grantConsent() { consent = true; localStorage.setItem(RING_AUDIT_CONSENT_KEY, 'granted'); record('lifecycle', 'consent_granted'); }
-  function revokeConsent() { record('lifecycle', 'consent_revoked'); flush(true); consent = false; localStorage.removeItem(RING_AUDIT_CONSENT_KEY); }
-  function installConsentNotice() {
-    if (consent || document.getElementById('ringAuditNotice')) return;
-    const notice = document.createElement('section');
-    notice.id = 'ringAuditNotice';
-    notice.setAttribute('role', 'dialog');
-    notice.setAttribute('aria-label', 'Ring Designer activity notice');
-    notice.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:20000;max-width:720px;margin:auto;padding:16px 18px;background:#fff;color:#222;border:1px solid #b9954b;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.25);font:14px/1.45 Arial,sans-serif';
-    notice.innerHTML = '<strong>Save your ring design progress?</strong><p style="margin:6px 0 12px">With your permission, we record your design selections and activity to save progress, support quotes, and improve the Ring Designer. Your email is linked only after you enter it. See our Privacy Policy for retention and deletion information.</p><button type="button" data-audit-accept style="margin-right:8px;padding:8px 12px">Allow and continue</button><button type="button" data-audit-decline style="padding:8px 12px">Continue without saving activity</button>';
-    notice.querySelector('[data-audit-accept]').onclick = () => { grantConsent(); notice.remove(); };
-    notice.querySelector('[data-audit-decline]').onclick = () => notice.remove();
-    document.body.appendChild(notice);
   }
   document.addEventListener('click', e => {
     const target = e.target.closest('button,a,input,select,textarea,[role="button"]');
@@ -951,10 +935,9 @@ const ringAudit = (() => {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { record('exit', 'page_hidden'); flush(true); } });
   window.addEventListener('pagehide', () => { record('exit', 'pagehide'); flush(true); });
   document.addEventListener('DOMContentLoaded', () => {
-    if (consent) record('lifecycle', 'session_started');
-    else installConsentNotice();
+    record('lifecycle', 'session_started');
   });
-  return { record, flush, grantConsent, revokeConsent, installConsentNotice, get visitorId() { return visitorId; } };
+  return { record, flush, get visitorId() { return visitorId; } };
 })();
 
 // Unicode-safe base64 helpers (btoa/atob crash on non-Latin-1 chars like accented names or emoji)
