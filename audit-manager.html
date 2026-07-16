@@ -88,7 +88,7 @@ button:disabled{cursor:not-allowed;opacity:.5}
 </div>
 
 <div class="section hidden" id="browseSection">
-  <h2>Browse Records <span class="hint-muted">(click a row to open its decoded JSON)</span></h2>
+  <h2>Browse Visitors <span class="hint-muted">(one row per visitor; click a row to open that visitor's records)</span></h2>
   <div class="filter-row">
     <label for="eventTypeFilter" class="visually-hidden">Filter loaded records by event type</label>
     <select id="eventTypeFilter" onchange="renderTable()"><option value="">All event types</option></select>
@@ -106,6 +106,7 @@ button:disabled{cursor:not-allowed;opacity:.5}
 <script>
 let currentRecords = [];
 let visibleRecords = [];
+let visibleVisitorGroups = [];
 let selectedIds = new Set();
 let nextCursor = null;
 let loadedFilters = null;
@@ -246,50 +247,99 @@ function searchText(record) {
   return [output.id, output.visitorId, output.sessionId, output.type, output.name, output.stepId, output.email].join(' ').toLowerCase();
 }
 
+function occurredAt(record) {
+  return String(recordValue(record, 'occurred_at', 'occurredAt') || '');
+}
+
+function visitorKey(record) {
+  return String(recordValue(record, 'visitor_id', 'visitorId') || '__visitor_not_recorded__');
+}
+
+function latestRecord(records) {
+  return records.reduce(function(latest, record) {
+    return !latest || occurredAt(record) > occurredAt(latest) ? record : latest;
+  }, null);
+}
+
+function groupVisitors(records) {
+  const groups = new Map();
+  records.forEach(function(record) {
+    const key = visitorKey(record);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key: key,
+        visitorId: String(recordValue(record, 'visitor_id', 'visitorId') || 'Not recorded'),
+        records: []
+      });
+    }
+    groups.get(key).records.push(record);
+  });
+  return Array.from(groups.values()).map(function(group) {
+    group.latest = latestRecord(group.records);
+    return group;
+  }).sort(function(a, b) {
+    return occurredAt(b.latest).localeCompare(occurredAt(a.latest));
+  });
+}
+
+function visitorSearchText(group) {
+  return group.records.map(searchText).join(' ');
+}
+
+function sessionCount(records) {
+  return new Set(records.map(function(record) {
+    return String(recordValue(record, 'session_id', 'sessionId') || '');
+  }).filter(Boolean)).size;
+}
+
 function renderTable() {
   const type = byId('eventTypeFilter').value;
   const search = byId('searchBox').value.trim().toLowerCase();
   visibleRecords = currentRecords.filter(function(record) {
     const recordType = String(recordValue(record, 'event_type', 'type') || '');
-    return (!type || recordType === type) && (!search || searchText(record).includes(search));
+    return !type || recordType === type;
+  });
+  visibleVisitorGroups = groupVisitors(visibleRecords).filter(function(group) {
+    return !search || visitorSearchText(group).includes(search);
   });
 
   const container = byId('tableContainer');
-  if (!visibleRecords.length) {
-    container.innerHTML = '<div class="empty-hint">No loaded records match this view.</div>';
+  if (!visibleVisitorGroups.length) {
+    container.innerHTML = '<div class="empty-hint">No visitors match this view.</div>';
     updateSelectionBar();
     return;
   }
 
-  let html = '<table><thead><tr><th>Check</th><th>Occurred UTC</th><th>Type</th><th>Action</th><th>Step</th><th>Email</th><th>Visitor ID</th><th>Session ID</th><th>Record ID</th></tr></thead><tbody>';
-  visibleRecords.forEach(function(record) {
-    const id = recordId(record);
-    const checked = selectedIds.has(id);
-    html += '<tr data-record-id="' + escapeHtml(id) + '" class="' + (checked ? 'checked' : '') + '">';
-    html += '<td><input class="record-check" data-record-id="' + escapeHtml(id) + '" type="checkbox" ' + (checked ? 'checked' : '') + ' aria-label="Check audit record"></td>';
-    html += '<td>' + escapeHtml(recordValue(record, 'occurred_at', 'occurredAt')) + '</td>';
-    html += '<td>' + escapeHtml(recordValue(record, 'event_type', 'type')) + '</td>';
-    html += '<td title="' + escapeHtml(recordValue(record, 'event_name', 'name')) + '">' + escapeHtml(recordValue(record, 'event_name', 'name')) + '</td>';
-    html += '<td>' + escapeHtml(recordValue(record, 'step_id', 'stepId')) + '</td>';
-    html += '<td>' + escapeHtml(recordValue(record, 'email', 'email')) + '</td>';
-    html += '<td>' + escapeHtml(recordValue(record, 'visitor_id', 'visitorId')) + '</td>';
-    html += '<td>' + escapeHtml(recordValue(record, 'session_id', 'sessionId')) + '</td>';
-    html += '<td>' + escapeHtml(id) + '</td></tr>';
+  let html = '<table><thead><tr><th>Check</th><th>Records</th><th>Last Activity UTC</th><th>Last Action</th><th>Email</th><th>Visitor ID</th><th>Sessions</th></tr></thead><tbody>';
+  visibleVisitorGroups.forEach(function(group) {
+    const checked = group.records.length > 0 && group.records.every(function(record) { return selectedIds.has(recordId(record)); });
+    const latest = group.latest;
+    html += '<tr data-visitor-key="' + escapeHtml(group.key) + '" class="' + (checked ? 'checked' : '') + '">';
+    html += '<td><input class="visitor-check" data-visitor-key="' + escapeHtml(group.key) + '" type="checkbox" ' + (checked ? 'checked' : '') + ' aria-label="Check all audit records for visitor ' + escapeHtml(group.visitorId) + '"></td>';
+    html += '<td>' + group.records.length + '</td>';
+    html += '<td>' + escapeHtml(occurredAt(latest)) + '</td>';
+    html += '<td title="' + escapeHtml(recordValue(latest, 'event_name', 'name')) + '">' + escapeHtml(recordValue(latest, 'event_name', 'name')) + '</td>';
+    html += '<td>' + escapeHtml(recordValue(latest, 'email', 'email')) + '</td>';
+    html += '<td>' + escapeHtml(group.visitorId) + '</td>';
+    html += '<td>' + sessionCount(group.records) + '</td></tr>';
   });
   html += '</tbody></table>';
   container.innerHTML = html;
 
-  container.querySelectorAll('.record-check').forEach(function(check) {
+  container.querySelectorAll('.visitor-check').forEach(function(check) {
     check.addEventListener('click', function(event) { event.stopPropagation(); });
     check.addEventListener('change', function(event) {
-      const id = event.currentTarget.dataset.recordId;
-      if (event.currentTarget.checked) selectedIds.add(id); else selectedIds.delete(id);
+      const group = visibleVisitorGroups.find(function(item) { return item.key === event.currentTarget.dataset.visitorKey; });
+      if (!group) return;
+      group.records.forEach(function(record) {
+        if (event.currentTarget.checked) selectedIds.add(recordId(record)); else selectedIds.delete(recordId(record));
+      });
       event.currentTarget.closest('tr').classList.toggle('checked', event.currentTarget.checked);
       updateSelectionBar();
     });
   });
-  container.querySelectorAll('tr[data-record-id]').forEach(function(row) {
-    row.addEventListener('click', function() { openRecordWindow(row.dataset.recordId); });
+  container.querySelectorAll('tr[data-visitor-key]').forEach(function(row) {
+    row.addEventListener('click', function() { openVisitorWindow(row.dataset.visitorKey); });
   });
   updateSelectionBar();
 }
@@ -313,33 +363,104 @@ function updateSelectionBar() {
   byId('deleteButton').disabled = count === 0 || dataSource !== 'worker';
 }
 
-function openRecordWindow(id) {
+function popupPosition(width, height, side) {
+  const hostLeft = typeof window.screenX === 'number' ? window.screenX : (window.screenLeft || 0);
+  const hostTop = typeof window.screenY === 'number' ? window.screenY : (window.screenTop || 0);
+  const hostWidth = window.outerWidth || screen.availWidth;
+  const hostHeight = window.outerHeight || screen.availHeight;
+  return {
+    left: Math.round(hostLeft + Math.max(side === 'right' ? hostWidth - width - 24 : (hostWidth - width) / 2, 0)),
+    top: Math.round(hostTop + Math.max((hostHeight - height) / 2, 0))
+  };
+}
+
+function armPopupCloseOnBlur(popup) {
+  popup.addEventListener('blur', function() {
+    window.setTimeout(function() {
+      if (popup.__ringAuditKeepOpenOnNextBlur) {
+        popup.__ringAuditKeepOpenOnNextBlur = false;
+        armPopupCloseOnBlur(popup);
+      } else if (!popup.closed) {
+        popup.close();
+      }
+    }, 0);
+  }, { once: true });
+}
+
+function sortedRecords(records) {
+  return records.slice().sort(function(a, b) { return occurredAt(b).localeCompare(occurredAt(a)); });
+}
+
+function groupRecordsBySession(records) {
+  const groups = new Map();
+  sortedRecords(records).forEach(function(record) {
+    const sessionId = String(recordValue(record, 'session_id', 'sessionId') || 'No session ID');
+    if (!groups.has(sessionId)) groups.set(sessionId, []);
+    groups.get(sessionId).push(record);
+  });
+  return Array.from(groups.entries());
+}
+
+function openVisitorWindow(key) {
+  const visitorRecords = currentRecords.filter(function(record) { return visitorKey(record) === key; });
+  if (!visitorRecords.length) return;
+  const visitorId = String(recordValue(visitorRecords[0], 'visitor_id', 'visitorId') || 'Not recorded');
+  const popupWidth = 800;
+  const popupHeight = 600;
+  const position = popupPosition(popupWidth, popupHeight, 'center');
+  const visitorWindow = window.open('', 'ringAuditVisitorDetail', 'popup=yes,width=' + popupWidth + ',height=' + popupHeight + ',left=' + position.left + ',top=' + position.top + ',resizable=yes,scrollbars=yes');
+  if (!visitorWindow) {
+    alert('Your browser blocked the visitor window. Allow popups for this page, then click the visitor again.');
+    return;
+  }
+  visitorWindow.resizeTo(popupWidth, popupHeight);
+  visitorWindow.moveTo(position.left, position.top);
+  const groups = groupRecordsBySession(visitorRecords);
+  const groupsHtml = groups.map(function(entry) {
+    const sessionId = entry[0];
+    const rows = entry[1].map(function(record) {
+      return '<tr data-record-id="' + escapeHtml(recordId(record)) + '"><td>' + escapeHtml(occurredAt(record)) + '</td><td>' + escapeHtml(recordValue(record, 'event_type', 'type')) + '</td><td title="' + escapeHtml(recordValue(record, 'event_name', 'name')) + '">' + escapeHtml(recordValue(record, 'event_name', 'name')) + '</td><td>' + escapeHtml(recordValue(record, 'step_id', 'stepId')) + '</td><td>' + escapeHtml(recordValue(record, 'email', 'email')) + '</td></tr>';
+    }).join('');
+    return '<section class="record-group"><h2>Session: ' + escapeHtml(sessionId) + ' <span>' + entry[1].length + ' record(s)</span></h2><div class="table-wrap"><table><thead><tr><th>Occurred UTC</th><th>Type</th><th>Action</th><th>Step</th><th>Email</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+  }).join('');
+  visitorWindow.document.open();
+  visitorWindow.document.write('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Visitor Records — ' + escapeHtml(visitorId) + '</title><style>*{box-sizing:border-box}body{margin:0;padding:18px;background:#1a1a2e;color:#eee;font-family:-apple-system,system-ui,sans-serif}h1{margin:0 0 6px;color:#daa520;font-size:1.25rem}.sub{margin:0 0 16px;color:#aaa;font-size:.85rem}.record-group{margin:0 0 14px;padding:12px;background:#16213e;border:1px solid #333;border-radius:7px}.record-group h2{margin:0 0 8px;color:#daa520;font-size:.9rem}.record-group h2 span{color:#aaa;font-weight:400;font-size:.8rem}.table-wrap{overflow:auto}table{min-width:100%;border-collapse:separate;border-spacing:0;font-size:.78rem}th,td{padding:7px 8px;border-right:1px solid #333;border-bottom:1px solid #333;text-align:left;white-space:nowrap}th{background:#0f3460;color:#daa520;position:sticky;top:0}td{background:#16213e;max-width:240px;overflow:hidden;text-overflow:ellipsis}tr{cursor:pointer}tr:hover td{background:#1e3a5f}</style></head><body><h1>Visitor Records</h1><p class="sub">Visitor ID: ' + escapeHtml(visitorId) + ' — ' + visitorRecords.length + ' total record(s). Click a record to view its decoded JSON.</p>' + groupsHtml + '</body></html>');
+  visitorWindow.document.close();
+  visitorWindow.document.querySelectorAll('tr[data-record-id]').forEach(function(row) {
+    row.addEventListener('click', function() { openRecordWindow(row.dataset.recordId, visitorWindow); });
+  });
+  armPopupCloseOnBlur(visitorWindow);
+  visitorWindow.focus();
+}
+
+function openRecordWindow(id, sourceWindow) {
   const record = currentRecords.find(function(item) { return recordId(item) === id; });
   if (!record) return;
-  const popupWidth = 864;
-  const popupHeight = 640;
-  const hostLeft = window.screenX || window.screenLeft || 0;
-  const hostTop = window.screenY || window.screenTop || 0;
-  const left = Math.round(hostLeft + Math.max((window.outerWidth || screen.availWidth) - popupWidth - 24, 0));
-  const top = Math.round(hostTop + Math.max(((window.outerHeight || screen.availHeight) - popupHeight) / 2, 0));
-  const detailWindow = window.open('', 'ringAuditRecordDetail', 'popup=yes,width=' + popupWidth + ',height=' + popupHeight + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes');
+  const popupWidth = 720;
+  const popupHeight = 540;
+  const position = popupPosition(popupWidth, popupHeight, 'right');
+  if (sourceWindow && !sourceWindow.closed) sourceWindow.__ringAuditKeepOpenOnNextBlur = true;
+  const detailWindow = window.open('', 'ringAuditRecordDetail', 'popup=yes,width=' + popupWidth + ',height=' + popupHeight + ',left=' + position.left + ',top=' + position.top + ',resizable=yes,scrollbars=yes');
   if (!detailWindow) {
+    if (sourceWindow && !sourceWindow.closed) sourceWindow.__ringAuditKeepOpenOnNextBlur = false;
     alert('Your browser blocked the record window. Allow popups for this page, then click the record again.');
     return;
   }
   detailWindow.resizeTo(popupWidth, popupHeight);
-  detailWindow.moveTo(left, top);
+  detailWindow.moveTo(position.left, position.top);
   const json = JSON.stringify(exportRecord(record), null, 2);
   const title = 'Audit Record — ' + id;
   detailWindow.document.open();
   detailWindow.document.write('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escapeHtml(title) + '</title><style>body{margin:0;padding:20px;background:#1a1a2e;color:#eee;font-family:-apple-system,system-ui,sans-serif}h1{margin:0 0 14px;color:#daa520;font-size:1.25rem}pre{margin:0;padding:14px;background:#0a0a1a;border:1px solid #333;border-radius:6px;white-space:pre-wrap;word-break:break-word;font:13px/1.45 Consolas,monospace;color:#d9e7ff}</style></head><body><h1>Selected Record — Decoded JSON</h1><pre>' + escapeHtml(json) + '</pre></body></html>');
   detailWindow.document.close();
-  detailWindow.addEventListener('blur', function() { detailWindow.close(); }, { once: true });
+  armPopupCloseOnBlur(detailWindow);
   detailWindow.focus();
 }
 
 function checkVisible() {
-  visibleRecords.forEach(function(record) { selectedIds.add(recordId(record)); });
+  visibleVisitorGroups.forEach(function(group) {
+    group.records.forEach(function(record) { selectedIds.add(recordId(record)); });
+  });
   renderTable();
 }
 
