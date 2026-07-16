@@ -30,7 +30,6 @@ button:disabled{cursor:not-allowed;opacity:.5}
 .filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.filter-grid input,.filter-grid select{margin-bottom:0}.filter-grid .filter-wide{grid-column:span 2}
 .filter-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}.filter-row select{width:190px;margin:0}.search-flex{flex:1}.search-flex input{margin:0}
 .table-scroll{max-height:500px;overflow:auto;border-radius:4px}table{min-width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem}th,td{padding:6px 8px;border-right:1px solid #333;border-bottom:1px solid #333;text-align:left;white-space:nowrap}th{background:#0f3460;color:#daa520;position:sticky;top:0;z-index:2;border-top:1px solid #333}th:first-child{position:sticky;left:0;z-index:3;border-left:1px solid #333}td{background:#16213e;max-width:260px;overflow:hidden;text-overflow:ellipsis}td:first-child{position:sticky;left:0;z-index:1;background:#1a2744;border-left:1px solid #333;text-align:center}tr{cursor:pointer}tr:hover td{background:#1e3a5f}tr.checked td{background:#1a3a1a}.record-check{width:16px;height:16px;accent-color:#27ae60;cursor:pointer}
-#detail{margin:0;background:#0a0a1a;border:1px solid #333;border-radius:4px;padding:12px;min-height:130px;max-height:360px;overflow:auto;font-family:Consolas,monospace;font-size:.8rem;white-space:pre-wrap;word-break:break-word;color:#d9e7ff}
 .empty-hint{color:#999;padding:16px}.hint-muted{color:#777;font-weight:400;font-size:.82rem}.load-more-wrap{text-align:center;margin-top:12px}
 .filter-help{margin-top:10px}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -39,7 +38,7 @@ button:disabled{cursor:not-allowed;opacity:.5}
 </head>
 <body>
 <h1>JBJ Ring Designer Audit Manager</h1>
-<p class="subtitle">Browse, download, and delete consented Ring Designer audit records in Cloudflare D1</p>
+<p class="subtitle">Browse, download, and delete Ring Designer audit records in Cloudflare D1</p>
 
 <div class="section">
   <h2>Connection</h2>
@@ -89,7 +88,7 @@ button:disabled{cursor:not-allowed;opacity:.5}
 </div>
 
 <div class="section hidden" id="browseSection">
-  <h2>Browse Records</h2>
+  <h2>Browse Records <span class="hint-muted">(click a row to open its decoded JSON)</span></h2>
   <div class="filter-row">
     <label for="eventTypeFilter" class="visually-hidden">Filter loaded records by event type</label>
     <select id="eventTypeFilter" onchange="renderTable()"><option value="">All event types</option></select>
@@ -97,11 +96,6 @@ button:disabled{cursor:not-allowed;opacity:.5}
   </div>
   <div id="tableContainer" class="table-scroll"></div>
   <div class="load-more-wrap"><button class="btn-secondary hidden" id="loadMoreButton" onclick="loadRecords(false)">Load More Records</button></div>
-</div>
-
-<div class="section hidden" id="detailSection">
-  <h2>Selected Record — Decoded JSON</h2>
-  <pre id="detail">Select a record row to inspect it.</pre>
 </div>
 
 <div class="section">
@@ -295,7 +289,7 @@ function renderTable() {
     });
   });
   container.querySelectorAll('tr[data-record-id]').forEach(function(row) {
-    row.addEventListener('click', function() { showDetail(row.dataset.recordId); });
+    row.addEventListener('click', function() { openRecordWindow(row.dataset.recordId); });
   });
   updateSelectionBar();
 }
@@ -319,11 +313,20 @@ function updateSelectionBar() {
   byId('deleteButton').disabled = count === 0 || dataSource !== 'worker';
 }
 
-function showDetail(id) {
+function openRecordWindow(id) {
   const record = currentRecords.find(function(item) { return recordId(item) === id; });
   if (!record) return;
-  byId('detailSection').classList.remove('hidden');
-  byId('detail').textContent = JSON.stringify(exportRecord(record), null, 2);
+  const detailWindow = window.open('', 'ringAuditRecordDetail', 'popup=yes,width=1080,height=800,resizable=yes,scrollbars=yes');
+  if (!detailWindow) {
+    alert('Your browser blocked the record window. Allow popups for this page, then click the record again.');
+    return;
+  }
+  const json = JSON.stringify(exportRecord(record), null, 2);
+  const title = 'Audit Record — ' + id;
+  detailWindow.document.open();
+  detailWindow.document.write('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escapeHtml(title) + '</title><style>body{margin:0;padding:20px;background:#1a1a2e;color:#eee;font-family:-apple-system,system-ui,sans-serif}h1{margin:0 0 14px;color:#daa520;font-size:1.25rem}pre{margin:0;padding:14px;background:#0a0a1a;border:1px solid #333;border-radius:6px;white-space:pre-wrap;word-break:break-word;font:13px/1.45 Consolas,monospace;color:#d9e7ff}</style></head><body><h1>Selected Record — Decoded JSON</h1><pre>' + escapeHtml(json) + '</pre></body></html>');
+  detailWindow.document.close();
+  detailWindow.focus();
 }
 
 function checkVisible() {
@@ -363,7 +366,6 @@ async function loadRecords(reset) {
       selectedIds.clear();
       nextCursor = null;
       loadedFilters = filters;
-      byId('detailSection').classList.add('hidden');
     }
 
     log(reset ? 'Downloading matching audit records...' : 'Downloading the next page of audit records...');
