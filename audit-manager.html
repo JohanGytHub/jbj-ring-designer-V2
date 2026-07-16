@@ -440,7 +440,9 @@ function openRecordWindow(id, sourceWindow) {
   const popupHeight = 540;
   const position = popupPosition(popupWidth, popupHeight, 'right');
   if (sourceWindow && !sourceWindow.closed) sourceWindow.__ringAuditKeepOpenOnNextBlur = true;
-  const detailWindow = window.open('', 'ringAuditRecordDetail', 'popup=yes,width=' + popupWidth + ',height=' + popupHeight + ',left=' + position.left + ',top=' + position.top + ',resizable=yes,scrollbars=yes');
+  // Launch from the visitor popup itself so browsers treat this as its direct record-click action.
+  const popupLauncher = sourceWindow && !sourceWindow.closed ? sourceWindow : window;
+  const detailWindow = popupLauncher.open('', 'ringAuditRecordDetail', 'popup=yes,width=' + popupWidth + ',height=' + popupHeight + ',left=' + position.left + ',top=' + position.top + ',resizable=yes,scrollbars=yes');
   if (!detailWindow) {
     if (sourceWindow && !sourceWindow.closed) sourceWindow.__ringAuditKeepOpenOnNextBlur = false;
     alert('Your browser blocked the record window. Allow popups for this page, then click the record again.');
