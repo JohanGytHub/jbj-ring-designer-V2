@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JBJ Audit Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:20px;max-width:1600px;margin:0 auto}
+h1{color:#daa520;margin-bottom:6px;font-size:1.5rem}
+.subtitle{color:#999;margin-bottom:20px;font-size:.9rem}
+.section{background:#16213e;border:1px solid #333;border-radius:8px;padding:16px;margin-bottom:16px}
+.section h2{color:#daa520;font-size:1.1rem;margin-bottom:10px}
+label{display:block;color:#ccc;margin-bottom:4px;font-size:.85rem}
+input,select{width:100%;padding:8px;border:1px solid #444;border-radius:4px;background:#0f3460;color:#eee;margin-bottom:10px;font-size:.9rem}
+button{padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:.9rem;font-weight:600}
+button:disabled{cursor:not-allowed;opacity:.5}
+.btn-primary{background:#daa520;color:#1a1a2e}.btn-primary:hover{background:#c9941a}
+.btn-danger{background:#c0392b;color:#fff}.btn-danger:hover{background:#e74c3c}
+.btn-secondary{background:#444;color:#eee}.btn-secondary:hover{background:#555}
+.btn-save{background:#27ae60;color:#fff;font-size:.95rem;padding:10px 24px;animation:pulse 1.5s infinite}.btn-save:hover{background:#2ecc71}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(46,204,113,.5)}50%{box-shadow:0 0 0 6px rgba(46,204,113,0)}}
+#log{background:#0a0a1a;border:1px solid #333;border-radius:4px;padding:10px;min-height:120px;max-height:260px;overflow-y:auto;font-family:monospace;font-size:.8rem;white-space:pre-wrap;word-break:break-word}
+.log-ok{color:#2ecc71}.log-err{color:#e74c3c}.log-info{color:#3498db}
+.status{display:inline-block;padding:3px 10px;border-radius:4px;font-size:.8rem;font-weight:600}.status-ok{background:#27ae60;color:#fff}.status-err{background:#c0392b;color:#fff}.status-load{background:#f39c12;color:#1a1a2e}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.stat{background:#0f3460;border:1px solid #333;border-radius:6px;padding:10px;text-align:center}.stat .num{font-size:1.5rem;color:#daa520;font-weight:700}.stat .lbl{font-size:.75rem;color:#999}
+.btn-row{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}.hidden{display:none}.file-hidden{display:none}
+.source-bar{display:none;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:.85rem;align-items:center;gap:10px}.source-bar.visible{display:flex}.source-bar.src-worker{background:#0f2a4a;border:1px solid #3498db}.source-bar.src-worker #sourceLabel{color:#3498db;font-weight:700}.source-bar.src-local{background:#2a1a0f;border:1px solid #e67e22}.source-bar.src-local #sourceLabel{color:#e67e22;font-weight:700}#sourceDetail{color:#aaa;flex:1}
+.selection-bar{display:none;background:#1a3a1a;border:1px solid #27ae60;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;gap:12px}.selection-bar.visible{display:flex}.selection-bar .count{color:#2ecc71;font-weight:700;font-size:1rem}.selection-bar .hint{color:#aaa;font-size:.82rem;flex:1}
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.filter-grid input,.filter-grid select{margin-bottom:0}.filter-grid .filter-wide{grid-column:span 2}
+.filter-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}.filter-row select{width:190px;margin:0}.search-flex{flex:1}.search-flex input{margin:0}
+.table-scroll{max-height:500px;overflow:auto;border-radius:4px}table{min-width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem}th,td{padding:6px 8px;border-right:1px solid #333;border-bottom:1px solid #333;text-align:left;white-space:nowrap}th{background:#0f3460;color:#daa520;position:sticky;top:0;z-index:2;border-top:1px solid #333}th:first-child{position:sticky;left:0;z-index:3;border-left:1px solid #333}td{background:#16213e;max-width:260px;overflow:hidden;text-overflow:ellipsis}td:first-child{position:sticky;left:0;z-index:1;background:#1a2744;border-left:1px solid #333;text-align:center}tr{cursor:pointer}tr:hover td{background:#1e3a5f}tr.checked td{background:#1a3a1a}.record-check{width:16px;height:16px;accent-color:#27ae60;cursor:pointer}
+#detail{margin:0;background:#0a0a1a;border:1px solid #333;border-radius:4px;padding:12px;min-height:130px;max-height:360px;overflow:auto;font-family:Consolas,monospace;font-size:.8rem;white-space:pre-wrap;word-break:break-word;color:#d9e7ff}
+.empty-hint{color:#999;padding:16px}.hint-muted{color:#777;font-weight:400;font-size:.82rem}.load-more-wrap{text-align:center;margin-top:12px}
+.filter-help{margin-top:10px}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:700px){body{padding:12px}.filter-grid .filter-wide{grid-column:auto}.selection-bar.visible{align-items:flex-start;flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<h1>JBJ Ring Designer Audit Manager</h1>
+<p class="subtitle">Browse, download, and delete consented Ring Designer audit records in Cloudflare D1</p>
+
+<div class="section">
+  <h2>Connection</h2>
+  <label for="workerUrl">Worker URL <span class="hint-muted">(base URL, without /v1/admin)</span></label>
+  <input id="workerUrl" value="https://jbj-ring-designer-audit.johan-475.workers.dev" placeholder="https://your-audit-worker.workers.dev" autocomplete="off">
+  <label for="adminToken">Admin Token <span class="hint-muted">(required to read or delete; kept only in this open tab)</span></label>
+  <input id="adminToken" type="password" placeholder="Your AUDIT_ADMIN_TOKEN" autocomplete="off">
+  <div class="btn-row">
+    <button class="btn-primary" onclick="loadRecords(true)">Download Records</button>
+    <button class="btn-secondary" onclick="openLocalFile()">Open Local JSON / NDJSON</button>
+    <button class="btn-secondary" onclick="downloadJson()">Export JSON File</button>
+    <button class="btn-danger" id="deleteButton" onclick="deleteChecked()" disabled>Delete Checked Records</button>
+    <label for="localFileInput" class="visually-hidden">Open a local audit JSON or NDJSON file</label>
+    <input type="file" id="localFileInput" accept=".json,.ndjson,application/json,application/x-ndjson" class="file-hidden" onchange="handleLocalFile(event)">
+  </div>
+</div>
+
+<div class="source-bar" id="sourceBar">
+  <span id="sourceLabel"></span>
+  <span id="sourceDetail"></span>
+</div>
+
+<div class="section">
+  <h2>Server Filters</h2>
+  <div class="filter-grid">
+    <div><label for="filterEmail">Email <span class="hint-muted">(exact)</span></label><input id="filterEmail" placeholder="person@example.com"></div>
+    <div><label for="filterVisitor">Visitor ID <span class="hint-muted">(exact)</span></label><input id="filterVisitor" placeholder="visitor ID"></div>
+    <div><label for="filterSession">Session ID <span class="hint-muted">(exact)</span></label><input id="filterSession" placeholder="session ID"></div>
+    <div><label for="filterFrom">From UTC</label><input id="filterFrom" placeholder="YYYY-MM-DD or ISO UTC"></div>
+    <div><label for="filterTo">To UTC</label><input id="filterTo" placeholder="YYYY-MM-DD or ISO UTC"></div>
+    <div><label for="filterLimit">Records per page</label><input id="filterLimit" type="number" min="1" max="1000" value="250"></div>
+  </div>
+  <p class="hint-muted filter-help">Filters are applied by Cloudflare. A date-only “To” includes the full day. Use Download Records again after changing filters.</p>
+</div>
+
+<div class="selection-bar" id="selectionBar">
+  <span class="count" id="selectionCount">0 selected</span>
+  <span class="hint">Checked records are ready for JSON download or permanent deletion.</span>
+  <button class="btn-secondary" onclick="checkVisible()">Check Visible</button>
+  <button class="btn-secondary" onclick="clearChecks()">Clear Checks</button>
+  <button class="btn-save" onclick="downloadJson(true)">Export Checked JSON</button>
+</div>
+
+<div class="section hidden" id="statsSection">
+  <h2>Loaded Audit Data <span id="statusBadge" class="status"></span></h2>
+  <div class="grid" id="statsGrid"></div>
+</div>
+
+<div class="section hidden" id="browseSection">
+  <h2>Browse Records</h2>
+  <div class="filter-row">
+    <label for="eventTypeFilter" class="visually-hidden">Filter loaded records by event type</label>
+    <select id="eventTypeFilter" onchange="renderTable()"><option value="">All event types</option></select>
+    <div class="search-flex"><label for="searchBox" class="visually-hidden">Search loaded records</label><input id="searchBox" placeholder="Search loaded records..." oninput="renderTable()"></div>
+  </div>
+  <div id="tableContainer" class="table-scroll"></div>
+  <div class="load-more-wrap"><button class="btn-secondary hidden" id="loadMoreButton" onclick="loadRecords(false)">Load More Records</button></div>
+</div>
+
+<div class="section hidden" id="detailSection">
+  <h2>Selected Record — Decoded JSON</h2>
+  <pre id="detail">Select a record row to inspect it.</pre>
+</div>
+
+<div class="section">
+  <h2>Log</h2>
+  <div id="log"></div>
+</div>
+
+<script>
+let currentRecords = [];
+let visibleRecords = [];
+let selectedIds = new Set();
+let nextCursor = null;
+let loadedFilters = null;
+let dataSource = null;
+
+const byId = id => document.getElementById(id);
+
+function log(message, cls) {
+  const logEl = byId('log');
+  const line = document.createElement('span');
+  line.className = cls || 'log-info';
+  line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
+  logEl.appendChild(line);
+  logEl.appendChild(document.createElement('br'));
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(char) {
+    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' })[char];
+  });
+}
+
+function recordValue(record, snake, camel) {
+  if (record && record[snake] != null) return record[snake];
+  if (record && camel && record[camel] != null) return record[camel];
+  return '';
+}
+
+function recordId(record) {
+  return String(recordValue(record, 'id', 'id'));
+}
+
+function safeJson(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch (error) { return value; }
+}
+
+function exportRecord(record) {
+  return {
+    id: recordId(record),
+    visitorId: recordValue(record, 'visitor_id', 'visitorId'),
+    sessionId: recordValue(record, 'session_id', 'sessionId'),
+    sequence: recordValue(record, 'sequence_no', 'sequence'),
+    occurredAt: recordValue(record, 'occurred_at', 'occurredAt'),
+    receivedAt: recordValue(record, 'received_at', 'receivedAt'),
+    type: recordValue(record, 'event_type', 'type'),
+    name: recordValue(record, 'event_name', 'name'),
+    stepId: recordValue(record, 'step_id', 'stepId'),
+    email: recordValue(record, 'email', 'email'),
+    state: safeJson(recordValue(record, 'state_json', 'state')),
+    payload: safeJson(recordValue(record, 'payload_json', 'payload')),
+    clientMeta: safeJson(recordValue(record, 'client_meta_json', 'clientMeta')),
+    ipHash: recordValue(record, 'ip_hash', 'ipHash')
+  };
+}
+
+function setSource(type, detail) {
+  dataSource = type;
+  const bar = byId('sourceBar');
+  bar.className = 'source-bar visible src-' + type;
+  byId('sourceLabel').textContent = type === 'worker' ? '● Connected to Cloudflare D1' : '● Local File';
+  byId('sourceDetail').textContent = detail || '';
+}
+
+function setStatus(text, status) {
+  const badge = byId('statusBadge');
+  badge.textContent = text;
+  badge.className = 'status status-' + status;
+}
+
+function normalizeUtc(value, boundary) {
+  const text = value.trim();
+  if (!text) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text + (boundary === 'to' ? 'T23:59:59.999Z' : 'T00:00:00.000Z');
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) throw new Error('Invalid ' + boundary + ' date. Use YYYY-MM-DD or an ISO UTC timestamp.');
+  return parsed.toISOString();
+}
+
+function currentServerFilters() {
+  return {
+    email: byId('filterEmail').value.trim(),
+    visitorId: byId('filterVisitor').value.trim(),
+    sessionId: byId('filterSession').value.trim(),
+    from: normalizeUtc(byId('filterFrom').value, 'from'),
+    to: normalizeUtc(byId('filterTo').value, 'to'),
+    limit: Math.min(Math.max(Number(byId('filterLimit').value) || 250, 1), 1000)
+  };
+}
+
+function workerBase() {
+  const raw = byId('workerUrl').value.trim().replace(/\/+$/, '');
+  if (!/^https:\/\//i.test(raw)) throw new Error('Worker URL must begin with https://');
+  return raw.replace(/\/v1\/admin$/i, '').replace(/\/v1\/events$/i, '');
+}
+
+function requireToken() {
+  const token = byId('adminToken').value;
+  if (!token) throw new Error('Enter the Admin Token first.');
+  return token;
+}
+
+async function adminFetch(path, options) {
+  const request = options || {};
+  const headers = new Headers(request.headers || {});
+  headers.set('Authorization', 'Bearer ' + requireToken());
+  return fetch(workerBase() + path, Object.assign({}, request, { headers: headers, cache: 'no-store' }));
+}
+
+async function responseError(response) {
+  const text = await response.text();
+  try {
+    const body = JSON.parse(text);
+    return body.error || text || ('HTTP ' + response.status);
+  } catch (error) {
+    return text || ('HTTP ' + response.status);
+  }
+}
+
+function eventTypeOptions() {
+  const select = byId('eventTypeFilter');
+  const selected = select.value;
+  const types = Array.from(new Set(currentRecords.map(function(record) {
+    return String(recordValue(record, 'event_type', 'type') || '');
+  }).filter(Boolean))).sort();
+  select.innerHTML = '<option value="">All event types</option>' + types.map(function(type) {
+    return '<option value="' + escapeHtml(type) + '">' + escapeHtml(type) + '</option>';
+  }).join('');
+  select.value = types.includes(selected) ? selected : '';
+}
+
+function searchText(record) {
+  const output = exportRecord(record);
+  return [output.id, output.visitorId, output.sessionId, output.type, output.name, output.stepId, output.email].join(' ').toLowerCase();
+}
+
+function renderTable() {
+  const type = byId('eventTypeFilter').value;
+  const search = byId('searchBox').value.trim().toLowerCase();
+  visibleRecords = currentRecords.filter(function(record) {
+    const recordType = String(recordValue(record, 'event_type', 'type') || '');
+    return (!type || recordType === type) && (!search || searchText(record).includes(search));
+  });
+
+  const container = byId('tableContainer');
+  if (!visibleRecords.length) {
+    container.innerHTML = '<div class="empty-hint">No loaded records match this view.</div>';
+    updateSelectionBar();
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Check</th><th>Occurred UTC</th><th>Type</th><th>Action</th><th>Step</th><th>Email</th><th>Visitor ID</th><th>Session ID</th><th>Record ID</th></tr></thead><tbody>';
+  visibleRecords.forEach(function(record) {
+    const id = recordId(record);
+    const checked = selectedIds.has(id);
+    html += '<tr data-record-id="' + escapeHtml(id) + '" class="' + (checked ? 'checked' : '') + '">';
+    html += '<td><input class="record-check" data-record-id="' + escapeHtml(id) + '" type="checkbox" ' + (checked ? 'checked' : '') + ' aria-label="Check audit record"></td>';
+    html += '<td>' + escapeHtml(recordValue(record, 'occurred_at', 'occurredAt')) + '</td>';
+    html += '<td>' + escapeHtml(recordValue(record, 'event_type', 'type')) + '</td>';
+    html += '<td title="' + escapeHtml(recordValue(record, 'event_name', 'name')) + '">' + escapeHtml(recordValue(record, 'event_name', 'name')) + '</td>';
+    html += '<td>' + escapeHtml(recordValue(record, 'step_id', 'stepId')) + '</td>';
+    html += '<td>' + escapeHtml(recordValue(record, 'email', 'email')) + '</td>';
+    html += '<td>' + escapeHtml(recordValue(record, 'visitor_id', 'visitorId')) + '</td>';
+    html += '<td>' + escapeHtml(recordValue(record, 'session_id', 'sessionId')) + '</td>';
+    html += '<td>' + escapeHtml(id) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+
+  container.querySelectorAll('.record-check').forEach(function(check) {
+    check.addEventListener('click', function(event) { event.stopPropagation(); });
+    check.addEventListener('change', function(event) {
+      const id = event.currentTarget.dataset.recordId;
+      if (event.currentTarget.checked) selectedIds.add(id); else selectedIds.delete(id);
+      event.currentTarget.closest('tr').classList.toggle('checked', event.currentTarget.checked);
+      updateSelectionBar();
+    });
+  });
+  container.querySelectorAll('tr[data-record-id]').forEach(function(row) {
+    row.addEventListener('click', function() { showDetail(row.dataset.recordId); });
+  });
+  updateSelectionBar();
+}
+
+function showStats() {
+  const records = currentRecords.map(exportRecord);
+  const visitors = new Set(records.map(function(record) { return record.visitorId; }).filter(Boolean));
+  const sessions = new Set(records.map(function(record) { return record.sessionId; }).filter(Boolean));
+  const emails = new Set(records.map(function(record) { return record.email; }).filter(Boolean));
+  byId('statsGrid').innerHTML =
+    '<div class="stat"><div class="num">' + records.length + '</div><div class="lbl">Loaded Records</div></div>' +
+    '<div class="stat"><div class="num">' + visitors.size + '</div><div class="lbl">Visitors</div></div>' +
+    '<div class="stat"><div class="num">' + sessions.size + '</div><div class="lbl">Sessions</div></div>' +
+    '<div class="stat"><div class="num">' + emails.size + '</div><div class="lbl">Emails</div></div>';
+}
+
+function updateSelectionBar() {
+  const count = selectedIds.size;
+  byId('selectionCount').textContent = count + ' selected';
+  byId('selectionBar').classList.toggle('visible', count > 0);
+  byId('deleteButton').disabled = count === 0 || dataSource !== 'worker';
+}
+
+function showDetail(id) {
+  const record = currentRecords.find(function(item) { return recordId(item) === id; });
+  if (!record) return;
+  byId('detailSection').classList.remove('hidden');
+  byId('detail').textContent = JSON.stringify(exportRecord(record), null, 2);
+}
+
+function checkVisible() {
+  visibleRecords.forEach(function(record) { selectedIds.add(recordId(record)); });
+  renderTable();
+}
+
+function clearChecks() {
+  selectedIds.clear();
+  renderTable();
+}
+
+function renderLoadedData() {
+  eventTypeOptions();
+  showStats();
+  renderTable();
+  byId('statsSection').classList.remove('hidden');
+  byId('browseSection').classList.remove('hidden');
+  byId('loadMoreButton').classList.toggle('hidden', !nextCursor || dataSource !== 'worker');
+}
+
+async function loadRecords(reset) {
+  try {
+    const filters = reset ? currentServerFilters() : loadedFilters;
+    if (!filters) throw new Error('Choose Download Records first.');
+    const query = new URLSearchParams();
+    if (filters.email) query.set('email', filters.email);
+    if (filters.visitorId) query.set('visitor_id', filters.visitorId);
+    if (filters.sessionId) query.set('session_id', filters.sessionId);
+    if (filters.from) query.set('from', filters.from);
+    if (filters.to) query.set('to', filters.to);
+    query.set('limit', String(filters.limit));
+    if (!reset && nextCursor) query.set('cursor', nextCursor);
+
+    if (reset) {
+      currentRecords = [];
+      selectedIds.clear();
+      nextCursor = null;
+      loadedFilters = filters;
+      byId('detailSection').classList.add('hidden');
+    }
+
+    log(reset ? 'Downloading matching audit records...' : 'Downloading the next page of audit records...');
+    setStatus('Loading…', 'load');
+    const response = await adminFetch('/v1/admin/events?' + query.toString());
+    if (!response.ok) throw new Error(await responseError(response));
+    const result = await response.json();
+    if (!result.ok || !Array.isArray(result.records)) throw new Error(result.error || 'The audit service returned an invalid record list.');
+
+    const known = new Set(currentRecords.map(recordId));
+    result.records.forEach(function(record) {
+      if (!known.has(recordId(record))) currentRecords.push(record);
+    });
+    nextCursor = result.nextCursor || null;
+    setSource('worker', currentRecords.length + ' loaded record(s)' + (nextCursor ? ' — more matching records are available' : ' — all matching records loaded'));
+    setStatus(nextCursor ? 'More available' : 'Complete', 'ok');
+    renderLoadedData();
+    log('Loaded ' + result.records.length + ' record(s); ' + currentRecords.length + ' total in this page session.', 'log-ok');
+  } catch (error) {
+    setStatus('Load failed', 'err');
+    log('Load failed: ' + error.message, 'log-err');
+    alert('Could not download audit records. ' + error.message);
+  }
+}
+
+function openLocalFile() {
+  byId('localFileInput').click();
+}
+
+async function handleLocalFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    let records;
+    try {
+      const parsed = JSON.parse(text);
+      records = Array.isArray(parsed) ? parsed : parsed.records;
+    } catch (error) {
+      records = text.split(/\r?\n/).filter(Boolean).map(function(line) { return JSON.parse(line); });
+    }
+    if (!Array.isArray(records)) throw new Error('The file must contain a JSON record array, a { records: [...] } document, or NDJSON.');
+    currentRecords = records;
+    visibleRecords = records;
+    selectedIds.clear();
+    nextCursor = null;
+    loadedFilters = null;
+    setSource('local', file.name + ' — ' + records.length + ' record(s)');
+    setStatus('Local file', 'load');
+    renderLoadedData();
+    log('Opened local audit file: ' + file.name + ' (' + records.length + ' record(s)).', 'log-ok');
+  } catch (error) {
+    log('Could not open local file: ' + error.message, 'log-err');
+    alert('Could not open the selected file. ' + error.message);
+  } finally {
+    event.target.value = '';
+  }
+}
+
+function downloadJson(checkedOnly) {
+  const checked = currentRecords.filter(function(record) { return selectedIds.has(recordId(record)); });
+  const records = checkedOnly ? checked : (checked.length ? checked : currentRecords);
+  if (!records.length) {
+    log('No records are available to export.', 'log-err');
+    return;
+  }
+  const scope = checked.length ? 'checked' : 'loaded';
+  const blob = new Blob([JSON.stringify(records.map(exportRecord), null, 2)], { type: 'application/json' });
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = 'ring-designer-audit-' + scope + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+  anchor.click();
+  URL.revokeObjectURL(anchor.href);
+  log('Exported ' + records.length + ' ' + scope + ' record(s) as JSON (' + (blob.size / 1024).toFixed(1) + ' KB).', 'log-ok');
+}
+
+async function deleteChecked() {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+  if (dataSource !== 'worker') {
+    alert('Deletion is only available for records downloaded from Cloudflare.');
+    return;
+  }
+  if (!confirm('Permanently delete ' + ids.length + ' checked audit record(s)? This cannot be undone.')) return;
+
+  let deleted = 0;
+  try {
+    setStatus('Deleting…', 'load');
+    for (let start = 0; start < ids.length; start += 500) {
+      const batch = ids.slice(start, start + 500);
+      const response = await adminFetch('/v1/admin/events', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: batch })
+      });
+      if (!response.ok) throw new Error(await responseError(response));
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Deletion failed.');
+      deleted += Number(result.deleted || 0);
+    }
+    log('Deleted ' + deleted + ' audit record(s). Refreshing the list...', 'log-ok');
+    await loadRecords(true);
+  } catch (error) {
+    setStatus('Delete failed', 'err');
+    log('Deletion may have completed only in part. Refresh before retrying. ' + error.message, 'log-err');
+    alert('Deletion may have completed only in part. Refresh before retrying. ' + error.message);
+  }
+}
+</script>
+</body>
+</html>
