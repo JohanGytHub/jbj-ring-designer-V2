@@ -1930,6 +1930,8 @@ async function fetchSpotPrices(){
       if(invalid.length)throw new Error('Missing or invalid '+invalid.join(', ')+' spot price');
       state.spotPrices=prices;
       state.spotsLoaded=true;
+      console.log('%c✅ Gold API prices fetched from Cloudflare KV','color:#4a7c59;font-weight:bold');
+      console.log('   Source API: '+(data.source||'unknown')+' | Gold: $'+prices.Gold+'/oz | Platinum: $'+prices.Platinum+'/oz | Silver: $'+prices.Silver+'/oz');
       ringAudit.record('pricing','spot_prices_loaded',{source:data.source||null,updated:data.updated||null});
       updatePrice();
       return true;
