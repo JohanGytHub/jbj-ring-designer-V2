@@ -48,6 +48,7 @@ button:disabled{cursor:not-allowed;opacity:.5}
   <input id="adminToken" type="password" placeholder="Your AUDIT_ADMIN_TOKEN" autocomplete="off">
   <div class="btn-row">
     <button class="btn-primary" onclick="loadRecords(true)">Download Records</button>
+    <button class="btn-secondary" onclick="checkHealth()">Check D1 &amp; Schema</button>
     <button class="btn-secondary" onclick="openLocalFile()">Open Local JSON / NDJSON</button>
     <button class="btn-secondary" onclick="downloadJson()">Export JSON File</button>
     <button class="btn-danger" id="deleteButton" onclick="deleteChecked()" disabled>Delete Checked Records</button>
@@ -67,9 +68,10 @@ button:disabled{cursor:not-allowed;opacity:.5}
     <div><label for="filterEmail">Email <span class="hint-muted">(exact)</span></label><input id="filterEmail" placeholder="person@example.com"></div>
     <div><label for="filterVisitor">Visitor ID <span class="hint-muted">(exact)</span></label><input id="filterVisitor" placeholder="visitor ID"></div>
     <div><label for="filterSession">Session ID <span class="hint-muted">(exact)</span></label><input id="filterSession" placeholder="session ID"></div>
+    <div><label for="filterIp">IP Address <span class="hint-muted">(exact)</span></label><input id="filterIp" placeholder="visitor IP"></div>
     <div><label for="filterFrom">From UTC</label><input id="filterFrom" placeholder="YYYY-MM-DD or ISO UTC"></div>
     <div><label for="filterTo">To UTC</label><input id="filterTo" placeholder="YYYY-MM-DD or ISO UTC"></div>
-    <div><label for="filterLimit">Records per page</label><input id="filterLimit" type="number" min="1" max="1000" value="250"></div>
+    <div><label for="filterLimit">Records per page</label><input id="filterLimit" type="number" min="1" placeholder="Loaded from KV"></div>
   </div>
   <p class="hint-muted filter-help">Filters are applied by Cloudflare. A date-only “To” includes the full day. Use Download Records again after changing filters.</p>
 </div>
@@ -111,6 +113,7 @@ let selectedIds = new Set();
 let nextCursor = null;
 let loadedFilters = null;
 let dataSource = null;
+let adminConfig = null;
 
 const byId = id => document.getElementById(id);
 
@@ -161,7 +164,14 @@ function exportRecord(record) {
     state: safeJson(recordValue(record, 'state_json', 'state')),
     payload: safeJson(recordValue(record, 'payload_json', 'payload')),
     clientMeta: safeJson(recordValue(record, 'client_meta_json', 'clientMeta')),
-    ipHash: recordValue(record, 'ip_hash', 'ipHash')
+    ipHash: recordValue(record, 'ip_hash', 'ipHash'),
+    ipAddress: recordValue(record, 'ip_address', 'ipAddress'),
+    cfCountry: recordValue(record, 'cf_country', 'cfCountry'),
+    cfRay: recordValue(record, 'cf_ray', 'cfRay'),
+    userAgent: recordValue(record, 'user_agent', 'userAgent'),
+    requestHeaders: safeJson(recordValue(record, 'request_headers_json', 'requestHeaders')),
+    cloudflareRequest: safeJson(recordValue(record, 'cf_request_json', 'cloudflareRequest')),
+    rawEvent: safeJson(recordValue(record, 'raw_event_json', 'rawEvent'))
   };
 }
 
@@ -195,9 +205,10 @@ function currentServerFilters() {
     email: byId('filterEmail').value.trim(),
     visitorId: byId('filterVisitor').value.trim(),
     sessionId: byId('filterSession').value.trim(),
+    ipAddress: byId('filterIp').value.trim(),
     from: normalizeUtc(byId('filterFrom').value, 'from'),
     to: normalizeUtc(byId('filterTo').value, 'to'),
-    limit: Math.min(Math.max(Number(byId('filterLimit').value) || 250, 1), 1000)
+    limit: Math.min(Math.max(Number(byId('filterLimit').value) || adminConfig.listDefault, 1), adminConfig.listMaximum)
   };
 }
 
@@ -230,6 +241,30 @@ async function responseError(response) {
   }
 }
 
+async function loadAdminConfig() {
+  const response = await adminFetch('/v1/admin/health');
+  if (!response.ok) throw new Error(await responseError(response));
+  const result = await response.json();
+  if (!result.ok || !result.adminConfig) throw new Error(result.error || 'Audit configuration is unavailable.');
+  adminConfig = result.adminConfig;
+  const limitInput = byId('filterLimit');
+  limitInput.max = String(adminConfig.listMaximum);
+  if (!limitInput.value) limitInput.value = String(adminConfig.listDefault);
+  return result;
+}
+
+async function checkHealth() {
+  try {
+    setStatus('Checking', 'load');
+    const result = await loadAdminConfig();
+    setStatus('Connected', 'ok');
+    log('D1 connected. Audit schema v' + result.schemaVersion + ', retention: ' + result.retentionMode + ', ' + result.event_count + ' stored event(s), last received: ' + (result.last_received_at || 'none') + '.', 'log-ok');
+  } catch (error) {
+    setStatus('Error', 'err');
+    log('Health check failed: ' + error.message, 'log-err');
+  }
+}
+
 function eventTypeOptions() {
   const select = byId('eventTypeFilter');
   const selected = select.value;
@@ -244,7 +279,7 @@ function eventTypeOptions() {
 
 function searchText(record) {
   const output = exportRecord(record);
-  return [output.id, output.visitorId, output.sessionId, output.type, output.name, output.stepId, output.email].join(' ').toLowerCase();
+  return [output.id, output.visitorId, output.sessionId, output.type, output.name, output.stepId, output.email, output.ipAddress, output.cfCountry, output.cfRay, output.userAgent].join(' ').toLowerCase();
 }
 
 function occurredAt(record) {
@@ -292,6 +327,22 @@ function sessionCount(records) {
   }).filter(Boolean)).size;
 }
 
+function visitorOutcome(records) {
+  const latest = latestRecord(records);
+  const latestSession = String(recordValue(latest, 'session_id', 'sessionId') || '');
+  const sessionRecords = records.filter(function(record) {
+    return String(recordValue(record, 'session_id', 'sessionId') || '') === latestSession;
+  });
+  const terminals = sessionRecords.filter(function(record) {
+    return ['quote_submit_succeeded','exit_quote_submit_succeeded','session_completed','session_abandoned'].includes(String(recordValue(record, 'event_name', 'name') || ''));
+  });
+  const terminal = latestRecord(terminals);
+  const terminalName = terminal ? String(recordValue(terminal, 'event_name', 'name') || '') : '';
+  if (terminalName === 'session_abandoned') return 'Abandoned';
+  if (terminalName) return 'Completed';
+  return 'In progress / no exit event';
+}
+
 function renderTable() {
   const type = byId('eventTypeFilter').value;
   const search = byId('searchBox').value.trim().toLowerCase();
@@ -310,7 +361,7 @@ function renderTable() {
     return;
   }
 
-  let html = '<table><thead><tr><th>Check</th><th>Records</th><th>Last Activity UTC</th><th>Last Action</th><th>Email</th><th>Visitor ID</th><th>Sessions</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Check</th><th>Records</th><th>Last Activity UTC</th><th>Outcome</th><th>Last Step</th><th>Last Action</th><th>Email</th><th>IP Address</th><th>Visitor ID</th><th>Sessions</th></tr></thead><tbody>';
   visibleVisitorGroups.forEach(function(group) {
     const checked = group.records.length > 0 && group.records.every(function(record) { return selectedIds.has(recordId(record)); });
     const latest = group.latest;
@@ -318,8 +369,11 @@ function renderTable() {
     html += '<td><input class="visitor-check" data-visitor-key="' + escapeHtml(group.key) + '" type="checkbox" ' + (checked ? 'checked' : '') + ' aria-label="Check all audit records for visitor ' + escapeHtml(group.visitorId) + '"></td>';
     html += '<td>' + group.records.length + '</td>';
     html += '<td>' + escapeHtml(occurredAt(latest)) + '</td>';
+    html += '<td>' + escapeHtml(visitorOutcome(group.records)) + '</td>';
+    html += '<td>' + escapeHtml(recordValue(latest, 'step_id', 'stepId')) + '</td>';
     html += '<td title="' + escapeHtml(recordValue(latest, 'event_name', 'name')) + '">' + escapeHtml(recordValue(latest, 'event_name', 'name')) + '</td>';
     html += '<td>' + escapeHtml(recordValue(latest, 'email', 'email')) + '</td>';
+    html += '<td>' + escapeHtml(recordValue(latest, 'ip_address', 'ipAddress')) + '</td>';
     html += '<td>' + escapeHtml(group.visitorId) + '</td>';
     html += '<td>' + sessionCount(group.records) + '</td></tr>';
   });
@@ -349,11 +403,13 @@ function showStats() {
   const visitors = new Set(records.map(function(record) { return record.visitorId; }).filter(Boolean));
   const sessions = new Set(records.map(function(record) { return record.sessionId; }).filter(Boolean));
   const emails = new Set(records.map(function(record) { return record.email; }).filter(Boolean));
+  const abandoned = records.filter(function(record) { return record.name === 'session_abandoned'; }).length;
   byId('statsGrid').innerHTML =
     '<div class="stat"><div class="num">' + records.length + '</div><div class="lbl">Loaded Records</div></div>' +
     '<div class="stat"><div class="num">' + visitors.size + '</div><div class="lbl">Visitors</div></div>' +
     '<div class="stat"><div class="num">' + sessions.size + '</div><div class="lbl">Sessions</div></div>' +
-    '<div class="stat"><div class="num">' + emails.size + '</div><div class="lbl">Emails</div></div>';
+    '<div class="stat"><div class="num">' + emails.size + '</div><div class="lbl">Emails</div></div>' +
+    '<div class="stat"><div class="num">' + abandoned + '</div><div class="lbl">Abandoned Sessions</div></div>';
 }
 
 function updateSelectionBar() {
@@ -419,9 +475,9 @@ function openVisitorWindow(key) {
   const groupsHtml = groups.map(function(entry) {
     const sessionId = entry[0];
     const rows = entry[1].map(function(record) {
-      return '<tr data-record-id="' + escapeHtml(recordId(record)) + '"><td>' + escapeHtml(occurredAt(record)) + '</td><td>' + escapeHtml(recordValue(record, 'event_type', 'type')) + '</td><td title="' + escapeHtml(recordValue(record, 'event_name', 'name')) + '">' + escapeHtml(recordValue(record, 'event_name', 'name')) + '</td><td>' + escapeHtml(recordValue(record, 'step_id', 'stepId')) + '</td><td>' + escapeHtml(recordValue(record, 'email', 'email')) + '</td></tr>';
+      return '<tr data-record-id="' + escapeHtml(recordId(record)) + '"><td>' + escapeHtml(occurredAt(record)) + '</td><td>' + escapeHtml(recordValue(record, 'event_type', 'type')) + '</td><td title="' + escapeHtml(recordValue(record, 'event_name', 'name')) + '">' + escapeHtml(recordValue(record, 'event_name', 'name')) + '</td><td>' + escapeHtml(recordValue(record, 'step_id', 'stepId')) + '</td><td>' + escapeHtml(recordValue(record, 'email', 'email')) + '</td><td>' + escapeHtml(recordValue(record, 'ip_address', 'ipAddress')) + '</td></tr>';
     }).join('');
-    return '<section class="record-group"><h2>Session: ' + escapeHtml(sessionId) + ' <span>' + entry[1].length + ' record(s)</span></h2><div class="table-wrap"><table><thead><tr><th>Occurred UTC</th><th>Type</th><th>Action</th><th>Step</th><th>Email</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    return '<section class="record-group"><h2>Session: ' + escapeHtml(sessionId) + ' <span>' + entry[1].length + ' record(s)</span></h2><div class="table-wrap"><table><thead><tr><th>Occurred UTC</th><th>Type</th><th>Action</th><th>Step</th><th>Email</th><th>IP Address</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }).join('');
   visitorWindow.document.open();
   visitorWindow.document.write('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Visitor Records — ' + escapeHtml(visitorId) + '</title><style>*{box-sizing:border-box}body{margin:0;padding:18px;background:#1a1a2e;color:#eee;font-family:-apple-system,system-ui,sans-serif}h1{margin:0 0 6px;color:#daa520;font-size:1.25rem}.sub{margin:0 0 16px;color:#aaa;font-size:.85rem}.record-group{margin:0 0 14px;padding:12px;background:#16213e;border:1px solid #333;border-radius:7px}.record-group h2{margin:0 0 8px;color:#daa520;font-size:.9rem}.record-group h2 span{color:#aaa;font-weight:400;font-size:.8rem}.table-wrap{overflow:auto}table{min-width:100%;border-collapse:separate;border-spacing:0;font-size:.78rem}th,td{padding:7px 8px;border-right:1px solid #333;border-bottom:1px solid #333;text-align:left;white-space:nowrap}th{background:#0f3460;color:#daa520;position:sticky;top:0}td{background:#16213e;max-width:240px;overflow:hidden;text-overflow:ellipsis}tr{cursor:pointer}tr:hover td{background:#1e3a5f}</style></head><body><h1>Visitor Records</h1><p class="sub">Visitor ID: ' + escapeHtml(visitorId) + ' — ' + visitorRecords.length + ' total record(s). Click a record to view its decoded JSON.</p>' + groupsHtml + '</body></html>');
@@ -482,12 +538,14 @@ function renderLoadedData() {
 
 async function loadRecords(reset) {
   try {
+    if (!adminConfig) await loadAdminConfig();
     const filters = reset ? currentServerFilters() : loadedFilters;
     if (!filters) throw new Error('Choose Download Records first.');
     const query = new URLSearchParams();
     if (filters.email) query.set('email', filters.email);
     if (filters.visitorId) query.set('visitor_id', filters.visitorId);
     if (filters.sessionId) query.set('session_id', filters.sessionId);
+    if (filters.ipAddress) query.set('ip_address', filters.ipAddress);
     if (filters.from) query.set('from', filters.from);
     if (filters.to) query.set('to', filters.to);
     query.set('limit', String(filters.limit));
@@ -585,9 +643,10 @@ async function deleteChecked() {
 
   let deleted = 0;
   try {
+    if (!adminConfig) await loadAdminConfig();
     setStatus('Deleting…', 'load');
-    for (let start = 0; start < ids.length; start += 500) {
-      const batch = ids.slice(start, start + 500);
+    for (let start = 0; start < ids.length; start += adminConfig.deleteMaximum) {
+      const batch = ids.slice(start, start + adminConfig.deleteMaximum);
       const response = await adminFetch('/v1/admin/events', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
