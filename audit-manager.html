@@ -38,7 +38,7 @@ button:disabled{cursor:not-allowed;opacity:.5}
 </head>
 <body>
 <h1>JBJ Ring Designer Audit Manager</h1>
-<p class="subtitle">Browse, download, and delete Ring Designer audit records in Cloudflare D1</p>
+<p class="subtitle">Browse, download, and delete Ring Designer audit records in Cloudflare D1. Dates and times are recorded and shown in CDT (UTC-05:00).</p>
 
 <div class="section">
   <h2>Connection</h2>
@@ -69,11 +69,11 @@ button:disabled{cursor:not-allowed;opacity:.5}
     <div><label for="filterVisitor">Visitor ID <span class="hint-muted">(exact)</span></label><input id="filterVisitor" placeholder="visitor ID"></div>
     <div><label for="filterSession">Session ID <span class="hint-muted">(exact)</span></label><input id="filterSession" placeholder="session ID"></div>
     <div><label for="filterIp">IP Address <span class="hint-muted">(exact)</span></label><input id="filterIp" placeholder="visitor IP"></div>
-    <div><label for="filterFrom">From UTC</label><input id="filterFrom" placeholder="YYYY-MM-DD or ISO UTC"></div>
-    <div><label for="filterTo">To UTC</label><input id="filterTo" placeholder="YYYY-MM-DD or ISO UTC"></div>
+    <div><label for="filterFrom">From CDT</label><input id="filterFrom" placeholder="YYYY-MM-DD or ISO CDT"></div>
+    <div><label for="filterTo">To CDT</label><input id="filterTo" placeholder="YYYY-MM-DD or ISO CDT"></div>
     <div><label for="filterLimit">Records per page</label><input id="filterLimit" type="number" min="1" placeholder="Loaded from KV"></div>
   </div>
-  <p class="hint-muted filter-help">Filters are applied by Cloudflare. A date-only “To” includes the full day. Use Download Records again after changing filters.</p>
+  <p class="hint-muted filter-help">Filters are applied by Cloudflare. A date-only “To” includes the full CDT day. Use Download Records again after changing filters.</p>
 </div>
 
 <div class="selection-bar" id="selectionBar">
@@ -116,12 +116,45 @@ let dataSource = null;
 let adminConfig = null;
 
 const byId = id => document.getElementById(id);
+const CDT_OFFSET = '-05:00';
+const CDT_OFFSET_MILLISECONDS = 5 * 60 * 60 * 1000;
+const CDT_DISPLAY_FORMAT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Etc/GMT+5',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  fractionalSecondDigits: 3,
+  hour12: true
+});
+
+function parsedDate(value) {
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatCdt(value) {
+  const parsed = parsedDate(value);
+  return parsed ? CDT_DISPLAY_FORMAT.format(parsed) + ' CDT' : String(value || '');
+}
+
+function toCdtIso(value) {
+  const parsed = parsedDate(value);
+  if (!parsed) return String(value || '');
+  return new Date(parsed.getTime() - CDT_OFFSET_MILLISECONDS).toISOString().replace(/Z$/, CDT_OFFSET);
+}
+
+function cdtFileStamp(value) {
+  return toCdtIso(value).slice(0, 23).replace(/[:.]/g, '-') + '-CDT';
+}
 
 function log(message, cls) {
   const logEl = byId('log');
   const line = document.createElement('span');
   line.className = cls || 'log-info';
-  line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
+  line.textContent = '[' + formatCdt(new Date()) + '] ' + message;
   logEl.appendChild(line);
   logEl.appendChild(document.createElement('br'));
   logEl.scrollTop = logEl.scrollHeight;
@@ -150,13 +183,18 @@ function safeJson(value) {
 }
 
 function exportRecord(record) {
+  const occurredAtUtc = recordValue(record, 'occurred_at', 'occurredAt');
+  const receivedAtUtc = recordValue(record, 'received_at', 'receivedAt');
   return {
     id: recordId(record),
     visitorId: recordValue(record, 'visitor_id', 'visitorId'),
     sessionId: recordValue(record, 'session_id', 'sessionId'),
     sequence: recordValue(record, 'sequence_no', 'sequence'),
-    occurredAt: recordValue(record, 'occurred_at', 'occurredAt'),
-    receivedAt: recordValue(record, 'received_at', 'receivedAt'),
+    occurredAt: toCdtIso(occurredAtUtc),
+    receivedAt: toCdtIso(receivedAtUtc),
+    timeZone: 'CDT (UTC-05:00)',
+    occurredAtUtc: occurredAtUtc,
+    receivedAtUtc: receivedAtUtc,
     type: recordValue(record, 'event_type', 'type'),
     name: recordValue(record, 'event_name', 'name'),
     stepId: recordValue(record, 'step_id', 'stepId'),
@@ -189,14 +227,17 @@ function setStatus(text, status) {
   badge.className = 'status status-' + status;
 }
 
-function normalizeUtc(value, boundary) {
+function normalizeCdtFilter(value, boundary) {
   const text = value.trim();
   if (!text) return '';
+  let timestamp = text;
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    return text + (boundary === 'to' ? 'T23:59:59.999Z' : 'T00:00:00.000Z');
+    timestamp = text + (boundary === 'to' ? 'T23:59:59.999' : 'T00:00:00.000') + CDT_OFFSET;
+  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(text)) {
+    timestamp = text + CDT_OFFSET;
   }
-  const parsed = new Date(text);
-  if (Number.isNaN(parsed.getTime())) throw new Error('Invalid ' + boundary + ' date. Use YYYY-MM-DD or an ISO UTC timestamp.');
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) throw new Error('Invalid ' + boundary + ' date. Use YYYY-MM-DD or an ISO CDT timestamp.');
   return parsed.toISOString();
 }
 
@@ -206,8 +247,8 @@ function currentServerFilters() {
     visitorId: byId('filterVisitor').value.trim(),
     sessionId: byId('filterSession').value.trim(),
     ipAddress: byId('filterIp').value.trim(),
-    from: normalizeUtc(byId('filterFrom').value, 'from'),
-    to: normalizeUtc(byId('filterTo').value, 'to'),
+    from: normalizeCdtFilter(byId('filterFrom').value, 'from'),
+    to: normalizeCdtFilter(byId('filterTo').value, 'to'),
     limit: Math.min(Math.max(Number(byId('filterLimit').value) || adminConfig.listDefault, 1), adminConfig.listMaximum)
   };
 }
@@ -258,7 +299,7 @@ async function checkHealth() {
     setStatus('Checking', 'load');
     const result = await loadAdminConfig();
     setStatus('Connected', 'ok');
-    log('D1 connected. Audit schema v' + result.schemaVersion + ', retention: ' + result.retentionMode + ', ' + result.event_count + ' stored event(s), last received: ' + (result.last_received_at || 'none') + '.', 'log-ok');
+    log('D1 connected. Audit schema v' + result.schemaVersion + ', retention: ' + result.retentionMode + ', ' + result.event_count + ' stored event(s), last received: ' + (result.last_received_at ? formatCdt(result.last_received_at) : 'none') + '.', 'log-ok');
   } catch (error) {
     setStatus('Error', 'err');
     log('Health check failed: ' + error.message, 'log-err');
@@ -286,13 +327,18 @@ function occurredAt(record) {
   return String(recordValue(record, 'occurred_at', 'occurredAt') || '');
 }
 
+function occurredAtMilliseconds(record) {
+  const milliseconds = Date.parse(occurredAt(record));
+  return Number.isFinite(milliseconds) ? milliseconds : 0;
+}
+
 function visitorKey(record) {
   return String(recordValue(record, 'visitor_id', 'visitorId') || '__visitor_not_recorded__');
 }
 
 function latestRecord(records) {
   return records.reduce(function(latest, record) {
-    return !latest || occurredAt(record) > occurredAt(latest) ? record : latest;
+    return !latest || occurredAtMilliseconds(record) > occurredAtMilliseconds(latest) ? record : latest;
   }, null);
 }
 
@@ -313,7 +359,7 @@ function groupVisitors(records) {
     group.latest = latestRecord(group.records);
     return group;
   }).sort(function(a, b) {
-    return occurredAt(b.latest).localeCompare(occurredAt(a.latest));
+    return occurredAtMilliseconds(b.latest) - occurredAtMilliseconds(a.latest);
   });
 }
 
@@ -361,14 +407,14 @@ function renderTable() {
     return;
   }
 
-  let html = '<table><thead><tr><th>Check</th><th>Records</th><th>Last Activity UTC</th><th>Outcome</th><th>Last Step</th><th>Last Action</th><th>Email</th><th>IP Address</th><th>Visitor ID</th><th>Sessions</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Check</th><th>Records</th><th>Last Activity CDT</th><th>Outcome</th><th>Last Step</th><th>Last Action</th><th>Email</th><th>IP Address</th><th>Visitor ID</th><th>Sessions</th></tr></thead><tbody>';
   visibleVisitorGroups.forEach(function(group) {
     const checked = group.records.length > 0 && group.records.every(function(record) { return selectedIds.has(recordId(record)); });
     const latest = group.latest;
     html += '<tr data-visitor-key="' + escapeHtml(group.key) + '" class="' + (checked ? 'checked' : '') + '">';
     html += '<td><input class="visitor-check" data-visitor-key="' + escapeHtml(group.key) + '" type="checkbox" ' + (checked ? 'checked' : '') + ' aria-label="Check all audit records for visitor ' + escapeHtml(group.visitorId) + '"></td>';
     html += '<td>' + group.records.length + '</td>';
-    html += '<td>' + escapeHtml(occurredAt(latest)) + '</td>';
+    html += '<td>' + escapeHtml(formatCdt(occurredAt(latest))) + '</td>';
     html += '<td>' + escapeHtml(visitorOutcome(group.records)) + '</td>';
     html += '<td>' + escapeHtml(recordValue(latest, 'step_id', 'stepId')) + '</td>';
     html += '<td title="' + escapeHtml(recordValue(latest, 'event_name', 'name')) + '">' + escapeHtml(recordValue(latest, 'event_name', 'name')) + '</td>';
@@ -444,7 +490,7 @@ function armPopupCloseOnBlur(popup) {
 }
 
 function sortedRecords(records) {
-  return records.slice().sort(function(a, b) { return occurredAt(b).localeCompare(occurredAt(a)); });
+  return records.slice().sort(function(a, b) { return occurredAtMilliseconds(b) - occurredAtMilliseconds(a); });
 }
 
 function groupRecordsBySession(records) {
@@ -475,9 +521,9 @@ function openVisitorWindow(key) {
   const groupsHtml = groups.map(function(entry) {
     const sessionId = entry[0];
     const rows = entry[1].map(function(record) {
-      return '<tr data-record-id="' + escapeHtml(recordId(record)) + '"><td>' + escapeHtml(occurredAt(record)) + '</td><td>' + escapeHtml(recordValue(record, 'event_type', 'type')) + '</td><td title="' + escapeHtml(recordValue(record, 'event_name', 'name')) + '">' + escapeHtml(recordValue(record, 'event_name', 'name')) + '</td><td>' + escapeHtml(recordValue(record, 'step_id', 'stepId')) + '</td><td>' + escapeHtml(recordValue(record, 'email', 'email')) + '</td><td>' + escapeHtml(recordValue(record, 'ip_address', 'ipAddress')) + '</td></tr>';
+      return '<tr data-record-id="' + escapeHtml(recordId(record)) + '"><td>' + escapeHtml(formatCdt(occurredAt(record))) + '</td><td>' + escapeHtml(recordValue(record, 'event_type', 'type')) + '</td><td title="' + escapeHtml(recordValue(record, 'event_name', 'name')) + '">' + escapeHtml(recordValue(record, 'event_name', 'name')) + '</td><td>' + escapeHtml(recordValue(record, 'step_id', 'stepId')) + '</td><td>' + escapeHtml(recordValue(record, 'email', 'email')) + '</td><td>' + escapeHtml(recordValue(record, 'ip_address', 'ipAddress')) + '</td></tr>';
     }).join('');
-    return '<section class="record-group"><h2>Session: ' + escapeHtml(sessionId) + ' <span>' + entry[1].length + ' record(s)</span></h2><div class="table-wrap"><table><thead><tr><th>Occurred UTC</th><th>Type</th><th>Action</th><th>Step</th><th>Email</th><th>IP Address</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    return '<section class="record-group"><h2>Session: ' + escapeHtml(sessionId) + ' <span>' + entry[1].length + ' record(s)</span></h2><div class="table-wrap"><table><thead><tr><th>Occurred CDT</th><th>Type</th><th>Action</th><th>Step</th><th>Email</th><th>IP Address</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }).join('');
   visitorWindow.document.open();
   visitorWindow.document.write('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Visitor Records — ' + escapeHtml(visitorId) + '</title><style>*{box-sizing:border-box}body{margin:0;padding:18px;background:#1a1a2e;color:#eee;font-family:-apple-system,system-ui,sans-serif}h1{margin:0 0 6px;color:#daa520;font-size:1.25rem}.sub{margin:0 0 16px;color:#aaa;font-size:.85rem}.record-group{margin:0 0 14px;padding:12px;background:#16213e;border:1px solid #333;border-radius:7px}.record-group h2{margin:0 0 8px;color:#daa520;font-size:.9rem}.record-group h2 span{color:#aaa;font-weight:400;font-size:.8rem}.table-wrap{overflow:auto}table{min-width:100%;border-collapse:separate;border-spacing:0;font-size:.78rem}th,td{padding:7px 8px;border-right:1px solid #333;border-bottom:1px solid #333;text-align:left;white-space:nowrap}th{background:#0f3460;color:#daa520;position:sticky;top:0}td{background:#16213e;max-width:240px;overflow:hidden;text-overflow:ellipsis}tr{cursor:pointer}tr:hover td{background:#1e3a5f}</style></head><body><h1>Visitor Records</h1><p class="sub">Visitor ID: ' + escapeHtml(visitorId) + ' — ' + visitorRecords.length + ' total record(s). Click a record to view its decoded JSON.</p>' + groupsHtml + '</body></html>');
@@ -626,7 +672,7 @@ function downloadJson(checkedOnly) {
   const blob = new Blob([JSON.stringify(records.map(exportRecord), null, 2)], { type: 'application/json' });
   const anchor = document.createElement('a');
   anchor.href = URL.createObjectURL(blob);
-  anchor.download = 'ring-designer-audit-' + scope + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+  anchor.download = 'ring-designer-audit-' + scope + '-' + cdtFileStamp(new Date()) + '.json';
   anchor.click();
   URL.revokeObjectURL(anchor.href);
   log('Exported ' + records.length + ' ' + scope + ' record(s) as JSON (' + (blob.size / 1024).toFixed(1) + ' KB).', 'log-ok');
