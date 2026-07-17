@@ -81,7 +81,7 @@ td.editing input{width:100%;padding:3px 6px;border:1px solid #daa520;border-radi
 <div class="btn-row">
 <button class="btn-primary" onclick="fetchPricing()">Download from KV</button>
 <button class="btn-secondary" onclick="browseLocal()">Open Local File</button>
-<button class="btn-secondary" onclick="uploadPricing()">Upload New Prices</button>
+<button class="btn-secondary" onclick="uploadPricing()">Upload Complete KV Payload</button>
 <button class="btn-secondary" onclick="downloadJson()">Export JSON File</button>
 <input type="file" id="fileInput" accept=".json" class="file-hidden" onchange="handleFile(event)">
 <input type="file" id="localFileInput" accept=".json" class="file-hidden" onchange="handleLocalFile(event)">
@@ -116,6 +116,13 @@ td.editing input{width:100%;padding:3px 6px;border:1px solid #daa520;border-radi
 <option value="formula_constants">Formula Constants</option>
 <option value="misc_costs">Misc Costs</option>
 <option value="material_groups">Material Groups</option>
+<option value="catalog">Material Catalog &amp; Colors</option>
+<option value="builder_config">Builder Parameters &amp; Rules</option>
+<option value="services">Service Configuration</option>
+<option value="business">Business &amp; Contact Configuration</option>
+<option value="spot_validation">Spot Validation</option>
+<option value="quote_config">Quote Configuration</option>
+<option value="audit_config">Audit Configuration</option>
 </select>
 <div class="search-box search-flex"><input id="searchBox" placeholder="Search material name..." oninput="renderTable()"></div>
 </div>
@@ -153,7 +160,14 @@ function pricingValue(source, path) {
 
 function pricingValidationErrors(data) {
   const errors = [];
-  if (!data || !data.base_prices || !data.material_groups) errors.push('base_prices and material_groups are required');
+  if (!data || typeof data !== 'object') return ['Payload must be a JSON object'];
+  if (data._schema_version !== 2) errors.push('_schema_version must be 2');
+  ['base_prices','width_prices','material_groups','formula_constants','misc_costs','catalog','services','business','builder_config','spot_validation','quote_config','audit_config'].forEach(key => {
+    if (!data[key] || typeof data[key] !== 'object') errors.push(key + ' is required');
+  });
+  ['meteorite_prices','mokume_prices'].forEach(key => {
+    if (!Array.isArray(data[key])) errors.push(key + ' must be an array');
+  });
   const formula = data && data.formula_constants;
   if (!formula || typeof formula !== 'object') {
     errors.push('formula_constants is required');
@@ -177,12 +191,69 @@ function pricingValidationErrors(data) {
     const value = data && data.misc_costs && data.misc_costs[key];
     if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('misc_costs.' + key + ' must be a finite number');
   });
+  const materials = data.catalog && data.catalog.materials;
+  const colors = data.catalog && data.catalog.colors;
+  if (!materials || typeof materials !== 'object' || Array.isArray(materials)) errors.push('catalog.materials is required');
+  if (!colors || typeof colors !== 'object' || Array.isArray(colors)) errors.push('catalog.colors is required');
+  if (materials && data.material_groups) {
+    const materialNames = Object.keys(materials).sort();
+    const groupNames = Object.keys(data.material_groups).sort();
+    if (JSON.stringify(materialNames) !== JSON.stringify(groupNames)) errors.push('catalog.materials and material_groups must contain the same material names');
+    materialNames.forEach(name => {
+      const material = materials[name];
+      if (!material || typeof material.g !== 'string' || !material.mi || !Array.isArray(material.p) || !Array.isArray(material.f)) errors.push('catalog.materials.' + name + ' is incomplete');
+      else if (data.material_groups[name] !== material.g) errors.push('material_groups.' + name + ' does not match catalog group');
+    });
+  }
+  const builder = data.builder_config;
+  if (builder && typeof builder === 'object') {
+    ['ring_size.min','ring_size.max','ring_size.step','ring_size.default','ring_width.min','ring_width.max','ring_width.step','ring_width.default','strip_width.min','strip_width.step','strip_width.default','width_epsilon','material_default_min_width','limits.undo_history','limits.max_strips','limits.email_max_length','limits.notes_max_length','limits.font_max_length','limits.ring_image_max_characters','engraving.max_length','ui.slider_debounce_ms','ui.quote_spot_poll_ms','ui.rule_toast_ms','ui.touch_long_press_ms','ui.touch_move_cancel_pixels','ui.touch_vibration_ms','ui.section_scroll_delay_ms','ring_view.default_elevation','ring_view.default_azimuth','ring_view.max_elevation','ring_view.drag_azimuth_sensitivity','ring_view.drag_elevation_sensitivity','ring_view.minimum_device_pixel_ratio','ring_view.default_container_width','ring_view.max_canvas_width','ring_view.canvas_height','ring_view.width_scale','ring_view.max_radius_pixels'].forEach(path => {
+      const value = pricingValue(builder, path);
+      if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('builder_config.' + path + ' must be a finite number');
+    });
+    ['steps','metal_groups','sleeve_materials','profiles','common_profiles','finishes','inlay_profiles','popular_woods','disabled_materials','priority_material_groups','engraving.fonts'].forEach(path => {
+      const value = pricingValue(builder, path);
+      if (!Array.isArray(value) || !value.length) errors.push('builder_config.' + path + ' must be a non-empty array');
+    });
+    ['defaults','groups','rules','pricing_classification','engraving.font_stacks'].forEach(path => {
+      const value = pricingValue(builder, path);
+      if (!value || typeof value !== 'object' || Array.isArray(value)) errors.push('builder_config.' + path + ' is required');
+    });
+  }
+  if (data.services) {
+    ['spot_prices_url','pricing_url','quote_url','audit_events_url'].forEach(path => {
+      if (typeof data.services[path] !== 'string' || !/^https:\/\//.test(data.services[path])) errors.push('services.' + path + ' must be an HTTPS URL');
+    });
+    ['pricing_browser_cache_seconds','spot_retry_delay_ms','spot_max_attempts','cors_max_age_seconds'].forEach(path => {
+      if (typeof data.services[path] !== 'number' || !Number.isFinite(data.services[path])) errors.push('services.' + path + ' must be a finite number');
+    });
+  }
+  if (data.business) {
+    ['website_url','designer_url','contact_url','ring_sizer_url','engraving_url'].forEach(path => {
+      if (typeof data.business[path] !== 'string' || !/^https:\/\//.test(data.business[path])) errors.push('business.' + path + ' must be an HTTPS URL');
+    });
+    ['brand_name','support_email'].forEach(path => {
+      if (typeof data.business[path] !== 'string' || !data.business[path]) errors.push('business.' + path + ' is required');
+    });
+    if (typeof data.business.quote_turnaround_business_days !== 'number' || !Number.isFinite(data.business.quote_turnaround_business_days)) errors.push('business.quote_turnaround_business_days must be a finite number');
+  }
+  ['Gold','Platinum','Silver'].forEach(metal => {
+    const range = data.spot_validation && data.spot_validation[metal];
+    if (!range || typeof range.min_exclusive !== 'number' || typeof range.max_exclusive !== 'number' || range.min_exclusive >= range.max_exclusive) errors.push('spot_validation.' + metal + ' range is invalid');
+  });
+  ['price_tolerance_percent','price_tolerance_minimum','rate_limit_requests','rate_limit_window_ms','email_tld_min_length'].forEach(path => {
+    if (typeof (data.quote_config && data.quote_config[path]) !== 'number') errors.push('quote_config.' + path + ' must be a number');
+  });
+  ['schema_version','batch_size','beacon_max_bytes','flush_delay_ms','retry_base_delay_ms','max_events_per_request','max_field_length','max_email_length','id_min_length','id_max_length','timestamp_max_length','event_type_max_length','event_name_max_length','step_id_max_length','admin_list_default','admin_list_maximum','admin_export_default','admin_export_maximum','admin_delete_maximum'].forEach(path => {
+    if (typeof (data.audit_config && data.audit_config[path]) !== 'number') errors.push('audit_config.' + path + ' must be a number');
+  });
+  if (!data.audit_config || data.audit_config.retention_mode !== 'indefinite_no_automatic_purge') errors.push('audit_config.retention_mode must preserve raw data indefinitely');
   return errors;
 }
 
 function reportPricingValidation(data, context) {
   const errors = pricingValidationErrors(data);
-  if (errors.length) log(context + ' is incomplete: ' + errors.join('; '), 'log-err');
+  if (errors.length) log(context + ' is incomplete: ' + errors.slice(0, 50).join('; ') + (errors.length > 50 ? '; …and ' + (errors.length - 50) + ' more' : ''), 'log-err');
   return errors;
 }
 
@@ -234,7 +305,7 @@ async function saveChanges() {
   const key = document.getElementById('apiKey').value;
   if (!key) { log('Enter your API Key first!', 'log-err'); alert('Enter your API Key to save changes to KV.'); return; }
   const validationErrors = reportPricingValidation(currentData, 'Pricing data');
-  if (validationErrors.length) { alert('Pricing data is incomplete. Correct the Formula Constants or Misc Costs entries before uploading.'); return; }
+  if (validationErrors.length) { alert('The complete KV payload is invalid. Review the log before uploading.'); return; }
   const srcNote = dataSource === 'local' ? '\n\nSource: LOCAL FILE — this will overwrite live KV pricing.' : '';
   if (!confirm('Upload ' + changeCount + ' change(s) to live pricing?\nThis will affect customer-facing prices within ~1 hour.' + srcNote)) return;
 
@@ -352,7 +423,7 @@ async function handleFile(e) {
   let parsed;
   try { parsed = JSON.parse(text); } catch(e) { log('Invalid JSON: ' + e.message, 'log-err'); return; }
   const validationErrors = reportPricingValidation(parsed, 'Pricing file');
-  if (validationErrors.length) { alert('Pricing file is incomplete. Correct the Formula Constants or Misc Costs entries before uploading.'); return; }
+  if (validationErrors.length) { alert('The complete KV payload is invalid. Review the log before uploading.'); return; }
 
   log('Uploading to ' + url + '...');
   try {
@@ -385,9 +456,11 @@ function showStats() {
   const mp = currentData.meteorite_prices ? (Array.isArray(currentData.meteorite_prices) ? currentData.meteorite_prices.length : Object.keys(currentData.meteorite_prices).length) : 0;
   const mk = currentData.mokume_prices ? (Array.isArray(currentData.mokume_prices) ? currentData.mokume_prices.length : 0) : 0;
   const mg = currentData.material_groups ? Object.keys(currentData.material_groups).length : 0;
+  const catalog = currentData.catalog && currentData.catalog.materials ? Object.keys(currentData.catalog.materials).length : 0;
 
   document.getElementById('statsGrid').innerHTML = `
     <div class="stat"><div class="num">${mg}</div><div class="lbl">Material Groups</div></div>
+    <div class="stat"><div class="num">${catalog}</div><div class="lbl">Catalog Materials</div></div>
     <div class="stat"><div class="num">${bp}</div><div class="lbl">Base Prices</div></div>
     <div class="stat"><div class="num">${wp}</div><div class="lbl">Width Tables</div></div>
     <div class="stat"><div class="num">${mp}</div><div class="lbl">Meteorite Entries</div></div>
@@ -705,6 +778,15 @@ function renderTable() {
     });
     html += '</table>';
     container.innerHTML = html;
+  } else if (['catalog','builder_config','services','business','spot_validation','quote_config','audit_config'].includes(cat)) {
+    const pre = document.createElement('pre');
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.wordBreak = 'break-word';
+    pre.style.padding = '12px';
+    pre.style.background = '#0a0a1a';
+    pre.style.border = '1px solid #333';
+    pre.textContent = JSON.stringify(currentData[cat], null, 2);
+    container.replaceChildren(pre);
   } else {
     container.innerHTML = '<p class="empty-hint">Select a category above to browse.</p>';
   }
