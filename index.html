@@ -213,6 +213,8 @@ input,select{font-family:inherit;color:inherit}
 .mat-card.disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 #addStripModalInner.v2-add-strip-mode .mat-card.disabled{opacity:.62;cursor:pointer;pointer-events:auto}
 #addStripModalInner.v2-add-strip-mode .mat-card.disabled:hover{border-color:var(--gold);transform:translateY(-1px)}
+#addStripModalInner.v2-edit-strip-mode .mat-card.disabled{opacity:.62;cursor:pointer;pointer-events:auto}
+#addStripModalInner.v2-edit-strip-mode .mat-card.disabled:hover{border-color:var(--gold);transform:translateY(-1px)}
 .mat-card .swatch{width:26px;height:26px;border-radius:8px;flex-shrink:0;border:1px solid var(--swatch-border);box-shadow:inset 0 1px 2px rgba(255,255,255,.25),inset 0 -2px 3px rgba(0,0,0,.15)}
 .mat-card .swatch.photo{width:56px;height:56px;background-size:cover;background-position:center;background-color:#fff;box-shadow:none}
 .mat-card .swatch.photo{position:relative}
@@ -324,7 +326,7 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 .size-btn{width:48px;height:40px;border:1px solid var(--border);border-radius:10px;font-size:.76rem;font-weight:500;color:var(--text-dim);display:flex;align-items:center;justify-content:center;transition:var(--transition);background:var(--bg2)}
 .size-btn:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
 .size-btn.selected{border-color:transparent;color:var(--done-dot-text);background:var(--gold-grad);box-shadow:var(--shadow-gold);font-weight:700;transform:scale(1.05)}
-.size-btn.quarter{font-size:.66rem;opacity:.75}
+.size-btn.quarter{font-size:.66rem;opacity:1}
 .size-btn.quarter.selected{opacity:1}
 
 /* Help links */
@@ -358,7 +360,7 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 .engraving-preview{font-family:var(--font-display);font-size:1.25rem;color:var(--gold);text-align:center;padding:14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);letter-spacing:.1em;min-height:44px;margin-bottom:14px;font-style:italic}
 
 /* Nav buttons */
-.nav-buttons{display:flex;justify-content:space-between;margin-top:28px;padding-top:20px;border-top:1px solid var(--border)}
+.nav-buttons{display:flex;justify-content:space-between;margin-top:28px;padding-top:20px;padding-right:116px;border-top:1px solid var(--border)}
 .btn-nav{padding:13px 30px;border-radius:999px;font-size:.86rem;font-weight:600;letter-spacing:.02em;transition:var(--transition)}
 .btn-prev{border:1px solid var(--border);color:var(--text-dim);background:var(--bg2)}
 .btn-prev:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
@@ -822,7 +824,7 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
 .tool-tab.filled:not(.active)::before{content:'';position:absolute;top:10px;right:10px;width:6px;height:6px;border-radius:50%;background:#35c8a8;box-shadow:0 0 0 3px rgba(53,200,168,.12)}
 
 /* The active engine panel is a focused workspace, not an accordion row. */
-.acc-stack{display:block;position:relative;padding:30px 36px 140px;min-height:430px}
+.acc-stack{display:block;position:relative;padding:30px 36px 220px;min-height:430px}
 .acc-stack::before{display:none}
 .acc-panel{display:none;position:relative;z-index:1;border:0;scroll-margin-top:110px}
 .acc-panel.open{display:block;animation:studioPanelIn .32s cubic-bezier(.22,1,.36,1)}
@@ -886,7 +888,7 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
   .tool-tab{flex-basis:96px;min-width:96px;min-height:60px}
   .tool-tab.active::after{bottom:-13px}
   .acc-panel{scroll-margin-top:96px}
-  .acc-stack{padding-top:24px;padding-bottom:130px}
+  .acc-stack{padding-top:24px;padding-bottom:220px}
   .v2-price{right:12px;bottom:12px;min-width:132px;padding:10px 13px}
   .v2-price .v2-price-amount{font-size:1.22rem}
 }
@@ -5257,6 +5259,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var modalInner=document.getElementById('addStripModalInner');
     var modalTitle=modalInner&&modalInner.querySelector('h3');
     if(modalInner) modalInner.classList.toggle('v2-add-strip-mode',!!(modalTitle&&/^Add an Inlay Strip/i.test(modalTitle.textContent||'')));
+    if(modalInner) modalInner.classList.toggle('v2-edit-strip-mode',!!(modalTitle&&/^Edit Strip \d+/i.test(modalTitle.textContent||'')));
     hideInnerModalX();
     clampModalWidth();
     ensureX(document.getElementById('addStripModal'),'#addStripModalInner');
@@ -5272,7 +5275,9 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(!inner || inner.__v2minimumSelection) return;
     inner.__v2minimumSelection=true;
     inner.addEventListener('click',function(event){
-      if(inner.__v2applyingMinimum || !inner.classList.contains('v2-add-strip-mode')) return;
+      var isAddMode=inner.classList.contains('v2-add-strip-mode');
+      var isEditMode=inner.classList.contains('v2-edit-strip-mode');
+      if(inner.__v2applyingMinimum || (!isAddMode && !isEditMode)) return;
       var card=event.target.closest('.mat-card');
       if(!card || !inner.contains(card) || typeof DATA==='undefined') return;
       var label=card.querySelector('.name');
@@ -5288,6 +5293,60 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
         : (mi.solid_inlay||mi.inlay_swarf||BUILDER.material_default_min_width);
       materialMinimum=parseFloat(materialMinimum);
       if(isNaN(materialMinimum)) return;
+
+      if(isEditMode){
+        // EDIT MODE: only intervene when the engine grayed the card out (current width
+        // below this material's minimum). Bump the width to that minimum, let the engine
+        // re-render, then select the now-enabled card. Engine's Save stays the authority.
+        if(!card.classList.contains('disabled')) return;
+        var editTitle=inner.querySelector('h3');
+        var editMatch=(editTitle&&editTitle.textContent||'').match(/Edit Strip (\d+)/i);
+        var editIdx=editMatch?parseInt(editMatch[1],10)-1:-1;
+        if(editIdx<0 || editIdx>=state.strips.length) return;
+        var editInput=inner.querySelector('input[type="number"]');
+        if(!editInput) return;
+        var otherWidth=state.strips.reduce(function(total,strip,i){return i===editIdx?total:total+strip.width;},0);
+        var maxAvail=state.ringWidth-otherWidth;
+        if(materialMinimum>maxAvail+BUILDER.width_epsilon){
+          event.preventDefault(); event.stopPropagation();
+          if(typeof showRuleToast==='function') showRuleToast('"'+material+'" requires '+materialMinimum+'mm, but only '+Math.max(0,maxAvail).toFixed(2)+'mm is available for this strip.');
+          return;
+        }
+        var editCurW=parseFloat(editInput.value);
+        var editTargetW=Math.max(isNaN(editCurW)?materialMinimum:editCurW,materialMinimum);
+        if(editTargetW>maxAvail) editTargetW=maxAvail;
+        // Pre-validate the proposed arrangement the same way the engine's Save does
+        // (including its metal-split behavior when narrowing a metal strip to an inlay).
+        var editOrig=state.strips[editIdx];
+        var editProposed=state.strips.map(function(strip){return {material:strip.material,width:strip.width};});
+        if(isMetal(editOrig.material) && !isMetal(material) && editTargetW<editOrig.width){
+          editProposed.splice(editIdx,1,
+            {material:editOrig.material,width:parseFloat((editOrig.width-editTargetW).toFixed(2))},
+            {material:material,width:editTargetW});
+        } else {
+          editProposed[editIdx]={material:material,width:editTargetW};
+        }
+        var editRuleError=typeof validateProposedStrips==='function'?validateProposedStrips(editProposed):null;
+        if(editRuleError){
+          event.preventDefault(); event.stopPropagation();
+          if(typeof showRuleToast==='function') showRuleToast(editRuleError);
+          return;
+        }
+        event.preventDefault(); event.stopPropagation();
+        inner.__v2applyingMinimum=true;
+        editInput.value=String(editTargetW);
+        editInput.dispatchEvent(new Event('change',{bubbles:true}));
+        var editSearch=inner.querySelector('.mat-search');
+        if(editSearch) editSearch.dispatchEvent(new Event('input',{bubbles:true}));
+        var editReplacement=Array.from(inner.querySelectorAll('.mat-card')).find(function(nextCard){
+          var nextLabel=nextCard.querySelector('.name');
+          var nextText=(nextLabel&&nextLabel.textContent||'').trim();
+          return nextText===material || nextText.indexOf(material+' (min ')===0;
+        });
+        if(editReplacement && !editReplacement.classList.contains('disabled')) editReplacement.click();
+        inner.__v2applyingMinimum=false;
+        return;
+      }
 
       var input=inner.querySelector('input[type="number"]');
       if(!input) return;
