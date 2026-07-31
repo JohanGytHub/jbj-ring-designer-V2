@@ -849,6 +849,9 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
 .studio-controls .mat-card:hover{border-color:var(--gold-ring);box-shadow:var(--shadow-sm)}
 .studio-controls .mat-card.selected{border-color:var(--gold);background:linear-gradient(145deg,var(--gold-wash),transparent 72%),var(--bg2);box-shadow:0 0 0 1px var(--gold)}
 .studio-controls .size-btn,.studio-controls .profile-card,.studio-controls .finish-card{border-radius:14px;background:var(--bg2);box-shadow:none}
+.studio-controls .size-btn{position:relative}
+.studio-controls .size-btn.selected{border-color:transparent;color:#fff;background:var(--gold-grad);box-shadow:var(--shadow-gold);font-weight:700}
+.studio-controls .size-btn.selected::after{content:'✓';position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:var(--gold-grad);color:var(--done-dot-text);font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm);animation:badgePop .35s cubic-bezier(.34,1.56,.64,1)}
 .studio-controls .btn-next,.studio-controls .btn-nav.primary{background:var(--gold-grad);color:#fff;box-shadow:0 12px 28px rgba(75,88,206,.2)}
 .studio-controls .summary-total{border-color:var(--gold-ring);background:linear-gradient(145deg,var(--gold-wash),transparent 70%),var(--bg2)}
 
@@ -4201,6 +4204,7 @@ function renderSleevePanel(col){
         matSwatch(state.baseMetal),
         h('div',{class:'name'},[state.baseMetal+' (same as base metal)'])
       ]);
+      if(_staffMode)bindStaffPrice(defCard,'title','sleeve',state.baseMetal,state.ringWidth,state.baseMetal+' (same as base metal): ');
       sleeveGrid.appendChild(defCard);
       return;
     }
@@ -4234,6 +4238,7 @@ function renderSleevePanel(col){
         matSwatch(name),
         h('div',{class:'name'},[name])
       ]);
+      if(_staffMode)bindStaffPrice(card,'title','sleeve',name,state.ringWidth,name+' sleeve @ '+state.ringWidth+'mm: ');
       sleeveGrid.appendChild(card);
     });
   }
