@@ -69,11 +69,11 @@ button:disabled{cursor:not-allowed;opacity:.5}
     <div><label for="filterVisitor">Visitor ID <span class="hint-muted">(exact)</span></label><input id="filterVisitor" placeholder="visitor ID"></div>
     <div><label for="filterSession">Session ID <span class="hint-muted">(exact)</span></label><input id="filterSession" placeholder="session ID"></div>
     <div><label for="filterIp">IP Address <span class="hint-muted">(exact)</span></label><input id="filterIp" placeholder="visitor IP"></div>
-    <div><label for="filterFrom">From CDT</label><input id="filterFrom" placeholder="YYYY-MM-DD or ISO CDT"></div>
-    <div><label for="filterTo">To CDT</label><input id="filterTo" placeholder="YYYY-MM-DD or ISO CDT"></div>
+    <div><label for="filterFrom">From CDT</label><input id="filterFrom" placeholder="YYYY-MM-DD (CDT) or ISO"></div>
+    <div><label for="filterTo">To CDT</label><input id="filterTo" placeholder="YYYY-MM-DD (CDT) or ISO"></div>
     <div><label for="filterLimit">Records per page</label><input id="filterLimit" type="number" min="1" placeholder="Loaded from KV"></div>
   </div>
-  <p class="hint-muted filter-help">Filters are applied by Cloudflare. A date-only “To” includes the full CDT day. Use Download Records again after changing filters.</p>
+  <p class="hint-muted filter-help">Filters are applied by Cloudflare. A date-only “To” includes the full day. Use Download Records again after changing filters.</p>
 </div>
 
 <div class="selection-bar" id="selectionBar">
@@ -116,45 +116,12 @@ let dataSource = null;
 let adminConfig = null;
 
 const byId = id => document.getElementById(id);
-const CDT_OFFSET = '-05:00';
-const CDT_OFFSET_MILLISECONDS = 5 * 60 * 60 * 1000;
-const CDT_DISPLAY_FORMAT = new Intl.DateTimeFormat('en-US', {
-  timeZone: 'Etc/GMT+5',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  fractionalSecondDigits: 3,
-  hour12: true
-});
-
-function parsedDate(value) {
-  const parsed = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function formatCdt(value) {
-  const parsed = parsedDate(value);
-  return parsed ? CDT_DISPLAY_FORMAT.format(parsed) + ' CDT' : String(value || '');
-}
-
-function toCdtIso(value) {
-  const parsed = parsedDate(value);
-  if (!parsed) return String(value || '');
-  return new Date(parsed.getTime() - CDT_OFFSET_MILLISECONDS).toISOString().replace(/Z$/, CDT_OFFSET);
-}
-
-function cdtFileStamp(value) {
-  return toCdtIso(value).slice(0, 23).replace(/[:.]/g, '-') + '-CDT';
-}
 
 function log(message, cls) {
   const logEl = byId('log');
   const line = document.createElement('span');
   line.className = cls || 'log-info';
-  line.textContent = '[' + formatCdt(new Date()) + '] ' + message;
+  line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
   logEl.appendChild(line);
   logEl.appendChild(document.createElement('br'));
   logEl.scrollTop = logEl.scrollHeight;
@@ -182,19 +149,50 @@ function safeJson(value) {
   try { return JSON.parse(value); } catch (error) { return value; }
 }
 
+// All display timestamps use fixed Central Daylight Time (UTC-05:00) per shop policy.
+var CDT_OFFSET_MS = 5 * 60 * 60 * 1000;
+function pad2(n, width) { return String(n).padStart(width || 2, '0'); }
+function formatCdt(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  const shifted = new Date(parsed.getTime() - CDT_OFFSET_MS);
+  let hours = shifted.getUTCHours();
+  const meridiem = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12; if (hours === 0) hours = 12;
+  return pad2(shifted.getUTCMonth() + 1) + '/' + pad2(shifted.getUTCDate()) + '/' + shifted.getUTCFullYear() +
+    ', ' + pad2(hours) + ':' + pad2(shifted.getUTCMinutes()) + ':' + pad2(shifted.getUTCSeconds()) +
+    '.' + pad2(shifted.getUTCMilliseconds(), 3) + ' ' + meridiem + ' CDT';
+}
+function toCdtIso(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return new Date(parsed.getTime() - CDT_OFFSET_MS).toISOString().replace('Z', '-05:00');
+}
+function normalizeCdtFilter(value, boundary) {
+  const text = String(value == null ? '' : value).trim();
+  if (!text) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const dayUtc = new Date(text + (boundary === 'to' ? 'T23:59:59.999Z' : 'T00:00:00.000Z'));
+    return new Date(dayUtc.getTime() + CDT_OFFSET_MS).toISOString();
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) throw new Error('Invalid ' + boundary + ' date. Use YYYY-MM-DD (CDT) or an ISO timestamp.');
+  return parsed.toISOString();
+}
+
 function exportRecord(record) {
-  const occurredAtUtc = recordValue(record, 'occurred_at', 'occurredAt');
-  const receivedAtUtc = recordValue(record, 'received_at', 'receivedAt');
   return {
     id: recordId(record),
     visitorId: recordValue(record, 'visitor_id', 'visitorId'),
     sessionId: recordValue(record, 'session_id', 'sessionId'),
     sequence: recordValue(record, 'sequence_no', 'sequence'),
-    occurredAt: toCdtIso(occurredAtUtc),
-    receivedAt: toCdtIso(receivedAtUtc),
+    occurredAt: toCdtIso(recordValue(record, 'occurred_at', 'occurredAt')),
+    receivedAt: toCdtIso(recordValue(record, 'received_at', 'receivedAt')),
+    occurredAtUtc: recordValue(record, 'occurred_at', 'occurredAt'),
+    receivedAtUtc: recordValue(record, 'received_at', 'receivedAt'),
     timeZone: 'CDT (UTC-05:00)',
-    occurredAtUtc: occurredAtUtc,
-    receivedAtUtc: receivedAtUtc,
     type: recordValue(record, 'event_type', 'type'),
     name: recordValue(record, 'event_name', 'name'),
     stepId: recordValue(record, 'step_id', 'stepId'),
@@ -227,19 +225,6 @@ function setStatus(text, status) {
   badge.className = 'status status-' + status;
 }
 
-function normalizeCdtFilter(value, boundary) {
-  const text = value.trim();
-  if (!text) return '';
-  let timestamp = text;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    timestamp = text + (boundary === 'to' ? 'T23:59:59.999' : 'T00:00:00.000') + CDT_OFFSET;
-  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(text)) {
-    timestamp = text + CDT_OFFSET;
-  }
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.getTime())) throw new Error('Invalid ' + boundary + ' date. Use YYYY-MM-DD or an ISO CDT timestamp.');
-  return parsed.toISOString();
-}
 
 function currentServerFilters() {
   return {
@@ -299,7 +284,7 @@ async function checkHealth() {
     setStatus('Checking', 'load');
     const result = await loadAdminConfig();
     setStatus('Connected', 'ok');
-    log('D1 connected. Audit schema v' + result.schemaVersion + ', retention: ' + result.retentionMode + ', ' + result.event_count + ' stored event(s), last received: ' + (result.last_received_at ? formatCdt(result.last_received_at) : 'none') + '.', 'log-ok');
+    log('D1 connected. Audit schema v' + result.schemaVersion + ', retention: ' + result.retentionMode + ', ' + result.event_count + ' stored event(s), last received: ' + (result.last_received_at || 'none') + '.', 'log-ok');
   } catch (error) {
     setStatus('Error', 'err');
     log('Health check failed: ' + error.message, 'log-err');
@@ -327,18 +312,13 @@ function occurredAt(record) {
   return String(recordValue(record, 'occurred_at', 'occurredAt') || '');
 }
 
-function occurredAtMilliseconds(record) {
-  const milliseconds = Date.parse(occurredAt(record));
-  return Number.isFinite(milliseconds) ? milliseconds : 0;
-}
-
 function visitorKey(record) {
   return String(recordValue(record, 'visitor_id', 'visitorId') || '__visitor_not_recorded__');
 }
 
 function latestRecord(records) {
   return records.reduce(function(latest, record) {
-    return !latest || occurredAtMilliseconds(record) > occurredAtMilliseconds(latest) ? record : latest;
+    return !latest || occurredAt(record) > occurredAt(latest) ? record : latest;
   }, null);
 }
 
@@ -359,7 +339,7 @@ function groupVisitors(records) {
     group.latest = latestRecord(group.records);
     return group;
   }).sort(function(a, b) {
-    return occurredAtMilliseconds(b.latest) - occurredAtMilliseconds(a.latest);
+    return occurredAt(b.latest).localeCompare(occurredAt(a.latest));
   });
 }
 
@@ -490,7 +470,7 @@ function armPopupCloseOnBlur(popup) {
 }
 
 function sortedRecords(records) {
-  return records.slice().sort(function(a, b) { return occurredAtMilliseconds(b) - occurredAtMilliseconds(a); });
+  return records.slice().sort(function(a, b) { return occurredAt(b).localeCompare(occurredAt(a)); });
 }
 
 function groupRecordsBySession(records) {
@@ -672,7 +652,7 @@ function downloadJson(checkedOnly) {
   const blob = new Blob([JSON.stringify(records.map(exportRecord), null, 2)], { type: 'application/json' });
   const anchor = document.createElement('a');
   anchor.href = URL.createObjectURL(blob);
-  anchor.download = 'ring-designer-audit-' + scope + '-' + cdtFileStamp(new Date()) + '.json';
+  anchor.download = 'ring-designer-audit-' + scope + '-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
   anchor.click();
   URL.revokeObjectURL(anchor.href);
   log('Exported ' + records.length + ' ' + scope + ' record(s) as JSON (' + (blob.size / 1024).toFixed(1) + ' KB).', 'log-ok');

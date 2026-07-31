@@ -6,48 +6,33 @@
 <title>JBJ Pricing Manager</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:20px;max-width:1400px;margin:0 auto}
+body{font-family:-apple-system,system-ui,sans-serif;background:#1a1a2e;color:#eee;padding:20px;max-width:1100px;margin:0 auto}
 h1{color:#daa520;margin-bottom:6px;font-size:1.5rem}
 .subtitle{color:#999;margin-bottom:20px;font-size:.9rem}
 .section{background:#16213e;border:1px solid #333;border-radius:8px;padding:16px;margin-bottom:16px}
 .section h2{color:#daa520;font-size:1.1rem;margin-bottom:10px}
+.bighead{color:#daa520;font-size:1.15rem;margin:26px 0 10px;border-bottom:1px solid #333;padding-bottom:6px}
 label{display:block;color:#ccc;margin-bottom:4px;font-size:.85rem}
-input,select{width:100%;padding:8px;border:1px solid #444;border-radius:4px;background:#0f3460;color:#eee;margin-bottom:10px;font-size:.9rem}
+input,select,textarea{width:100%;padding:8px;border:1px solid #444;border-radius:4px;background:#0f3460;color:#eee;margin-bottom:10px;font-size:.9rem;font-family:inherit}
+textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78rem;line-height:1.45;resize:vertical;white-space:pre;overflow-x:auto}
+input.chg,select.chg{border-color:#2ecc71;background:#123a24}
 button{padding:10px 20px;border:none;border-radius:6px;cursor:pointer;font-size:.9rem;font-weight:600}
 .btn-primary{background:#daa520;color:#1a1a2e}
 .btn-primary:hover{background:#c9941a}
-.btn-danger{background:#c0392b;color:#fff;font-size:.8rem;padding:6px 14px}
 .btn-secondary{background:#444;color:#eee}
+.btn-secondary:hover{background:#555}
+.btn-mini{padding:5px 12px;font-size:.78rem;background:#444;color:#eee}
 .btn-save{background:#27ae60;color:#fff;font-size:.95rem;padding:10px 24px;animation:pulse 1.5s infinite}
 .btn-save:hover{background:#2ecc71}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(46,204,113,.5)}50%{box-shadow:0 0 0 6px rgba(46,204,113,0)}}
-#log{background:#0a0a1a;border:1px solid #333;border-radius:4px;padding:10px;min-height:120px;max-height:300px;overflow-y:auto;font-family:monospace;font-size:.8rem;white-space:pre-wrap;word-break:break-all}
+#log{background:#0a0a1a;border:1px solid #333;border-radius:4px;padding:10px;min-height:100px;max-height:280px;overflow-y:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;white-space:pre-wrap;word-break:break-word}
 .log-ok{color:#2ecc71}.log-err{color:#e74c3c}.log-info{color:#3498db}
 .status{display:inline-block;padding:3px 10px;border-radius:4px;font-size:.8rem;font-weight:600}
 .status-ok{background:#27ae60;color:#fff}
-.status-err{background:#c0392b;color:#fff}
-.status-load{background:#f39c12;color:#1a1a2e}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
 .stat{background:#0f3460;border:1px solid #333;border-radius:6px;padding:10px;text-align:center}
-.stat .num{font-size:1.5rem;color:#daa520;font-weight:700}
-.stat .lbl{font-size:.75rem;color:#999}
-table{min-width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem;margin-top:8px}
-th,td{padding:5px 8px;border-right:1px solid #333;border-bottom:1px solid #333;text-align:left;white-space:nowrap}
-th{background:#0f3460;color:#daa520;position:sticky;top:0;z-index:2;border-top:1px solid #333}
-th:first-child{position:sticky;left:0;z-index:3;border-left:1px solid #333;max-width:180px;white-space:normal}
-td{background:#16213e}
-td:first-child{position:sticky;left:0;z-index:1;background:#1a2744;font-weight:600;border-left:1px solid #333;white-space:normal;max-width:180px}
-td.editable{cursor:pointer;transition:background .15s}
-td.editable:hover{background:#1e3a5f}
-td.changed{background:#1a3a1a !important;outline:1px solid #2ecc71}
-td.editing{padding:2px}
-td.editing input{width:100%;padding:3px 6px;border:1px solid #daa520;border-radius:3px;background:#0a1628;color:#fff;font-size:.82rem;margin:0}
-.search-box{margin-bottom:8px}
-.search-box input{margin-bottom:0}
-.changes-bar{display:none;background:#1a3a1a;border:1px solid #27ae60;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;gap:12px}
-.changes-bar.visible{display:flex}
-.changes-bar .count{color:#2ecc71;font-weight:700;font-size:1rem}
-.changes-bar .hint{color:#aaa;font-size:.82rem;flex:1}
+.stat .num{font-size:1.4rem;color:#daa520;font-weight:700}
+.stat .lbl{font-size:.72rem;color:#999}
 .source-bar{display:none;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:.85rem;align-items:center;gap:10px}
 .source-bar.visible{display:flex}
 .source-bar.src-kv{background:#0f2a4a;border:1px solid #3498db}
@@ -55,36 +40,79 @@ td.editing input{width:100%;padding:3px 6px;border:1px solid #daa520;border-radi
 .source-bar.src-local{background:#2a1a0f;border:1px solid #e67e22}
 .source-bar.src-local #sourceLabel{color:#e67e22;font-weight:700}
 #sourceDetail{color:#aaa;flex:1}
-.hint-muted{color:#666;font-weight:400}
-.btn-row{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+.hint-muted{color:#777;font-weight:400;font-size:.8rem}
+.btn-row{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;align-items:center}
 .file-hidden{display:none}
 .hidden{display:none}
-.filter-row{display:flex;gap:8px;margin-bottom:8px}
-.cat-select{width:200px}
-.search-flex{flex:1}
-.table-scroll{max-height:calc(100vh - 120px);overflow:auto}
-.cell-table{color:#3498db}
-.cell-empty{color:#555}
-.empty-hint{color:#999;padding:10px}
+details.sec{background:#16213e;border:1px solid #333;border-radius:8px;margin-bottom:12px;overflow:hidden}
+details.sec>summary{cursor:pointer;padding:12px 16px;color:#daa520;font-weight:600;font-size:.98rem;list-style:none;display:flex;align-items:center;gap:10px;user-select:none}
+details.sec>summary::before{content:'▸';color:#777;transition:transform .15s}
+details.sec[open]>summary::before{transform:rotate(90deg)}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec .secbody{padding:4px 16px 16px;border-top:1px solid #26304d}
+.cnt{color:#888;font-weight:400;font-size:.78rem}
+.editbadge{margin-left:auto;font-size:.7rem;color:#1a1a2e;background:#2ecc71;border-radius:4px;padding:2px 8px;font-weight:700;visibility:hidden}
+.editbadge.on{visibility:visible}
+.secdesc{color:#9ab;font-size:.82rem;margin:10px 0 14px;line-height:1.5}
+.fgroup{border:1px solid #2a3554;border-radius:8px;padding:12px 14px;margin-bottom:14px;background:#131c36}
+.fgroup h3{color:#e8c56b;font-size:.9rem;margin-bottom:8px;font-weight:600}
+.fldrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0 14px}
+.fld{min-width:0}
+.fld label{font-size:.8rem;color:#bcd}
+.fld .curval{color:#667;font-size:.72rem;margin:-6px 0 8px}
+.lock{display:inline-block;background:#5b4a12;color:#f0d080;border-radius:4px;font-size:.68rem;padding:1px 7px;margin-left:6px;font-weight:700;vertical-align:1px}
+.explain{background:#0d1530;border-left:3px solid #daa520;border-radius:0 6px 6px 0;padding:10px 12px;margin-top:2px;font-size:.82rem;line-height:1.55;color:#cfd8e8}
+.explain div{margin-bottom:3px}
+.explain .xk{display:inline-block;min-width:118px;color:#daa520;font-weight:700;font-size:.7rem;letter-spacing:.04em}
+.mininote{color:#8fa5c0;font-size:.78rem;margin:-6px 0 12px;line-height:1.45}
+.rawnote{color:#9ab;font-size:.8rem;margin-bottom:8px;line-height:1.5}
+.rawstatus{font-size:.78rem;margin-left:8px}
+.rawstatus.ok{color:#2ecc71}.rawstatus.err{color:#e74c3c}
+.report{background:#0a0a1a;border:1px solid #333;border-radius:6px;padding:12px;margin-top:12px;font-size:.84rem;line-height:1.6;max-height:340px;overflow-y:auto}
+.report .r-ok{color:#2ecc71}.report .r-err{color:#e74c3c}.report .r-info{color:#3498db}.report .r-warn{color:#f39c12}
+.report ul{margin:4px 0 8px 22px}
+.howto{color:#cfd8e8;font-size:.86rem;line-height:1.6}
+.howto p{margin-bottom:8px}
+.howto ol{margin:4px 0 8px 22px}
+.howto li{margin-bottom:4px}
+.howto b{color:#e8c56b}
+.verline{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.verline .vcur{font-size:1.05rem;color:#3498db;font-weight:700}
+.verline .varrow{color:#777}
+.verline .vsug{font-size:1.05rem;color:#2ecc71;font-weight:700}
+#newVersion{max-width:160px;margin-bottom:0}
+.vwrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 </style>
 </head>
 <body>
 <h1>JBJ Pricing Manager</h1>
-<p class="subtitle">View and update ring designer prices stored in Cloudflare KV</p>
+<p class="subtitle">The one place to view and update every price, formula number, and setting of the custom ring designer.</p>
+
+<details class="sec" open>
+<summary>How this works — read me first</summary>
+<div class="secbody howto">
+<p>All the numbers the ring designer uses — prices, metal formulas, catalog, builder settings — live in <b>one data record in Cloudflare KV</b> (Cloudflare's online storage). The ring designer and the price engine read that record live. <b>The script files never change when numbers change</b> — publishing from this page is all it takes.</p>
+<ol>
+<li><b>Download live data</b> — enter the API key and click "Download live data". The key is needed for downloading as well as uploading, and it is never saved anywhere; re-enter it each visit.</li>
+<li><b>Edit</b> — open any section below and change values. Everyday numbers have their own labeled boxes with an explanation of what each one does. The big tables are edited as raw JSON text.</li>
+<li><b>Download a backup</b> — always save a backup file before uploading, so you can restore if needed.</li>
+<li><b>Check &amp; upload</b> — pick a new version number, click "Check everything", review the list of changed sections, then upload. The server re-checks everything too; an invalid upload is rejected and the live data stays untouched.</li>
+</ol>
+<p>Changes go live for customers within about an hour (browser caching).</p>
+</div>
+</details>
 
 <div class="section">
-<h2>Connection</h2>
-<label>Worker URL</label>
-<input id="workerUrl" value="https://jbj-spot-prices.johan-475.workers.dev/pricing" placeholder="https://your-worker.workers.dev/pricing">
-<label>API Key <span class="hint-muted">(only needed for Upload / Save)</span></label>
-<input id="apiKey" type="password" placeholder="Your PRICING_API_KEY">
+<h2>Step 1 — Connect and load data</h2>
+<label>Worker address <span class="hint-muted">(normally never changes)</span></label>
+<input id="workerUrl" value="https://jbj-spot-prices.johan-475.workers.dev/pricing" autocomplete="off" spellcheck="false">
+<label>API key <span class="hint-muted">(needed to download AND upload — never stored, re-enter each visit)</span></label>
+<input id="apiKey" type="password" placeholder="Your PRICING_API_KEY" autocomplete="off">
 <div class="btn-row">
-<button class="btn-primary" onclick="fetchPricing()">Download from KV</button>
-<button class="btn-secondary" onclick="browseLocal()">Open Local File</button>
-<button class="btn-secondary" onclick="uploadPricing()">Upload Complete KV Payload</button>
-<button class="btn-secondary" onclick="downloadJson()">Export JSON File</button>
-<input type="file" id="fileInput" accept=".json" class="file-hidden" onchange="handleFile(event)">
-<input type="file" id="localFileInput" accept=".json" class="file-hidden" onchange="handleLocalFile(event)">
+<button class="btn-primary" onclick="fetchLive()">Download live data</button>
+<button class="btn-secondary" onclick="document.getElementById('localFileInput').click()">Load from file</button>
+<button class="btn-secondary" onclick="downloadBackup()">Download backup of editor</button>
+<input type="file" id="localFileInput" accept=".json,application/json" class="file-hidden" onchange="handleLocalFile(event)">
 </div>
 </div>
 
@@ -93,40 +121,109 @@ td.editing input{width:100%;padding:3px 6px;border:1px solid #daa520;border-radi
 <span id="sourceDetail"></span>
 </div>
 
-<div class="changes-bar" id="changesBar">
-<span class="count" id="changeCount">0 changes</span>
-<span class="hint">Click a price cell to edit. Press Enter or Tab to confirm. Esc to cancel.</span>
-<button class="btn-danger" onclick="discardChanges()">Discard All</button>
-<button class="btn-save" onclick="saveChanges()">Save Changes to KV</button>
-</div>
-
 <div class="section hidden" id="statsSection">
-<h2>Current Pricing Data <span id="statusBadge" class="status"></span></h2>
+<h2>Loaded data <span id="statusBadge" class="status"></span></h2>
 <div class="grid" id="statsGrid"></div>
 </div>
 
-<div class="section hidden" id="browseSection">
-<h2>Browse Prices</h2>
-<div class="filter-row">
-<select id="priceCategory" onchange="renderTable()" class="cat-select">
-<option value="base_prices">Base Prices</option>
-<option value="width_prices">Width-Based Prices</option>
-<option value="meteorite_prices">Meteorite Prices</option>
-<option value="mokume_prices">Mokume Prices</option>
-<option value="formula_constants">Formula Constants</option>
-<option value="misc_costs">Misc Costs</option>
-<option value="material_groups">Material Groups</option>
-<option value="catalog">Material Catalog &amp; Colors</option>
-<option value="builder_config">Builder Parameters &amp; Rules</option>
-<option value="services">Service Configuration</option>
-<option value="business">Business &amp; Contact Configuration</option>
-<option value="spot_validation">Spot Validation</option>
-<option value="quote_config">Quote Configuration</option>
-<option value="audit_config">Audit Configuration</option>
-</select>
-<div class="search-box search-flex"><input id="searchBox" placeholder="Search material name..." oninput="renderTable()"></div>
+<div id="editor" class="hidden">
+
+<div class="section" id="versionSection">
+<h2>Version number</h2>
+<div class="verline">
+<span>Current: <span class="vcur" id="verCurrent">?</span></span>
+<span class="varrow">→</span>
+<span>Suggested next: <span class="vsug" id="verSuggested">?</span></span>
 </div>
-<div id="tableContainer" class="table-scroll"></div>
+<div class="vwrap">
+<label for="newVersion" style="margin:0">New version for upload:</label>
+<input id="newVersion" autocomplete="off" spellcheck="false">
+<button class="btn-mini" onclick="useSuggestedVersion()">Use suggested</button>
+</div>
+<p class="mininote" style="margin-top:8px">Every upload must carry a version number different from the live one, so you can always tell which data is running. The upload date/time is stamped by the server automatically.</p>
+</div>
+
+<h2 class="bighead">Step 2 — Everyday settings (one box per value)</h2>
+
+<details class="sec" id="sec_formula">
+<summary>Formula constants — the metal-pricing math <span class="cnt" id="cnt_formula"></span><span class="editbadge">edited</span></summary>
+<div class="secbody">
+<p class="secdesc">These numbers drive the precious-metal price formula. Each one is explained below its box: what it is, where the value comes from, where it is used, and why it matters. Change with care — a few are universal constants that must never change.</p>
+<div id="formulaBody"></div>
+</div>
+</details>
+
+<details class="sec" id="sec_misc">
+<summary>Misc costs — the six fixed adders <span class="cnt" id="cnt_misc"></span><span class="editbadge">edited</span></summary>
+<div class="secbody">
+<p class="secdesc">Six fixed dollar adders. Exactly one <b>base metal</b> adder applies to every ring (chosen by whether the base metal is precious or not); the <b>inlay</b> adders are added when the design has inlay strips; the <b>sleeve</b> adders are added when the sleeve differs from the base. They appear as labeled lines in the staff price breakdown.</p>
+<div id="miscBody"></div>
+</div>
+</details>
+
+<details class="sec" id="sec_spot">
+<summary>Spot-price safety ranges <span class="cnt" id="cnt_spot"></span><span class="editbadge">edited</span></summary>
+<div class="secbody">
+<p class="secdesc">Sanity limits for the live market feed, in $ per troy ounce. A fetched spot price at or outside its range is rejected and the last-known-good price is kept. "Min" and "max" are exclusive bounds: the price must be strictly between them.</p>
+<div id="spotBody"></div>
+</div>
+</details>
+
+<details class="sec" id="sec_quote">
+<summary>Quote settings <span class="cnt" id="cnt_quote"></span><span class="editbadge">edited</span></summary>
+<div class="secbody">
+<p class="secdesc">How the quote Worker verifies incoming quote requests: the allowed price drift between what the customer saw and the server recalculation, and rate limiting.</p>
+<div id="quoteBody"></div>
+</div>
+</details>
+
+<details class="sec" id="sec_services">
+<summary>Service addresses &amp; timing <span class="cnt" id="cnt_services"></span><span class="editbadge">edited</span></summary>
+<div class="secbody">
+<p class="secdesc">Where the designer finds its Workers, plus caching and retry timing. Only change addresses if a Worker is redeployed under a new name.</p>
+<div id="servicesBody"></div>
+</div>
+</details>
+
+<details class="sec" id="sec_business">
+<summary>Business info &amp; links <span class="cnt" id="cnt_business"></span><span class="editbadge">edited</span></summary>
+<div class="secbody">
+<p class="secdesc">Brand name, support email, page links used in quotes and emails, and the quoted turnaround time.</p>
+<div id="businessBody"></div>
+</div>
+</details>
+
+<details class="sec" id="sec_builder">
+<summary>Ring builder numbers — sizes, limits, timings, 3D view <span class="cnt" id="cnt_builder"></span><span class="editbadge">edited</span></summary>
+<div class="secbody">
+<p class="secdesc">The designer's numeric settings: ring size / width / strip ranges, input limits, UI timing, and the 3D ring view. The builder's lists and rules (steps, profiles, finishes, rules…) are edited in the raw JSON tables further down.</p>
+<div id="builderBody"></div>
+</div>
+</details>
+
+<details class="sec" id="sec_toplevel">
+<summary>Payload description &amp; other top-level values <span class="cnt" id="cnt_toplevel"></span><span class="editbadge">edited</span></summary>
+<div class="secbody">
+<p class="secdesc">The payload's own description text and remaining top-level numbers.</p>
+<div id="toplevelBody"></div>
+</div>
+</details>
+
+<h2 class="bighead">Advanced tables (raw JSON)</h2>
+<p class="secdesc">These are the big tables, edited as raw JSON text. Rules of thumb: keep the overall shape (<b>{ }</b> stays <b>{ }</b>, <b>[ ]</b> stays <b>[ ]</b>), keep quotes around names, and no comma after the last item. Use <b>Check JSON</b> after editing — it tells you exactly what is wrong — and <b>Format</b> to tidy the layout. Nothing is uploaded until Step 3.</p>
+<div id="rawSections"></div>
+
+<div class="section">
+<h2>Step 3 — Check, back up, and upload</h2>
+<p class="mininote">"Check everything" runs the same validation the server runs and lists which sections you changed. Always download a backup before uploading.</p>
+<div class="btn-row">
+<button class="btn-secondary" onclick="checkAll()">Check everything &amp; preview changes</button>
+<button class="btn-secondary" onclick="downloadBackup()">Download backup</button>
+<button class="btn-save" onclick="uploadPayload()">Upload to live</button>
+</div>
+<div class="report hidden" id="checkReport"></div>
+</div>
+
 </div>
 
 <div class="section">
@@ -135,10 +232,15 @@ td.editing input{width:100%;padding:3px 6px;border:1px solid #daa520;border-radi
 </div>
 
 <script>
-let currentData = null;
-let originalData = null; // snapshot for change detection
-let changeCount = 0;
-let dataSource = null; // 'kv' or 'local'
+'use strict';
+// ────────────────────────────────────────────────────────────────
+// State: `original` is the untouched snapshot of the last download /
+// file load / successful upload. Inputs and textareas are read on
+// demand by collectPayload(); nothing is stored in the browser.
+// ────────────────────────────────────────────────────────────────
+let original = null;
+let dataSource = null;          // 'kv' or 'local'
+let backupVersionTag = null;    // version string at time of the last backup this session
 
 const REQUIRED_MISC_COST_KEYS = ['precious_base_metal', 'non_precious_base_metal', 'precious_inlay', 'non_precious_inlay', 'precious_sleeve', 'non_precious_sleeve'];
 const REQUIRED_FORMULA_NUMBER_PATHS = [
@@ -154,42 +256,55 @@ const REQUIRED_FORMULA_NUMBER_PATHS = [
   'fixed_costs.desprue', 'fixed_costs.pinstripe_bench_labor'
 ];
 
-function pricingValue(source, path) {
-  return path.split('.').reduce((value, key) => value == null ? undefined : value[key], source);
+// ── Small helpers ───────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
+function getPath(obj, path) { return path.split('.').reduce((v, k) => v == null ? undefined : v[k], obj); }
+function setPath(obj, path, val) {
+  const ks = path.split('.');
+  let t = obj;
+  for (let i = 0; i < ks.length - 1; i++) {
+    if (t[ks[i]] == null || typeof t[ks[i]] !== 'object') t[ks[i]] = {};
+    t = t[ks[i]];
+  }
+  t[ks[ks.length - 1]] = val;
 }
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  const t = new Date().toLocaleTimeString();
+  el.innerHTML += '<span class="' + (cls || 'log-info') + '">[' + t + '] ' + esc(msg) + '</span>\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Validation mirror of the spot-prices Worker (server re-checks) ──
+function finiteNumber(value) { return typeof value === 'number' && Number.isFinite(value); }
 
 function pricingValidationErrors(data) {
   const errors = [];
   if (!data || typeof data !== 'object') return ['Payload must be a JSON object'];
   if (data._schema_version !== 2) errors.push('_schema_version must be 2');
-  ['base_prices','width_prices','material_groups','formula_constants','misc_costs','catalog','services','business','builder_config','spot_validation','quote_config','audit_config'].forEach(key => {
+  ['base_prices', 'width_prices', 'material_groups', 'formula_constants', 'misc_costs', 'catalog', 'services', 'business', 'builder_config', 'spot_validation', 'quote_config', 'audit_config'].forEach(key => {
     if (!data[key] || typeof data[key] !== 'object') errors.push(key + ' is required');
   });
-  ['meteorite_prices','mokume_prices'].forEach(key => {
+  ['meteorite_prices', 'mokume_prices'].forEach(key => {
     if (!Array.isArray(data[key])) errors.push(key + ' must be an array');
   });
-  const formula = data && data.formula_constants;
-  if (!formula || typeof formula !== 'object') {
-    errors.push('formula_constants is required');
-  } else {
+  const formula = data.formula_constants;
+  if (formula && typeof formula === 'object') {
     REQUIRED_FORMULA_NUMBER_PATHS.forEach(path => {
-      const value = pricingValue(formula, path);
-      if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('formula_constants.' + path + ' must be a finite number');
+      if (!finiteNumber(getPath(formula, path))) errors.push('formula_constants.' + path + ' must be a finite number');
     });
-    const productionMode = pricingValue(formula, 'precious_production_mode');
-    if (typeof productionMode !== 'string' || !productionMode) {
-      errors.push('formula_constants.precious_production_mode must be a non-empty string');
-    } else {
+    const mode = getPath(formula, 'precious_production_mode');
+    if (typeof mode !== 'string' || !mode) errors.push('formula_constants.precious_production_mode is required');
+    else {
       ['fixed_costs.printing_', 'fixed_costs.cast_labor_'].forEach(prefix => {
-        const path = prefix + productionMode;
-        const value = pricingValue(formula, path);
-        if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('formula_constants.' + path + ' must be a finite number');
+        const path = prefix + mode;
+        if (!finiteNumber(getPath(formula, path))) errors.push('formula_constants.' + path + ' must be a finite number');
       });
     }
   }
   REQUIRED_MISC_COST_KEYS.forEach(key => {
-    const value = data && data.misc_costs && data.misc_costs[key];
-    if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('misc_costs.' + key + ' must be a finite number');
+    if (!finiteNumber(data.misc_costs && data.misc_costs[key])) errors.push('misc_costs.' + key + ' must be a finite number');
   });
   const materials = data.catalog && data.catalog.materials;
   const colors = data.catalog && data.catalog.colors;
@@ -199,207 +314,626 @@ function pricingValidationErrors(data) {
     const materialNames = Object.keys(materials).sort();
     const groupNames = Object.keys(data.material_groups).sort();
     if (JSON.stringify(materialNames) !== JSON.stringify(groupNames)) errors.push('catalog.materials and material_groups must contain the same material names');
-    materialNames.forEach(name => {
+    for (const name of materialNames) {
       const material = materials[name];
-      if (!material || typeof material.g !== 'string' || !material.mi || !Array.isArray(material.p) || !Array.isArray(material.f)) errors.push('catalog.materials.' + name + ' is incomplete');
-      else if (data.material_groups[name] !== material.g) errors.push('material_groups.' + name + ' does not match catalog group');
-    });
+      if (!material || typeof material !== 'object' || typeof material.g !== 'string' || !material.mi || !Array.isArray(material.p) || !Array.isArray(material.f)) {
+        errors.push('catalog.materials.' + name + ' is incomplete');
+        if (errors.length > 100) break;
+      } else if (data.material_groups[name] !== material.g) {
+        errors.push('material_groups.' + name + ' does not match catalog.materials.' + name + '.g');
+      }
+    }
   }
   const builder = data.builder_config;
   if (builder && typeof builder === 'object') {
-    ['ring_size.min','ring_size.max','ring_size.step','ring_size.default','ring_width.min','ring_width.max','ring_width.step','ring_width.default','strip_width.min','strip_width.step','strip_width.default','width_epsilon','material_default_min_width','limits.undo_history','limits.max_strips','limits.email_max_length','limits.notes_max_length','limits.font_max_length','limits.ring_image_max_characters','engraving.max_length','ui.slider_debounce_ms','ui.quote_spot_poll_ms','ui.rule_toast_ms','ui.touch_long_press_ms','ui.touch_move_cancel_pixels','ui.touch_vibration_ms','ui.section_scroll_delay_ms','ring_view.default_elevation','ring_view.default_azimuth','ring_view.max_elevation','ring_view.drag_azimuth_sensitivity','ring_view.drag_elevation_sensitivity','ring_view.minimum_device_pixel_ratio','ring_view.default_container_width','ring_view.max_canvas_width','ring_view.canvas_height','ring_view.width_scale','ring_view.max_radius_pixels'].forEach(path => {
-      const value = pricingValue(builder, path);
-      if (typeof value !== 'number' || !Number.isFinite(value)) errors.push('builder_config.' + path + ' must be a finite number');
+    ['ring_size.min', 'ring_size.max', 'ring_size.step', 'ring_size.default', 'ring_width.min', 'ring_width.max', 'ring_width.step', 'ring_width.default', 'strip_width.min', 'strip_width.step', 'strip_width.default', 'width_epsilon', 'material_default_min_width', 'limits.undo_history', 'limits.max_strips', 'limits.email_max_length', 'limits.notes_max_length', 'limits.font_max_length', 'limits.ring_image_max_characters', 'engraving.max_length', 'ui.slider_debounce_ms', 'ui.quote_spot_poll_ms', 'ui.rule_toast_ms', 'ui.touch_long_press_ms', 'ui.touch_move_cancel_pixels', 'ui.touch_vibration_ms', 'ui.section_scroll_delay_ms', 'ring_view.default_elevation', 'ring_view.default_azimuth', 'ring_view.max_elevation', 'ring_view.drag_azimuth_sensitivity', 'ring_view.drag_elevation_sensitivity', 'ring_view.minimum_device_pixel_ratio', 'ring_view.default_container_width', 'ring_view.max_canvas_width', 'ring_view.canvas_height', 'ring_view.width_scale', 'ring_view.max_radius_pixels'].forEach(path => {
+      if (!finiteNumber(getPath(builder, path))) errors.push('builder_config.' + path + ' must be a finite number');
     });
-    ['steps','metal_groups','sleeve_materials','profiles','common_profiles','finishes','inlay_profiles','popular_woods','disabled_materials','priority_material_groups','engraving.fonts'].forEach(path => {
-      const value = pricingValue(builder, path);
+    ['steps', 'metal_groups', 'sleeve_materials', 'profiles', 'common_profiles', 'finishes', 'inlay_profiles', 'popular_woods', 'disabled_materials', 'priority_material_groups', 'engraving.fonts'].forEach(path => {
+      const value = getPath(builder, path);
       if (!Array.isArray(value) || !value.length) errors.push('builder_config.' + path + ' must be a non-empty array');
     });
-    ['defaults','groups','rules','pricing_classification','engraving.font_stacks'].forEach(path => {
-      const value = pricingValue(builder, path);
+    ['defaults', 'groups', 'rules', 'pricing_classification', 'engraving.font_stacks'].forEach(path => {
+      const value = getPath(builder, path);
       if (!value || typeof value !== 'object' || Array.isArray(value)) errors.push('builder_config.' + path + ' is required');
     });
   }
   if (data.services) {
-    ['spot_prices_url','pricing_url','quote_url','audit_events_url'].forEach(path => {
+    ['spot_prices_url', 'pricing_url', 'quote_url', 'audit_events_url'].forEach(path => {
       if (typeof data.services[path] !== 'string' || !/^https:\/\//.test(data.services[path])) errors.push('services.' + path + ' must be an HTTPS URL');
     });
-    ['pricing_browser_cache_seconds','spot_retry_delay_ms','spot_max_attempts','cors_max_age_seconds'].forEach(path => {
-      if (typeof data.services[path] !== 'number' || !Number.isFinite(data.services[path])) errors.push('services.' + path + ' must be a finite number');
+    ['pricing_browser_cache_seconds', 'spot_retry_delay_ms', 'spot_max_attempts', 'cors_max_age_seconds'].forEach(path => {
+      if (!finiteNumber(data.services[path])) errors.push('services.' + path + ' must be a finite number');
     });
   }
   if (data.business) {
-    ['website_url','designer_url','contact_url','ring_sizer_url','engraving_url'].forEach(path => {
+    ['website_url', 'designer_url', 'contact_url', 'ring_sizer_url', 'engraving_url'].forEach(path => {
       if (typeof data.business[path] !== 'string' || !/^https:\/\//.test(data.business[path])) errors.push('business.' + path + ' must be an HTTPS URL');
     });
-    ['brand_name','support_email'].forEach(path => {
+    ['brand_name', 'support_email'].forEach(path => {
       if (typeof data.business[path] !== 'string' || !data.business[path]) errors.push('business.' + path + ' is required');
     });
-    if (typeof data.business.quote_turnaround_business_days !== 'number' || !Number.isFinite(data.business.quote_turnaround_business_days)) errors.push('business.quote_turnaround_business_days must be a finite number');
+    if (!finiteNumber(data.business.quote_turnaround_business_days)) errors.push('business.quote_turnaround_business_days must be a finite number');
   }
-  ['Gold','Platinum','Silver'].forEach(metal => {
+  ['Gold', 'Platinum', 'Silver'].forEach(metal => {
     const range = data.spot_validation && data.spot_validation[metal];
-    if (!range || typeof range.min_exclusive !== 'number' || typeof range.max_exclusive !== 'number' || range.min_exclusive >= range.max_exclusive) errors.push('spot_validation.' + metal + ' range is invalid');
+    if (!range || !finiteNumber(range.min_exclusive) || !finiteNumber(range.max_exclusive) || range.min_exclusive >= range.max_exclusive) {
+      errors.push('spot_validation.' + metal + ' must contain a valid min_exclusive/max_exclusive range');
+    }
   });
-  ['price_tolerance_percent','price_tolerance_minimum','rate_limit_requests','rate_limit_window_ms','email_tld_min_length'].forEach(path => {
-    if (typeof (data.quote_config && data.quote_config[path]) !== 'number') errors.push('quote_config.' + path + ' must be a number');
+  ['price_tolerance_percent', 'price_tolerance_minimum', 'rate_limit_requests', 'rate_limit_window_ms', 'email_tld_min_length'].forEach(path => {
+    if (!finiteNumber(data.quote_config && data.quote_config[path])) errors.push('quote_config.' + path + ' must be a finite number');
   });
-  ['schema_version','batch_size','beacon_max_bytes','flush_delay_ms','retry_base_delay_ms','max_events_per_request','max_field_length','max_email_length','id_min_length','id_max_length','timestamp_max_length','event_type_max_length','event_name_max_length','step_id_max_length','admin_list_default','admin_list_maximum','admin_export_default','admin_export_maximum','admin_delete_maximum'].forEach(path => {
-    if (typeof (data.audit_config && data.audit_config[path]) !== 'number') errors.push('audit_config.' + path + ' must be a number');
+  ['schema_version', 'batch_size', 'beacon_max_bytes', 'flush_delay_ms', 'retry_base_delay_ms', 'max_events_per_request', 'max_field_length', 'max_email_length', 'id_min_length', 'id_max_length', 'timestamp_max_length', 'event_type_max_length', 'event_name_max_length', 'step_id_max_length', 'admin_list_default', 'admin_list_maximum', 'admin_export_default', 'admin_export_maximum', 'admin_delete_maximum'].forEach(path => {
+    if (!finiteNumber(data.audit_config && data.audit_config[path])) errors.push('audit_config.' + path + ' must be a finite number');
   });
   if (!data.audit_config || data.audit_config.retention_mode !== 'indefinite_no_automatic_purge') errors.push('audit_config.retention_mode must preserve raw data indefinitely');
   return errors;
 }
 
-function reportPricingValidation(data, context) {
-  const errors = pricingValidationErrors(data);
-  if (errors.length) log(context + ' is incomplete: ' + errors.slice(0, 50).join('; ') + (errors.length > 50 ? '; …and ' + (errors.length - 50) + ' more' : ''), 'log-err');
-  return errors;
+// ── Formula constants: field groups + plain-English explanations ──
+// x = {what, from, used, why}; lock marks universal constants.
+const FORMULA_GROUPS = [
+  { title: 'Ring wall thickness', fields: [{ p: 'formula_constants.ring_thickness_mm', l: 'ring_thickness_mm' }],
+    x: { what: 'The wall thickness of a solid band, in millimeters.',
+         from: 'The JBJ manufacturing spec (2.1 mm standard).',
+         used: 'In the precious base-metal cost — it sets the metal volume of the ring tube.',
+         why: 'A thicker wall means more precious metal, which means a higher cost.' } },
+  { title: 'Inlay channel depth', fields: [{ p: 'formula_constants.inlay_depth_mm', l: 'inlay_depth_mm' }],
+    x: { what: 'The depth of the channel machined out for inlays (1.25 mm).',
+         from: 'The shop machining spec.',
+         used: 'Subtracts the channel volume from the precious base metal when the design has inlays.',
+         why: 'Metal removed for the channel is not billed as metal.' } },
+  { title: 'Pinstripe groove depth', fields: [{ p: 'formula_constants.pinstripe_depth_mm', l: 'pinstripe_depth_mm' }],
+    x: { what: 'The depth of the groove for precious pinstripes (1.75 mm).',
+         from: 'The shop spec.',
+         used: 'Pinstripe metal volume = groove depth × width × circumference.',
+         why: 'It sets how much precious metal a pinstripe consumes.' } },
+  { title: 'Casting loss allowance', fields: [{ p: 'formula_constants.scrap_multiplier', l: 'scrap_multiplier' }],
+    x: { what: 'The casting loss allowance multiplier.',
+         from: 'Foundry experience.',
+         used: 'Multiplies the precious metal weight.',
+         why: 'Some metal is always lost to sprues and polishing; the customer price must cover it.' } },
+  { title: 'Troy ounce conversion', lock: true, fields: [{ p: 'formula_constants.troy_oz_to_grams', l: 'troy_oz_to_grams' }],
+    x: { what: '31.1034768 — the number of grams in one troy ounce.',
+         from: 'A universal constant — do not change.',
+         used: 'Converts market spot prices ($ per troy ounce) into $ per gram.',
+         why: 'All metal weights are computed in grams.' } },
+  { title: 'Sleeve wall thickness', fields: [{ p: 'formula_constants.sleeve_thickness_mm', l: 'sleeve_thickness_mm' }],
+    x: { what: 'The wall thickness of an inner sleeve (0.75 mm).',
+         from: 'The shop spec.',
+         used: 'In the precious sleeve cost — it sets the sleeve metal volume.',
+         why: 'Sleeves are thinner than the main band.' } },
+  { title: 'Precious metal markup', fields: [{ p: 'formula_constants.precious_markup', l: 'precious_markup' }],
+    x: { what: 'The multiplier applied to the raw precious-metal cost.',
+         from: 'A business pricing decision.',
+         used: 'In the precious base, pinstripe, and sleeve costs.',
+         why: 'It covers the labor margin on metal value.' } },
+  { title: 'Unit conversions (mm → cm)', lock: true,
+    fields: [{ p: 'formula_constants.millimeters_per_centimeter', l: 'millimeters_per_centimeter' },
+             { p: 'formula_constants.cubic_millimeters_per_cubic_centimeter', l: 'cubic_millimeters_per_cubic_centimeter' }],
+    x: { what: '10 and 1000 — plain unit conversions.',
+         from: 'Math constants — do not change.',
+         used: 'Converting volume from mm³ to cm³ before applying density in g/cm³.',
+         why: 'They keep the units consistent through the formula.' } },
+  { title: 'Cents per dollar', lock: true, fields: [{ p: 'formula_constants.currency_minor_unit_multiplier', l: 'currency_minor_unit_multiplier' }],
+    x: { what: '100 — the number of cents in a dollar.',
+         from: 'The currency definition — do not change.',
+         used: 'Rounding prices to whole cents.',
+         why: 'It keeps rounding consistent everywhere.' } },
+  { title: 'Ring size → inner diameter',
+    fields: [{ p: 'formula_constants.base_ring_diameter.ring_size_multiplier_mm', l: 'ring_size_multiplier_mm' },
+             { p: 'formula_constants.base_ring_diameter.intercept_mm', l: 'intercept_mm' }],
+    x: { what: 'The linear formula that converts a US ring size to an inner diameter: diameter = size × multiplier + intercept.',
+         from: 'Standard US ring-size geometry.',
+         used: 'In every precious metal volume calculation.',
+         why: 'A bigger ring means more metal.' } },
+  { title: 'Pinstripe outer diameter',
+    fields: [{ p: 'formula_constants.pinstripe_outer_diameter.base_mm', l: 'base_mm' },
+             { p: 'formula_constants.pinstripe_outer_diameter.ring_size_multiplier_mm', l: 'ring_size_multiplier_mm' },
+             { p: 'formula_constants.pinstripe_outer_diameter.reference_ring_size', l: 'reference_ring_size' }],
+    x: { what: 'The outer-surface diameter used for pinstripe volume: base + multiplier × (size − reference).',
+         from: 'The geometry of the band’s outer surface.',
+         used: 'In the pinstripe metal volume.',
+         why: 'Pinstripes sit on the outside of the band, which grows with ring size.' } },
+  { title: 'Karat purity factors',
+    fields: [{ p: 'formula_constants.karat_factors.10K', l: '10K' },
+             { p: 'formula_constants.karat_factors.14K', l: '14K' },
+             { p: 'formula_constants.karat_factors.18K', l: '18K' },
+             { p: 'formula_constants.karat_factors.Platinum', l: 'Platinum' },
+             { p: 'formula_constants.karat_factors.Silver', l: 'Silver' }],
+    x: { what: 'Purity fractions. Gold must use the EXACT fractions 10/24, 14/24, and 18/24 — never rounded decimals.',
+         from: 'The definition of karat.',
+         used: 'Multiplies the metal weight by purity, so only the precious content is priced.',
+         why: 'A 14K ring is 14/24 gold by mass; rounding these breaks penny-exact parity with the workbook.' } },
+  { title: 'Alloy densities (g/cm³)',
+    fields: [{ p: 'formula_constants.densities_g_per_cm3.Gold_all_karats', l: 'Gold_all_karats' },
+             { p: 'formula_constants.densities_g_per_cm3.Platinum', l: 'Platinum' },
+             { p: 'formula_constants.densities_g_per_cm3.Silver', l: 'Silver' }],
+    x: { what: 'Alloy densities in grams per cubic centimeter (Gold all karats 13.07, Platinum 21.45, Silver 10.49).',
+         from: 'JBJ alloy suppliers — these are alloyed densities, not pure-element densities.',
+         used: 'Volume × density = weight.',
+         why: 'Weight drives the metal cost.' } },
+  { title: 'De-sprue labor', fields: [{ p: 'formula_constants.fixed_costs.desprue', l: 'fixed_costs.desprue' }],
+    x: { what: 'The fixed labor fee for cutting and cleaning the casting sprue.',
+         from: 'The bench labor rate.',
+         used: 'Added once per precious casting.',
+         why: 'This is fixed work regardless of ring size.' } },
+  { title: 'Pinstripe bench labor', fields: [{ p: 'formula_constants.fixed_costs.pinstripe_bench_labor', l: 'fixed_costs.pinstripe_bench_labor' }],
+    x: { what: 'The fixed bench labor charged per pinstripe.',
+         from: 'The bench labor rate.',
+         used: 'Added per pinstripe.',
+         why: 'Setting a stripe is fixed-effort work.' } }
+];
+
+const PRODUCTION_EXPLAIN = {
+  what: 'The production route (for example wax printing vs direct) and its two fixed costs. The selected mode decides WHICH printing_* / cast_labor_* pair below is charged.',
+  from: 'The current production workflow.',
+  used: 'Added to every precious base casting.',
+  why: 'Switching production method changes the fixed costs without touching any other number.'
+};
+
+// ── Structured (non-formula) field lists: [path, label, type] ──
+const MISC_FIELDS = [
+  ['misc_costs.precious_base_metal', 'precious_base_metal ($)', 'Applied when the base metal is precious (gold, platinum, silver). Exactly one base-metal adder applies per ring.'],
+  ['misc_costs.non_precious_base_metal', 'non_precious_base_metal ($)', 'Applied when the base metal is not precious (titanium, tungsten…). Exactly one base-metal adder applies per ring.'],
+  ['misc_costs.precious_inlay', 'precious_inlay ($)', 'Added when the design has inlay strips and the base metal is precious.'],
+  ['misc_costs.non_precious_inlay', 'non_precious_inlay ($)', 'Added when the design has inlay strips and the base metal is not precious.'],
+  ['misc_costs.precious_sleeve', 'precious_sleeve ($)', 'Added when a sleeve differs from the base and the sleeve is precious.'],
+  ['misc_costs.non_precious_sleeve', 'non_precious_sleeve ($)', 'Added when a sleeve differs from the base and the sleeve is not precious.']
+];
+const QUOTE_FIELDS = [
+  ['quote_config.price_tolerance_percent', 'price_tolerance_percent (0.02 = 2%)'],
+  ['quote_config.price_tolerance_minimum', 'price_tolerance_minimum ($)'],
+  ['quote_config.rate_limit_requests', 'rate_limit_requests (per window)'],
+  ['quote_config.rate_limit_window_ms', 'rate_limit_window_ms (ms)'],
+  ['quote_config.email_tld_min_length', 'email_tld_min_length']
+];
+const SERVICE_FIELDS = [
+  ['services.spot_prices_url', 'spot_prices_url', 'string'],
+  ['services.pricing_url', 'pricing_url', 'string'],
+  ['services.quote_url', 'quote_url', 'string'],
+  ['services.audit_events_url', 'audit_events_url', 'string'],
+  ['services.pricing_browser_cache_seconds', 'pricing_browser_cache_seconds'],
+  ['services.spot_retry_delay_ms', 'spot_retry_delay_ms'],
+  ['services.spot_max_attempts', 'spot_max_attempts'],
+  ['services.cors_max_age_seconds', 'cors_max_age_seconds']
+];
+const BUSINESS_FIELDS = [
+  ['business.brand_name', 'brand_name', 'string'],
+  ['business.support_email', 'support_email', 'string'],
+  ['business.website_url', 'website_url', 'string'],
+  ['business.designer_url', 'designer_url', 'string'],
+  ['business.contact_url', 'contact_url', 'string'],
+  ['business.ring_sizer_url', 'ring_sizer_url', 'string'],
+  ['business.engraving_url', 'engraving_url', 'string'],
+  ['business.quote_turnaround_business_days', 'quote_turnaround_business_days']
+];
+const BUILDER_GROUPS = [
+  ['Ring size (US sizes)', [['builder_config.ring_size.min', 'min'], ['builder_config.ring_size.max', 'max'], ['builder_config.ring_size.step', 'step'], ['builder_config.ring_size.default', 'default']]],
+  ['Ring width (mm)', [['builder_config.ring_width.min', 'min'], ['builder_config.ring_width.max', 'max'], ['builder_config.ring_width.step', 'step'], ['builder_config.ring_width.default', 'default']]],
+  ['Strip width (mm)', [['builder_config.strip_width.min', 'min'], ['builder_config.strip_width.step', 'step'], ['builder_config.strip_width.default', 'default']]],
+  ['Width math', [['builder_config.width_epsilon', 'width_epsilon (comparison tolerance)'], ['builder_config.material_default_min_width', 'material_default_min_width (mm)']]],
+  ['Input limits', [['builder_config.limits.undo_history', 'undo_history'], ['builder_config.limits.max_strips', 'max_strips'], ['builder_config.limits.email_max_length', 'email_max_length'], ['builder_config.limits.notes_max_length', 'notes_max_length'], ['builder_config.limits.font_max_length', 'font_max_length'], ['builder_config.limits.ring_image_max_characters', 'ring_image_max_characters']]],
+  ['Engraving', [['builder_config.engraving.max_length', 'max_length (characters)']]],
+  ['UI timing (milliseconds / pixels)', [['builder_config.ui.slider_debounce_ms', 'slider_debounce_ms'], ['builder_config.ui.quote_spot_poll_ms', 'quote_spot_poll_ms'], ['builder_config.ui.rule_toast_ms', 'rule_toast_ms'], ['builder_config.ui.touch_long_press_ms', 'touch_long_press_ms'], ['builder_config.ui.touch_move_cancel_pixels', 'touch_move_cancel_pixels'], ['builder_config.ui.touch_vibration_ms', 'touch_vibration_ms'], ['builder_config.ui.section_scroll_delay_ms', 'section_scroll_delay_ms']]],
+  ['3D ring view', [['builder_config.ring_view.default_elevation', 'default_elevation'], ['builder_config.ring_view.default_azimuth', 'default_azimuth'], ['builder_config.ring_view.max_elevation', 'max_elevation'], ['builder_config.ring_view.drag_azimuth_sensitivity', 'drag_azimuth_sensitivity'], ['builder_config.ring_view.drag_elevation_sensitivity', 'drag_elevation_sensitivity'], ['builder_config.ring_view.minimum_device_pixel_ratio', 'minimum_device_pixel_ratio'], ['builder_config.ring_view.default_container_width', 'default_container_width'], ['builder_config.ring_view.max_canvas_width', 'max_canvas_width'], ['builder_config.ring_view.canvas_height', 'canvas_height'], ['builder_config.ring_view.width_scale', 'width_scale'], ['builder_config.ring_view.max_radius_pixels', 'max_radius_pixels']]],
+  ['Precious group name', [['builder_config.precious_group', 'precious_group (catalog group treated as precious)', 'string']]]
+];
+const TOPLEVEL_FIELDS = [
+  ['_description', 'Payload description (notes for humans; not used in pricing)', 'string'],
+  ['meteorite_partial_per_mm', 'meteorite_partial_per_mm ($ per mm — partial meteorite rate)']
+];
+
+// ── Raw JSON table sections ─────────────────────────────────────
+const RAW_SECTIONS = [
+  { p: 'base_prices', kind: 'object', l: 'Base prices (per material)', n: 'One entry per material with dollar amounts per construction: fixed_price, sleeve, sleeve_with_inlay, partials, split, shaped, crushed…' },
+  { p: 'width_prices', kind: 'object', l: 'Width-based prices', n: 'Per material: a list of [width_mm, price] pairs, e.g. [3, 354.2] = $354.20 at 3 mm.' },
+  { p: 'meteorite_prices', kind: 'array', l: 'Meteorite prices', n: 'A list of entries like {"m": "Faceted Gibeon Meteorite", "w": 2, "mm": 380.64} — material, width in mm, price.' },
+  { p: 'mokume_prices', kind: 'array', l: 'Mokume prices', n: 'A list of [width_mm, price] pairs.' },
+  { p: 'material_groups', kind: 'object', l: 'Material → group map', n: 'Material name → group name. Must list exactly the same materials as the catalog below, with matching groups — the checker enforces this.' },
+  { p: 'catalog.materials', kind: 'object', l: 'Catalog: materials', n: 'The full material catalog. Each entry needs g (group — must match the map above), mi (minimum widths), p (allowed profiles), f (allowed finishes).' },
+  { p: 'catalog.colors', kind: 'object', l: 'Catalog: display colors', n: 'Material or group name → hex color used in the designer preview, e.g. "Titanium": "#C0C0C0".' },
+  { p: 'builder_config.steps', kind: 'array', l: 'Builder: steps', n: 'The designer’s step list — id, label, number, and tip text for each step.' },
+  { p: 'builder_config.metal_groups', kind: 'array', l: 'Builder: metal groups', n: 'Catalog groups treated as metals.' },
+  { p: 'builder_config.precious_materials', kind: 'array', l: 'Builder: precious materials', n: 'Individual materials treated as precious in addition to the precious group.' },
+  { p: 'builder_config.sleeve_materials', kind: 'array', l: 'Builder: sleeve materials', n: 'Materials offered as inner sleeves.' },
+  { p: 'builder_config.profiles', kind: 'array', l: 'Builder: all profiles', n: 'Every profile name the designer knows.' },
+  { p: 'builder_config.common_profiles', kind: 'array', l: 'Builder: common profiles', n: 'The short list shown first.' },
+  { p: 'builder_config.finishes', kind: 'array', l: 'Builder: finishes', n: 'Available surface finishes.' },
+  { p: 'builder_config.inlay_profiles', kind: 'array', l: 'Builder: inlay profiles', n: 'Profiles available for inlay strips.' },
+  { p: 'builder_config.popular_woods', kind: 'array', l: 'Builder: popular woods', n: 'Wood materials promoted in the wood picker.' },
+  { p: 'builder_config.disabled_materials', kind: 'array', l: 'Builder: disabled materials', n: 'Materials hidden from customers (out of stock, retired…). They stay in the catalog.' },
+  { p: 'builder_config.priority_material_groups', kind: 'array', l: 'Builder: priority material groups', n: 'Groups listed first in pickers.' },
+  { p: 'builder_config.groups', kind: 'object', l: 'Builder: named group lists', n: 'Named material lists used by rules (woods, lapidary, dinosaur_bone, enamel, mokume_composite, carbon_fiber, vinyl_record).' },
+  { p: 'builder_config.rules', kind: 'object', l: 'Builder: design rules', n: 'Business rules — which materials need metal edges, memorial-material handling, whale-bone restrictions…' },
+  { p: 'builder_config.defaults', kind: 'object', l: 'Builder: defaults', n: 'The design a new visitor starts with (profile, finish, wants_inlays).' },
+  { p: 'builder_config.ring_width.presets', kind: 'array', l: 'Builder: ring width presets', n: 'The labeled width shortcuts (label + width in mm).' },
+  { p: 'builder_config.pricing_classification', kind: 'object', l: 'Builder: pricing classification', n: 'How material names are classified for pricing (meteorite name tokens, mokume tokens, gold karat and spot keys…). Change with care.' },
+  { p: 'builder_config.engraving.fonts', kind: 'array', l: 'Engraving: font list', n: 'Font names offered for engraving.' },
+  { p: 'builder_config.engraving.font_stacks', kind: 'object', l: 'Engraving: font stacks', n: 'Font name → CSS font-family stack used to preview it.' },
+  { p: 'audit_config', kind: 'object', l: 'Audit configuration', n: 'Event-logging settings (batch sizes, field limits, admin page sizes). retention_mode must stay "indefinite_no_automatic_purge".' }
+];
+
+// ── Rendering ───────────────────────────────────────────────────
+function explainHtml(x) {
+  return '<div class="explain">'
+    + '<div><span class="xk">WHAT IT IS</span> ' + x.what + '</div>'
+    + '<div><span class="xk">WHERE IT’S FROM</span> ' + x.from + '</div>'
+    + '<div><span class="xk">WHERE IT’S USED</span> ' + x.used + '</div>'
+    + '<div><span class="xk">WHY IT MATTERS</span> ' + x.why + '</div>'
+    + '</div>';
+}
+
+function fieldHtml(path, labelText, type) {
+  const val = getPath(original, path);
+  const shown = val === undefined || val === null ? '' : String(val);
+  return '<div class="fld"><label>' + esc(labelText) + '</label>'
+    + '<input data-path="' + esc(path) + '" data-type="' + (type || 'number') + '" value="' + esc(shown) + '" autocomplete="off" spellcheck="false"></div>';
+}
+
+function renderFormula() {
+  const covered = new Set();
+  let html = '';
+  FORMULA_GROUPS.forEach(g => {
+    html += '<div class="fgroup"><h3>' + esc(g.title) + (g.lock ? '<span class="lock">constant — do not change</span>' : '') + '</h3><div class="fldrow">';
+    g.fields.forEach(f => { covered.add(f.p); html += fieldHtml(f.p, f.l, 'number'); });
+    html += '</div>' + explainHtml(g.x) + '</div>';
+  });
+
+  // Production route: mode selector + every printing_*/cast_labor_* fixed cost.
+  const fixed = getPath(original, 'formula_constants.fixed_costs') || {};
+  const modes = Object.keys(fixed).filter(k => k.indexOf('printing_') === 0).map(k => k.slice('printing_'.length));
+  const curMode = getPath(original, 'formula_constants.precious_production_mode');
+  covered.add('formula_constants.precious_production_mode');
+  html += '<div class="fgroup"><h3>Production route &amp; its fixed costs</h3>';
+  html += '<div class="fld"><label>precious_production_mode (which pair below is charged)</label><select data-path="formula_constants.precious_production_mode" data-type="string">';
+  const options = modes.length ? modes : (curMode ? [curMode] : []);
+  options.forEach(m => { html += '<option value="' + esc(m) + '"' + (m === curMode ? ' selected' : '') + '>' + esc(m) + '</option>'; });
+  html += '</select></div><div class="fldrow">';
+  Object.keys(fixed).forEach(k => {
+    if (k.indexOf('printing_') === 0 || k.indexOf('cast_labor_') === 0) {
+      const p = 'formula_constants.fixed_costs.' + k;
+      covered.add(p);
+      html += fieldHtml(p, 'fixed_costs.' + k + ' ($)', 'number');
+    }
+  });
+  html += '</div>' + explainHtml(PRODUCTION_EXPLAIN) + '</div>';
+
+  // Any other formula constants not covered above stay editable too.
+  const leftovers = [];
+  (function walk(obj, prefix) {
+    Object.keys(obj || {}).forEach(k => {
+      const p = prefix + '.' + k;
+      const v = obj[k];
+      if (v && typeof v === 'object' && !Array.isArray(v)) walk(v, p);
+      else if (!covered.has(p)) leftovers.push({ p: p, v: v });
+    });
+  })(original.formula_constants, 'formula_constants');
+  if (leftovers.length) {
+    html += '<div class="fgroup"><h3>Other formula constants</h3><div class="fldrow">';
+    leftovers.forEach(item => {
+      html += fieldHtml(item.p, item.p.replace('formula_constants.', ''), typeof item.v === 'number' ? 'number' : 'string');
+    });
+    html += '</div><div class="explain"><div><span class="xk">NOTE</span> Extra constants found in the data that are not part of the standard formula list above. They are kept and uploaded unchanged unless you edit them.</div></div></div>';
+  }
+  document.getElementById('formulaBody').innerHTML = html;
+  document.getElementById('cnt_formula').textContent = '(' + (FORMULA_GROUPS.reduce((n, g) => n + g.fields.length, 0) + options.length * 2 + 1 + leftovers.length) + ' values)';
+}
+
+function renderSimpleFields(bodyId, cntId, fields) {
+  let html = '<div class="fldrow">';
+  fields.forEach(f => { html += fieldHtml(f[0], f[1], f[2] || 'number'); });
+  html += '</div>';
+  document.getElementById(bodyId).innerHTML = html;
+  if (cntId) document.getElementById(cntId).textContent = '(' + fields.length + ' values)';
+}
+
+function renderMisc() {
+  let html = '';
+  MISC_FIELDS.forEach(f => {
+    html += '<div class="fgroup" style="padding:10px 14px 2px">' + fieldHtml(f[0], f[1], 'number') + '<p class="mininote">' + esc(f[2]) + '</p></div>';
+  });
+  document.getElementById('miscBody').innerHTML = html;
+  document.getElementById('cnt_misc').textContent = '(6 adders)';
+}
+
+function renderSpot() {
+  let html = '';
+  ['Gold', 'Platinum', 'Silver'].forEach(metal => {
+    html += '<div class="fgroup"><h3>' + metal + ' ($ per troy oz)</h3><div class="fldrow">'
+      + fieldHtml('spot_validation.' + metal + '.min_exclusive', 'min_exclusive (must be BELOW any real price)', 'number')
+      + fieldHtml('spot_validation.' + metal + '.max_exclusive', 'max_exclusive (must be ABOVE any real price)', 'number')
+      + '</div></div>';
+  });
+  document.getElementById('spotBody').innerHTML = html;
+  document.getElementById('cnt_spot').textContent = '(3 metals)';
+}
+
+function renderBuilder() {
+  let html = '';
+  let count = 0;
+  BUILDER_GROUPS.forEach(g => {
+    html += '<div class="fgroup"><h3>' + esc(g[0]) + '</h3><div class="fldrow">';
+    g[1].forEach(f => { count++; html += fieldHtml(f[0], f[1], f[2] || 'number'); });
+    html += '</div></div>';
+  });
+  document.getElementById('builderBody').innerHTML = html;
+  document.getElementById('cnt_builder').textContent = '(' + count + ' values)';
+}
+
+function renderRawSections() {
+  const wrap = document.getElementById('rawSections');
+  let html = '';
+  RAW_SECTIONS.forEach((s, i) => {
+    const val = getPath(original, s.p);
+    const missing = val === undefined;
+    const text = missing ? (s.kind === 'array' ? '[]' : '{}') : JSON.stringify(val, null, 2);
+    const lines = text.split('\n').length;
+    const rows = Math.max(4, Math.min(22, lines + 1));
+    const count = Array.isArray(val) ? val.length + ' entries' : (val && typeof val === 'object' ? Object.keys(val).length + ' entries' : (missing ? 'missing!' : ''));
+    html += '<details class="sec" data-rawsec="' + i + '"><summary>' + esc(s.l)
+      + ' <span class="cnt">' + esc(s.p) + ' — ' + count + '</span><span class="editbadge">edited</span></summary>'
+      + '<div class="secbody"><p class="rawnote">' + esc(s.n) + ' This section must be a JSON ' + (s.kind === 'array' ? 'list [ … ]' : 'object { … }') + '.</p>'
+      + '<textarea data-raw="' + esc(s.p) + '" data-kind="' + s.kind + '" rows="' + rows + '" spellcheck="false">' + esc(text) + '</textarea>'
+      + '<div class="btn-row"><button class="btn-mini" onclick="checkRaw(' + i + ')">Check JSON</button>'
+      + '<button class="btn-mini" onclick="formatRaw(' + i + ')">Format</button>'
+      + '<span class="rawstatus" id="rawstatus_' + i + '"></span></div></div></details>';
+  });
+  wrap.innerHTML = html;
+}
+
+function rawTextarea(i) { return document.querySelector('details[data-rawsec="' + i + '"] textarea'); }
+
+function parseRaw(i) {
+  const s = RAW_SECTIONS[i];
+  const ta = rawTextarea(i);
+  const parsed = JSON.parse(ta.value); // may throw
+  if (s.kind === 'array' && !Array.isArray(parsed)) throw new Error('must be a JSON list starting with [');
+  if (s.kind === 'object' && (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed))) throw new Error('must be a JSON object starting with {');
+  return parsed;
+}
+
+function checkRaw(i) {
+  const st = document.getElementById('rawstatus_' + i);
+  try {
+    const parsed = parseRaw(i);
+    const count = Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
+    st.textContent = 'Valid JSON ✓ (' + count + ' entries)';
+    st.className = 'rawstatus ok';
+  } catch (e) {
+    st.textContent = 'Problem: ' + e.message;
+    st.className = 'rawstatus err';
+  }
+}
+
+function formatRaw(i) {
+  const st = document.getElementById('rawstatus_' + i);
+  try {
+    rawTextarea(i).value = JSON.stringify(parseRaw(i), null, 2);
+    st.textContent = 'Formatted ✓';
+    st.className = 'rawstatus ok';
+  } catch (e) {
+    st.textContent = 'Cannot format — fix this first: ' + e.message;
+    st.className = 'rawstatus err';
+  }
+}
+
+function suggestedVersion(v) {
+  const parts = String(v || '0.0').split('.');
+  const last = Number(parts[parts.length - 1]);
+  if (Number.isFinite(last)) { parts[parts.length - 1] = String(last + 1); return parts.join('.'); }
+  return String(v) + '.1';
+}
+
+function useSuggestedVersion() {
+  document.getElementById('newVersion').value = document.getElementById('verSuggested').textContent;
+}
+
+function renderVersion() {
+  const cur = original._version || '?';
+  const sug = suggestedVersion(original._version);
+  document.getElementById('verCurrent').textContent = cur;
+  document.getElementById('verSuggested').textContent = sug;
+  document.getElementById('newVersion').value = sug;
+}
+
+function showStats() {
+  document.getElementById('statsSection').classList.remove('hidden');
+  const badge = document.getElementById('statusBadge');
+  badge.textContent = 'v' + (original._version || '?');
+  badge.className = 'status status-ok';
+  const count = v => v ? (Array.isArray(v) ? v.length : Object.keys(v).length) : 0;
+  document.getElementById('statsGrid').innerHTML =
+    '<div class="stat"><div class="num">' + count(original.material_groups) + '</div><div class="lbl">Material Groups</div></div>' +
+    '<div class="stat"><div class="num">' + count(original.catalog && original.catalog.materials) + '</div><div class="lbl">Catalog Materials</div></div>' +
+    '<div class="stat"><div class="num">' + count(original.base_prices) + '</div><div class="lbl">Base Prices</div></div>' +
+    '<div class="stat"><div class="num">' + count(original.width_prices) + '</div><div class="lbl">Width Tables</div></div>' +
+    '<div class="stat"><div class="num">' + count(original.meteorite_prices) + '</div><div class="lbl">Meteorite Entries</div></div>' +
+    '<div class="stat"><div class="num">' + count(original.mokume_prices) + '</div><div class="lbl">Mokume Entries</div></div>';
 }
 
 function setSource(type, detail) {
   dataSource = type;
   const bar = document.getElementById('sourceBar');
-  const label = document.getElementById('sourceLabel');
-  const det = document.getElementById('sourceDetail');
   bar.className = 'source-bar visible src-' + type;
-  if (type === 'kv') {
-    label.textContent = '● Connected to KV';
-    det.textContent = detail || '';
-  } else {
-    label.textContent = '● Local File';
-    det.textContent = detail || '';
+  document.getElementById('sourceLabel').textContent = type === 'kv' ? '● Live KV data' : '● Local file';
+  document.getElementById('sourceDetail').textContent = detail || '';
+}
+
+function renderAll() {
+  document.getElementById('editor').classList.remove('hidden');
+  renderVersion();
+  showStats();
+  renderFormula();
+  renderMisc();
+  renderSpot();
+  renderSimpleFields('quoteBody', 'cnt_quote', QUOTE_FIELDS);
+  renderSimpleFields('servicesBody', 'cnt_services', SERVICE_FIELDS);
+  renderSimpleFields('businessBody', 'cnt_business', BUSINESS_FIELDS);
+  renderBuilder();
+  renderSimpleFields('toplevelBody', 'cnt_toplevel', TOPLEVEL_FIELDS);
+  renderRawSections();
+  document.querySelectorAll('.editbadge').forEach(b => b.classList.remove('on'));
+  document.getElementById('checkReport').classList.add('hidden');
+}
+
+// Mark sections as edited and highlight changed inputs as you type.
+document.addEventListener('input', function (e) {
+  const el = e.target;
+  if (!original) return;
+  if (el.dataset && el.dataset.path) {
+    const orig = getPath(original, el.dataset.path);
+    const shownOrig = orig === undefined || orig === null ? '' : String(orig);
+    el.classList.toggle('chg', shownOrig !== el.value.trim());
   }
-}
-
-function log(msg, cls='log-info') {
-  const el = document.getElementById('log');
-  const t = new Date().toLocaleTimeString();
-  el.innerHTML += `<span class="${cls}">[${t}] ${msg}</span>\n`;
-  el.scrollTop = el.scrollHeight;
-}
-
-function updateChangesBar() {
-  const bar = document.getElementById('changesBar');
-  const countEl = document.getElementById('changeCount');
-  if (changeCount > 0) {
-    bar.classList.add('visible');
-    countEl.textContent = changeCount + ' change' + (changeCount === 1 ? '' : 's');
-  } else {
-    bar.classList.remove('visible');
+  const sec = el.closest ? el.closest('details.sec') : null;
+  if (sec) {
+    const badge = sec.querySelector('.editbadge');
+    if (badge) badge.classList.add('on');
   }
-}
+});
 
-function discardChanges() {
-  if (!originalData) return;
-  if (!confirm('Discard all unsaved changes and reload from the original download?')) return;
-  currentData = JSON.parse(JSON.stringify(originalData));
-  changeCount = 0;
-  updateChangesBar();
-  renderTable();
-  log('All changes discarded — reverted to downloaded data.', 'log-info');
-}
-
-async function saveChanges() {
-  const url = document.getElementById('workerUrl').value;
-  const key = document.getElementById('apiKey').value;
-  if (!key) { log('Enter your API Key first!', 'log-err'); alert('Enter your API Key to save changes to KV.'); return; }
-  const validationErrors = reportPricingValidation(currentData, 'Pricing data');
-  if (validationErrors.length) { alert('The complete KV payload is invalid. Review the log before uploading.'); return; }
-  const srcNote = dataSource === 'local' ? '\n\nSource: LOCAL FILE — this will overwrite live KV pricing.' : '';
-  if (!confirm('Upload ' + changeCount + ' change(s) to live pricing?\nThis will affect customer-facing prices within ~1 hour.' + srcNote)) return;
-
-  // Bump version
-  const oldVer = currentData._version || '21.0';
-  const parts = oldVer.split('.');
-  parts[parts.length - 1] = String(Number(parts[parts.length - 1]) + 1);
-  currentData._version = parts.join('.');
-  currentData._updated = new Date().toISOString().split('T')[0];
-
-  const body = JSON.stringify(currentData);
-  log('Saving ' + changeCount + ' change(s) to KV (' + (body.length/1024).toFixed(1) + ' KB)...');
-
-  try {
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
-      body: body
-    });
-    const result = await r.json();
-    if (result.ok) {
-      log('Saved! Version ' + currentData._version + ', ' + result.materials + ' materials.', 'log-ok');
-      originalData = JSON.parse(JSON.stringify(currentData));
-      changeCount = 0;
-      updateChangesBar();
-      setSource('kv', 'Version ' + currentData._version + ' — Updated ' + currentData._updated);
-      showStats();
-      renderTable();
+// ── Collect the full payload from the editor ────────────────────
+function collectPayload() {
+  if (!original) return { payload: null, errors: ['No data loaded yet — download live data or load a file first.'] };
+  const errors = [];
+  const payload = deepClone(original);
+  document.querySelectorAll('[data-path]').forEach(el => {
+    const path = el.dataset.path;
+    const raw = el.value.trim();
+    if (el.dataset.type === 'number') {
+      if (raw === '') { errors.push(path + ' is empty — enter a number.'); return; }
+      const n = Number(raw);
+      if (!Number.isFinite(n)) { errors.push(path + ': "' + raw + '" is not a number.'); return; }
+      setPath(payload, path, n);
     } else {
-      log('Save failed: ' + (result.error || JSON.stringify(result)), 'log-err');
+      setPath(payload, path, raw);
     }
-  } catch(e) { log('Save error: ' + e.message, 'log-err'); }
+  });
+  document.querySelectorAll('textarea[data-raw]').forEach(ta => {
+    const path = ta.dataset.raw;
+    try {
+      const parsed = JSON.parse(ta.value);
+      if (ta.dataset.kind === 'array' && !Array.isArray(parsed)) { errors.push(path + ' must be a JSON list starting with [.'); return; }
+      if (ta.dataset.kind === 'object' && (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed))) { errors.push(path + ' must be a JSON object starting with {.'); return; }
+      setPath(payload, path, parsed);
+    } catch (e) {
+      errors.push(path + ': invalid JSON — ' + e.message);
+    }
+  });
+  const ver = document.getElementById('newVersion').value.trim();
+  if (ver) payload._version = ver;
+  return { payload: payload, errors: errors };
 }
 
-function downloadJson() {
-  if (!currentData) { log('No data loaded yet.', 'log-err'); return; }
-  const blob = new Blob([JSON.stringify(currentData, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'jbj-pricing.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  log('Exported jbj-pricing.json (' + (blob.size/1024).toFixed(1) + ' KB)', 'log-ok');
+// Requirement 6: which top-level sections changed vs the download.
+function diffSections(payload) {
+  const skip = { _version: 1, _updated: 1, _uploaded: 1 };
+  const keys = {};
+  Object.keys(original).forEach(k => { keys[k] = 1; });
+  Object.keys(payload).forEach(k => { keys[k] = 1; });
+  return Object.keys(keys)
+    .filter(k => !skip[k])
+    .filter(k => JSON.stringify(original[k]) !== JSON.stringify(payload[k]))
+    .sort();
 }
 
-async function fetchPricing() {
-  const url = document.getElementById('workerUrl').value;
-  log('Fetching pricing from ' + url + '...');
+function renderReport(blocks) {
+  const el = document.getElementById('checkReport');
+  el.classList.remove('hidden');
+  el.innerHTML = blocks.join('');
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function listHtml(items, cls, cap) {
+  const shown = items.slice(0, cap || 100);
+  let html = '<ul>' + shown.map(i => '<li class="' + cls + '">' + esc(i) + '</li>').join('') + '</ul>';
+  if (items.length > shown.length) html += '<div class="' + cls + '">…and ' + (items.length - shown.length) + ' more.</div>';
+  return html;
+}
+
+function runChecks() {
+  const c = collectPayload();
+  if (c.errors.length) {
+    renderReport(['<div class="r-err"><b>Fix these before anything else (' + c.errors.length + '):</b></div>', listHtml(c.errors, 'r-err')]);
+    log('Check found ' + c.errors.length + ' input/JSON problem(s).', 'log-err');
+    return null;
+  }
+  const validationErrors = pricingValidationErrors(c.payload);
+  const changed = diffSections(c.payload);
+  const versionOk = c.payload._version && c.payload._version !== original._version;
+  return { payload: c.payload, validationErrors: validationErrors, changed: changed, versionOk: versionOk };
+}
+
+function checkAll() {
+  const r = runChecks();
+  if (!r) return;
+  const blocks = [];
+  if (r.validationErrors.length) {
+    blocks.push('<div class="r-err"><b>Validation problems (' + r.validationErrors.length + ') — the server would reject this upload:</b></div>');
+    blocks.push(listHtml(r.validationErrors, 'r-err'));
+    log('Validation found ' + r.validationErrors.length + ' problem(s).', 'log-err');
+  } else {
+    blocks.push('<div class="r-ok"><b>✓ All checks passed — this payload is valid.</b></div>');
+    log('Validation passed.', 'log-ok');
+  }
+  if (r.changed.length) {
+    blocks.push('<div class="r-info" style="margin-top:8px"><b>Changed sections vs the downloaded data (' + r.changed.length + '):</b></div>');
+    blocks.push(listHtml(r.changed, 'r-info'));
+  } else {
+    blocks.push('<div class="r-warn" style="margin-top:8px">No content changes yet — the editor matches the downloaded data.</div>');
+  }
+  blocks.push(r.versionOk
+    ? '<div class="r-ok" style="margin-top:8px">Version: ' + esc(original._version || '?') + ' → ' + esc(r.payload._version) + ' ✓</div>'
+    : '<div class="r-err" style="margin-top:8px">Version number must be changed before upload (currently ' + esc(original._version || '?') + ').</div>');
+  blocks.push(backupVersionTag
+    ? '<div class="r-ok">Backup downloaded this session ✓</div>'
+    : '<div class="r-warn">No backup downloaded yet this session — use "Download backup" before uploading.</div>');
+  renderReport(blocks);
+}
+
+// ── Download / load / backup ────────────────────────────────────
+async function fetchLive() {
+  const url = document.getElementById('workerUrl').value.trim();
+  const key = document.getElementById('apiKey').value; // kept in this variable only — never stored
+  if (!key) { log('Enter the API key first — it is required to download the live data.', 'log-err'); alert('Enter the API key first.\nDownloading the live data requires it.'); return; }
+  log('Downloading live data from ' + url + ' …');
   try {
-    const r = await fetch(url);
-    if (!r.ok) { const e = await r.text(); throw new Error(e); }
-    currentData = await r.json();
-    if (currentData.error) { log('Error: ' + currentData.error, 'log-err'); return; }
-    originalData = JSON.parse(JSON.stringify(currentData));
-    changeCount = 0;
-    updateChangesBar();
-    const ver = currentData._version || '?';
-    const upd = currentData._updated || currentData._uploaded || '?';
-    setSource('kv', 'Version ' + ver + ' — Updated ' + upd);
-    log('Pricing loaded from KV! Version: ' + ver + ', Updated: ' + upd, 'log-ok');
-    reportPricingValidation(currentData, 'Live KV pricing');
-    showStats();
-    renderTable();
-  } catch(e) { log('Fetch failed: ' + e.message, 'log-err'); }
-}
-
-function browseLocal() {
-  document.getElementById('localFileInput').click();
+    const r = await fetch(url, { headers: { 'X-API-Key': key }, cache: 'no-store' });
+    let data;
+    try { data = await r.json(); } catch (e) { throw new Error('HTTP ' + r.status + ' — response was not JSON'); }
+    if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+    original = deepClone(data);
+    setSource('kv', 'Version ' + (data._version || '?') + ' — updated ' + (data._updated || data._uploaded || '?'));
+    log('Live data loaded. Version ' + (data._version || '?') + ', ' + (JSON.stringify(data).length / 1024).toFixed(1) + ' KB.', 'log-ok');
+    const problems = pricingValidationErrors(data);
+    if (problems.length) log('Note: the live data itself has ' + problems.length + ' validation issue(s); run "Check everything" for details.', 'log-err');
+    renderAll();
+  } catch (e) {
+    log('Download failed: ' + e.message, 'log-err');
+  }
 }
 
 function handleLocalFile(e) {
   const file = e.target.files[0];
   if (!file) return;
-  log('Reading local file: ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)...');
+  log('Reading ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)…');
   const reader = new FileReader();
-  reader.onload = function(evt) {
+  reader.onload = function (evt) {
     try {
       const parsed = JSON.parse(evt.target.result);
-      if (!parsed.base_prices && !parsed.material_groups) {
-        log('File does not look like a valid pricing JSON — missing base_prices or material_groups.', 'log-err');
+      if (!parsed.base_prices || !parsed.material_groups) {
+        log(file.name + ' does not look like a pricing payload (missing base_prices / material_groups).', 'log-err');
         return;
       }
-      currentData = parsed;
-      originalData = JSON.parse(JSON.stringify(parsed));
-      changeCount = 0;
-      updateChangesBar();
-      const ver = currentData._version || '?';
-      const upd = currentData._updated || currentData._uploaded || '?';
-      setSource('local', file.name + ' — Version ' + ver + ' — Updated ' + upd);
-      log('Loaded from local file: ' + file.name + ' (Version ' + ver + ', ' + Object.keys(parsed.base_prices || {}).length + ' materials)', 'log-ok');
-      reportPricingValidation(currentData, 'Local pricing file');
-      showStats();
-      renderTable();
-    } catch(err) {
+      original = deepClone(parsed);
+      setSource('local', file.name + ' — version ' + (parsed._version || '?'));
+      log('Loaded from file: ' + file.name + ' (version ' + (parsed._version || '?') + '). Uploading will overwrite the live data.', 'log-ok');
+      const problems = pricingValidationErrors(parsed);
+      if (problems.length) log('Note: this file has ' + problems.length + ' validation issue(s); run "Check everything" for details.', 'log-err');
+      renderAll();
+    } catch (err) {
       log('Invalid JSON in ' + file.name + ': ' + err.message, 'log-err');
     }
   };
@@ -407,390 +941,84 @@ function handleLocalFile(e) {
   e.target.value = '';
 }
 
-function uploadPricing() {
-  document.getElementById('fileInput').click();
+function downloadBackup() {
+  const c = collectPayload();
+  if (!c.payload) { log(c.errors[0], 'log-err'); return; }
+  if (c.errors.length) {
+    renderReport(['<div class="r-err"><b>Cannot back up yet — fix these first (' + c.errors.length + '):</b></div>', listHtml(c.errors, 'r-err')]);
+    log('Backup blocked: ' + c.errors.length + ' input/JSON problem(s). See the report.', 'log-err');
+    return;
+  }
+  const tag = String(c.payload._version || 'unversioned').replace(/[^0-9A-Za-z._-]/g, '_');
+  const blob = new Blob([JSON.stringify(c.payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'jbj-pricing-backup-' + tag + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  backupVersionTag = tag;
+  log('Backup saved: jbj-pricing-backup-' + tag + '.json (' + (blob.size / 1024).toFixed(1) + ' KB). Keep it somewhere safe.', 'log-ok');
 }
 
-async function handleFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const url = document.getElementById('workerUrl').value;
-  const key = document.getElementById('apiKey').value;
-  if (!key) { log('Enter your API Key first!', 'log-err'); return; }
+// ── Upload ──────────────────────────────────────────────────────
+async function uploadPayload() {
+  const url = document.getElementById('workerUrl').value.trim();
+  const key = document.getElementById('apiKey').value; // kept in this variable only — never stored
+  if (!key) { log('Enter the API key first.', 'log-err'); alert('Enter the API key to upload.'); return; }
+  const r = runChecks();
+  if (!r) return;
+  if (r.validationErrors.length) {
+    renderReport(['<div class="r-err"><b>Upload blocked — validation problems (' + r.validationErrors.length + '):</b></div>', listHtml(r.validationErrors, 'r-err')]);
+    log('Upload blocked: ' + r.validationErrors.length + ' validation problem(s). See the report.', 'log-err');
+    return;
+  }
+  if (!r.versionOk) {
+    log('Upload blocked: change the version number first (currently ' + (original._version || '?') + ').', 'log-err');
+    alert('Change the version number first.\nCurrent: ' + (original._version || '?') + '\nSuggested: ' + suggestedVersion(original._version));
+    return;
+  }
+  const summary = r.changed.length
+    ? 'Sections changing:\n  • ' + r.changed.join('\n  • ')
+    : 'No content changes — only the version number will change.';
+  const warnings = [];
+  if (!backupVersionTag) warnings.push('You have NOT downloaded a backup this session.');
+  if (dataSource === 'local') warnings.push('This data came from a LOCAL FILE and will overwrite the live data.');
+  const ok = confirm(
+    'Upload version ' + r.payload._version + ' to LIVE pricing?\n\n' + summary +
+    (warnings.length ? '\n\nWARNING:\n  • ' + warnings.join('\n  • ') : '') +
+    '\n\nCustomer prices update within about an hour.'
+  );
+  if (!ok) { log('Upload cancelled.', 'log-info'); return; }
 
-  log('Reading ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)...');
-  const text = await file.text();
-  let parsed;
-  try { parsed = JSON.parse(text); } catch(e) { log('Invalid JSON: ' + e.message, 'log-err'); return; }
-  const validationErrors = reportPricingValidation(parsed, 'Pricing file');
-  if (validationErrors.length) { alert('The complete KV payload is invalid. Review the log before uploading.'); return; }
-
-  log('Uploading to ' + url + '...');
+  r.payload._updated = new Date().toISOString().split('T')[0];
+  const body = JSON.stringify(r.payload);
+  log('Uploading version ' + r.payload._version + ' (' + (body.length / 1024).toFixed(1) + ' KB)…');
   try {
-    const r = await fetch(url, {
+    const resp = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
-      body: text
+      body: body
     });
-    const result = await r.json();
+    const result = await resp.json();
     if (result.ok) {
-      log('Upload successful! ' + result.materials + ' materials, ' + (result.size/1024).toFixed(1) + ' KB', 'log-ok');
-      await fetchPricing();
+      log('Upload successful! ' + (result.message || '') + ' Version ' + (result.version || r.payload._version) + ', ' + result.materials + ' materials, ' + result.basePrices + ' base prices, ' + (result.size / 1024).toFixed(1) + ' KB stored.', 'log-ok');
+      original = deepClone(r.payload);
+      setSource('kv', 'Version ' + (original._version || '?') + ' — updated ' + (original._updated || '?'));
+      renderAll();
+      renderReport(['<div class="r-ok"><b>✓ Uploaded and live.</b> Version ' + esc(String(result.version || r.payload._version)) + ' is now the data of record.</div>']);
     } else {
-      log('Upload failed: ' + (result.error || JSON.stringify(result)), 'log-err');
-    }
-  } catch(e) { log('Upload error: ' + e.message, 'log-err'); }
-  e.target.value = '';
-}
-
-function showStats() {
-  if (!currentData) return;
-  document.getElementById('statsSection').classList.remove('hidden');
-  document.getElementById('browseSection').classList.remove('hidden');
-  const badge = document.getElementById('statusBadge');
-  badge.textContent = 'v' + (currentData._version || '?');
-  badge.className = 'status status-ok';
-
-  const bp = currentData.base_prices ? Object.keys(currentData.base_prices).length : 0;
-  const wp = currentData.width_prices ? Object.keys(currentData.width_prices).length : 0;
-  const mp = currentData.meteorite_prices ? (Array.isArray(currentData.meteorite_prices) ? currentData.meteorite_prices.length : Object.keys(currentData.meteorite_prices).length) : 0;
-  const mk = currentData.mokume_prices ? (Array.isArray(currentData.mokume_prices) ? currentData.mokume_prices.length : 0) : 0;
-  const mg = currentData.material_groups ? Object.keys(currentData.material_groups).length : 0;
-  const catalog = currentData.catalog && currentData.catalog.materials ? Object.keys(currentData.catalog.materials).length : 0;
-
-  document.getElementById('statsGrid').innerHTML = `
-    <div class="stat"><div class="num">${mg}</div><div class="lbl">Material Groups</div></div>
-    <div class="stat"><div class="num">${catalog}</div><div class="lbl">Catalog Materials</div></div>
-    <div class="stat"><div class="num">${bp}</div><div class="lbl">Base Prices</div></div>
-    <div class="stat"><div class="num">${wp}</div><div class="lbl">Width Tables</div></div>
-    <div class="stat"><div class="num">${mp}</div><div class="lbl">Meteorite Entries</div></div>
-    <div class="stat"><div class="num">${mk}</div><div class="lbl">Mokume Entries</div></div>
-  `;
-}
-
-function addFormulaConstant() {
-  if (!currentData) { log('Load pricing data first.', 'log-err'); return; }
-  const path = prompt('Formula constant path (for example, base_ring_diameter.ring_size_multiplier_mm):');
-  if (!path) return;
-  if (!/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$/.test(path)) { alert('Use letters, numbers, underscores, and dots only.'); return; }
-  const rawValue = prompt('Value as JSON (for example, 0.8128 or "solid"):');
-  if (rawValue === null) return;
-  let value;
-  try { value = JSON.parse(rawValue); } catch (e) { alert('Enter a valid JSON value.'); return; }
-  if (!currentData.formula_constants || typeof currentData.formula_constants !== 'object') currentData.formula_constants = {};
-  const keys = path.split('.');
-  let target = currentData.formula_constants;
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (!target[keys[i]] || typeof target[keys[i]] !== 'object' || Array.isArray(target[keys[i]])) target[keys[i]] = {};
-    target = target[keys[i]];
-  }
-  target[keys[keys.length - 1]] = value;
-  changeCount++; updateChangesBar();
-  document.getElementById('priceCategory').value = 'formula_constants';
-  renderTable();
-  log('Added formula_constants.' + path + '. Save Changes to KV to publish it.', 'log-ok');
-}
-
-// ── INLINE EDIT HELPERS ─────────────────────────────────────
-function makeEditable(td, currentVal, onCommit) {
-  td.classList.add('editable');
-  td.addEventListener('click', function handler() {
-    if (td.classList.contains('editing')) return;
-    td.classList.add('editing');
-    const raw = (currentVal !== undefined && currentVal !== null) ? currentVal : '';
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.value = raw;
-    td.textContent = '';
-    td.appendChild(inp);
-    inp.focus();
-    inp.select();
-
-    function commit() {
-      const newRaw = inp.value.trim();
-      td.classList.remove('editing');
-      let newVal;
-      if (newRaw === '' || newRaw === '—') {
-        newVal = undefined;
-      } else {
-        const n = Number(newRaw);
-        newVal = isNaN(n) ? newRaw : n;
+      const serverErrors = Array.isArray(result.validationErrors) ? result.validationErrors : [];
+      log('Upload rejected: ' + (result.error || JSON.stringify(result)), 'log-err');
+      if (serverErrors.length) {
+        renderReport(['<div class="r-err"><b>The server rejected the upload (' + serverErrors.length + ' problem(s)):</b></div>', listHtml(serverErrors, 'r-err')]);
       }
-      const changed = onCommit(newVal);
-      if (changed) {
-        td.classList.add('changed');
-      }
-      renderTable();
     }
-    inp.addEventListener('blur', commit);
-    inp.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); commit(); }
-      if (e.key === 'Escape') { td.classList.remove('editing'); renderTable(); }
-    });
-  });
-}
-
-function isChanged(origVal, newVal) {
-  if (origVal === undefined && newVal === undefined) return false;
-  if (origVal === undefined || newVal === undefined) return true;
-  return origVal !== newVal;
-}
-
-function cellChanged(cat, path) {
-  if (!originalData) return false;
-  let origVal = originalData;
-  let curVal = currentData;
-  const keys = Array.isArray(path) ? path : [path];
-  for (const k of [cat, ...keys]) {
-    origVal = origVal && origVal[k];
-    curVal = curVal && curVal[k];
-  }
-  return isChanged(origVal, curVal);
-}
-
-// ── RENDER ──────────────────────────────────────────────────
-function renderTable() {
-  if (!currentData) return;
-  const cat = document.getElementById('priceCategory').value;
-  const search = document.getElementById('searchBox').value.toLowerCase();
-  const container = document.getElementById('tableContainer');
-
-  if (cat === 'base_prices') {
-    const data = currentData.base_prices || {};
-    let keys = Object.keys(data).filter(k => k.toLowerCase().includes(search));
-    const allCols = new Set();
-    keys.forEach(k => Object.keys(data[k]).forEach(c => allCols.add(c)));
-    const cols = [...allCols].sort();
-    let html = '<table><tr><th>Material</th>' + cols.map(c => '<th>' + c + '</th>').join('') + '</tr>';
-    keys.forEach(k => {
-      html += '<tr><td><b>' + k + '</b></td>';
-      cols.forEach(c => {
-        const v = data[k][c];
-        const ch = cellChanged('base_prices', [k, c]);
-        if (Array.isArray(v)) {
-          html += '<td class="cell-table">[table]</td>';
-        } else {
-          const display = v !== undefined ? '$' + (typeof v === 'number' ? v.toFixed(2) : v) : '<span class="cell-empty">—</span>';
-          html += '<td class="editable' + (ch ? ' changed' : '') + '" data-cat="base_prices" data-mat="' + k.replace(/"/g,'&quot;') + '" data-col="' + c + '">' + display + '</td>';
-        }
-      });
-      html += '</tr>';
-    });
-    html += '</table>';
-    container.innerHTML = html;
-    // Attach edit handlers
-    container.querySelectorAll('td.editable[data-cat="base_prices"]').forEach(td => {
-      const mat = td.dataset.mat, col = td.dataset.col;
-      const cur = data[mat] ? data[mat][col] : undefined;
-      makeEditable(td, cur, (newVal) => {
-        if (!currentData.base_prices[mat]) currentData.base_prices[mat] = {};
-        const old = currentData.base_prices[mat][col];
-        if (newVal === undefined) { delete currentData.base_prices[mat][col]; }
-        else { currentData.base_prices[mat][col] = newVal; }
-        if (isChanged(old, newVal)) { changeCount++; updateChangesBar(); return true; }
-        return false;
-      });
-    });
-
-  } else if (cat === 'width_prices') {
-    const data = currentData.width_prices || {};
-    let keys = Object.keys(data).filter(k => k.toLowerCase().includes(search));
-    // Build full width grid per material
-    keys.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
-    // Collect all widths
-    const allW = new Set();
-    keys.forEach(k => data[k].forEach(([w]) => allW.add(w)));
-    const widths = [...allW].sort((a,b) => a - b);
-    let html = '<table><tr><th>Material</th>' + widths.map(w => '<th>' + w + 'mm</th>').join('') + '</tr>';
-    keys.forEach(k => {
-      const byW = {};
-      data[k].forEach(([w,p]) => { byW[w] = p; });
-      html += '<tr><td><b>' + k + '</b></td>';
-      widths.forEach(w => {
-        const v = byW[w];
-        const origArr = originalData && originalData.width_prices && originalData.width_prices[k];
-        const origByW = {};
-        if (origArr) origArr.forEach(([ow,op]) => { origByW[ow] = op; });
-        const ch = isChanged(origByW[w], v);
-        const display = v !== undefined ? '$' + (typeof v === 'number' ? v.toFixed(2) : v) : '<span class="cell-empty">—</span>';
-        html += '<td class="editable' + (ch ? ' changed' : '') + '" data-cat="width_prices" data-mat="' + k.replace(/"/g,'&quot;') + '" data-w="' + w + '">' + display + '</td>';
-      });
-      html += '</tr>';
-    });
-    html += '</table>';
-    container.innerHTML = html;
-    container.querySelectorAll('td.editable[data-cat="width_prices"]').forEach(td => {
-      const mat = td.dataset.mat, w = Number(td.dataset.w);
-      const arr = data[mat] || [];
-      const existing = arr.find(([ew]) => ew === w);
-      makeEditable(td, existing ? existing[1] : undefined, (newVal) => {
-        let a = currentData.width_prices[mat] || [];
-        a = a.filter(([ew]) => ew !== w);
-        if (newVal !== undefined) a.push([w, newVal]);
-        a.sort((x,y) => x[0] - y[0]);
-        currentData.width_prices[mat] = a;
-        changeCount++; updateChangesBar(); return true;
-      });
-    });
-
-  } else if (cat === 'meteorite_prices') {
-    const arr = currentData.meteorite_prices || [];
-    const grouped = {};
-    arr.forEach((r,i) => {
-      if (!grouped[r.m]) grouped[r.m] = [];
-      grouped[r.m].push({...r, _idx: i});
-    });
-    let matNames = Object.keys(grouped).filter(k => k.toLowerCase().includes(search));
-    matNames.sort();
-    const allWidths = new Set();
-    matNames.forEach(m => grouped[m].forEach(r => allWidths.add(r.w)));
-    const widths = [...allWidths].sort((a,b) => a - b);
-    let html = '<table><tr><th>Material</th>' + widths.map(w => '<th>' + w + 'mm</th>').join('') + '</tr>';
-    matNames.forEach(m => {
-      const byW = {};
-      grouped[m].forEach(r => { byW[r.w] = r; });
-      html += '<tr><td><b>' + m + '</b></td>';
-      widths.forEach(w => {
-        const r = byW[w];
-        const v = r ? (r.mm || r.pt || 0) : undefined;
-        const origArr = originalData ? originalData.meteorite_prices || [] : [];
-        const origR = origArr.find(o => o.m === m && o.w === w);
-        const origV = origR ? (origR.mm || origR.pt || 0) : undefined;
-        const ch = isChanged(origV, v);
-        const display = v !== undefined ? '$' + v.toFixed(2) : '<span class="cell-empty">—</span>';
-        html += '<td class="editable' + (ch ? ' changed' : '') + '" data-cat="meteorite_prices" data-mat="' + m.replace(/"/g,'&quot;') + '" data-w="' + w + '">' + display + '</td>';
-      });
-      html += '</tr>';
-    });
-    html += '</table>';
-    container.innerHTML = html;
-    container.querySelectorAll('td.editable[data-cat="meteorite_prices"]').forEach(td => {
-      const mat = td.dataset.mat, w = Number(td.dataset.w);
-      const arr = currentData.meteorite_prices;
-      const idx = arr.findIndex(r => r.m === mat && r.w === w);
-      const cur = idx >= 0 ? (arr[idx].mm || arr[idx].pt || 0) : undefined;
-      makeEditable(td, cur, (newVal) => {
-        if (idx >= 0) {
-          if (newVal === undefined) arr.splice(idx, 1);
-          else arr[idx].mm = newVal;
-        } else if (newVal !== undefined) {
-          arr.push({m: mat, w: w, mm: newVal});
-          arr.sort((a,b) => a.m.localeCompare(b.m) || a.w - b.w);
-        }
-        changeCount++; updateChangesBar(); return true;
-      });
-    });
-
-  } else if (cat === 'mokume_prices') {
-    const arr = currentData.mokume_prices || [];
-    let html = '<table><tr><th>Width (mm)</th><th>Price</th></tr>';
-    arr.forEach(([w, p], i) => {
-      const show = !search || String(w).includes(search) || String(p).includes(search);
-      if (!show) return;
-      const origArr = originalData ? originalData.mokume_prices || [] : [];
-      const origEntry = origArr.find(([ow]) => ow === w);
-      const ch = isChanged(origEntry ? origEntry[1] : undefined, p);
-      html += `<tr><td>${w}mm</td><td class="editable${ch ? ' changed' : ''}" data-cat="mokume_prices" data-idx="${i}">$${typeof p === 'number' ? p.toFixed(2) : p}</td></tr>`;
-    });
-    html += '</table>';
-    container.innerHTML = html;
-    container.querySelectorAll('td.editable[data-cat="mokume_prices"]').forEach(td => {
-      const idx = Number(td.dataset.idx);
-      makeEditable(td, currentData.mokume_prices[idx][1], (newVal) => {
-        if (newVal !== undefined) {
-          currentData.mokume_prices[idx][1] = newVal;
-          changeCount++; updateChangesBar(); return true;
-        }
-        return false;
-      });
-    });
-
-  } else if (cat === 'misc_costs') {
-    const mc = currentData.misc_costs || {};
-    let html = '<table><tr><th>Cost Type</th><th>Amount</th></tr>';
-    Object.entries(mc).forEach(([k,v]) => {
-      const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      const ch = cellChanged('misc_costs', [k]);
-      html += `<tr><td>${label}</td><td class="editable${ch ? ' changed' : ''}" data-cat="misc_costs" data-key="${k}">$${v}</td></tr>`;
-    });
-    html += '</table>';
-    container.innerHTML = html;
-    container.querySelectorAll('td.editable[data-cat="misc_costs"]').forEach(td => {
-      const key = td.dataset.key;
-      makeEditable(td, currentData.misc_costs[key], (newVal) => {
-        if (newVal !== undefined) {
-          currentData.misc_costs[key] = newVal;
-          changeCount++; updateChangesBar(); return true;
-        }
-        return false;
-      });
-    });
-
-  } else if (cat === 'formula_constants') {
-    const f = currentData.formula_constants || {};
-    let rows = [];
-    function flatten(obj, prefix) {
-      Object.entries(obj).forEach(([k,v]) => {
-        const path = prefix ? prefix + '.' + k : k;
-        if (typeof v === 'object' && !Array.isArray(v)) flatten(v, path);
-        else rows.push({path, val: v});
-      });
-    }
-    flatten(f, '');
-    let html = '<div class="filter-row"><button class="btn-secondary" onclick="addFormulaConstant()">Add Formula Constant</button><span class="hint">All formula amounts and parameters must be maintained here and uploaded to KV.</span></div><table><tr><th>Constant</th><th>Value</th></tr>';
-    rows.forEach(r => {
-      const origF = originalData ? originalData.formula_constants || {} : {};
-      let origVal = origF;
-      for (const k of r.path.split('.')) { origVal = origVal && origVal[k]; }
-      const ch = isChanged(origVal, r.val);
-      html += `<tr><td>${r.path}</td><td class="editable${ch ? ' changed' : ''}" data-cat="formula_constants" data-path="${r.path}">${JSON.stringify(r.val)}</td></tr>`;
-    });
-    html += '</table>';
-    container.innerHTML = html;
-    container.querySelectorAll('td.editable[data-cat="formula_constants"]').forEach(td => {
-      const path = td.dataset.path;
-      let cur = currentData.formula_constants;
-      for (const k of path.split('.')) { cur = cur && cur[k]; }
-      makeEditable(td, cur, (newVal) => {
-        if (newVal === undefined) return false;
-        const keys = path.split('.');
-        let obj = currentData.formula_constants;
-        for (let i = 0; i < keys.length - 1; i++) { obj = obj[keys[i]]; }
-        obj[keys[keys.length - 1]] = newVal;
-        changeCount++; updateChangesBar(); return true;
-      });
-    });
-
-  } else if (cat === 'material_groups') {
-    const mg = currentData.material_groups || {};
-    const byGroup = {};
-    Object.entries(mg).forEach(([mat, grp]) => {
-      if (!byGroup[grp]) byGroup[grp] = [];
-      byGroup[grp].push(mat);
-    });
-    const groups = Object.keys(byGroup).sort();
-    let html = '<table><tr><th>Group</th><th>Material</th></tr>';
-    groups.forEach(g => {
-      const mats = byGroup[g].filter(m => m.toLowerCase().includes(search)).sort();
-      mats.forEach((m, i) => {
-        html += '<tr><td>' + (i === 0 ? '<b>' + g + '</b> (' + mats.length + ')' : '') + '</td><td>' + m + '</td></tr>';
-      });
-    });
-    html += '</table>';
-    container.innerHTML = html;
-  } else if (['catalog','builder_config','services','business','spot_validation','quote_config','audit_config'].includes(cat)) {
-    const pre = document.createElement('pre');
-    pre.style.whiteSpace = 'pre-wrap';
-    pre.style.wordBreak = 'break-word';
-    pre.style.padding = '12px';
-    pre.style.background = '#0a0a1a';
-    pre.style.border = '1px solid #333';
-    pre.textContent = JSON.stringify(currentData[cat], null, 2);
-    container.replaceChildren(pre);
-  } else {
-    container.innerHTML = '<p class="empty-hint">Select a category above to browse.</p>';
+  } catch (e) {
+    log('Upload error: ' + e.message, 'log-err');
   }
 }
+
+log('Ready. Enter the API key and click "Download live data" to begin.');
 </script>
 </body>
 </html>

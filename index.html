@@ -1069,8 +1069,10 @@ let BUILDER = null;
 let SERVICES = null;
 
 // This is the single bootstrap location needed to discover the remaining
-// service endpoints and all business configuration stored in Cloudflare KV.
-const KV_PRICING_URL = 'https://jbj-spot-prices.johan-475.workers.dev/pricing';
+// service endpoints and all business configuration. Pricing itself never
+// reaches the browser: the protected pricing Worker returns totals only.
+const PROTECTED_PRICING_API = (location.hostname==='127.0.0.1'||location.hostname==='localhost') ? location.origin : 'https://jbj-ring-quote.johan-475.workers.dev';
+const DESIGNER_CONFIG_URL = PROTECTED_PRICING_API+'/designer-config';
 
 // These collections are populated from KV before any controls are rendered.
 const STEPS = [];
@@ -1098,8 +1100,9 @@ const state = {
   engraving: '',
   email: '',
   notes: '',
-  spotPrices: null, // no hardcoded fallback — populated by fetchSpotPrices() on load; state.spotsLoaded gates the Submit button until real prices arrive
-  spotsLoaded: false
+  serverTotal: null,   // no hardcoded fallback — populated only by the protected /estimate endpoint
+  estimateToken: null, // signed by the Worker; a current token gates the Submit button
+  staffBreakdown: null // itemized breakdown returned by /estimate for authorized staff sessions only
 };
 
 const RING_AUDIT_VISITOR_KEY = 'jbj-ring-audit-visitor-v2';
@@ -1195,11 +1198,10 @@ const ringAudit = (() => {
 
   function safePrice() {
     if (!DATA || !state.baseMetal || state.ringSize == null) return null;
-    try { return calcPrice(); } catch (error) { return null; }
+    return Number.isFinite(state.serverTotal) ? state.serverTotal : null;
   }
 
   function snapshot() {
-    const price = safePrice();
     return {
       step: state.step,
       stepId: STEPS[state.step] ? STEPS[state.step].id : null,
@@ -1219,7 +1221,7 @@ const ringAudit = (() => {
       email: state.email,
       notes: state.notes,
       pricingVersion: DATA ? DATA._version : null,
-      total: price ? price.total : null,
+      total: safePrice(),
       quoteSubmitted: Boolean(state._quoteSubmitted)
     };
   }
@@ -1685,64 +1687,28 @@ function getAllGroups(){
   return [...top,...rest];
 }
 
-// ── PRICING ENGINE ──
-// HMAC price hash implemented in ring-quote-worker.js (requires PRICE_HMAC_SECRET env var)
-const REQUIRED_MISC_COST_KEYS=['precious_base_metal','non_precious_base_metal','precious_inlay','non_precious_inlay','precious_sleeve','non_precious_sleeve'];
-const REQUIRED_FORMULA_NUMBER_PATHS=[
-  'ring_thickness_mm','inlay_depth_mm','pinstripe_depth_mm','scrap_multiplier',
-  'troy_oz_to_grams','sleeve_thickness_mm','precious_markup',
-  'millimeters_per_centimeter','cubic_millimeters_per_cubic_centimeter',
-  'currency_minor_unit_multiplier','base_ring_diameter.ring_size_multiplier_mm',
-  'base_ring_diameter.intercept_mm','pinstripe_outer_diameter.base_mm',
-  'pinstripe_outer_diameter.ring_size_multiplier_mm',
-  'pinstripe_outer_diameter.reference_ring_size','karat_factors.10K',
-  'karat_factors.14K','karat_factors.18K','karat_factors.Platinum',
-  'karat_factors.Silver','densities_g_per_cm3.Gold_all_karats',
-  'densities_g_per_cm3.Platinum','densities_g_per_cm3.Silver',
-  'fixed_costs.desprue','fixed_costs.pinstripe_bench_labor'
-];
-
+// ── PROTECTED PRICING CONFIGURATION ──
+// All pricing math lives in ring-quote-worker.js. The browser only receives the
+// sanitized /designer-config payload (catalog + builder options + service URLs).
 function pricingValue(source,path){
   return path.split('.').reduce((value,key)=>value==null?undefined:value[key],source);
 }
 
-function requireFormulaValue(formula,path){
-  const value=pricingValue(formula,path);
-  if(typeof value!=='number'||!Number.isFinite(value)) throw new Error('Missing or invalid formula_constants.'+path);
-  return value;
-}
-
-function requireFormulaText(formula,path){
-  const value=pricingValue(formula,path);
-  if(typeof value!=='string'||!value) throw new Error('Missing or invalid formula_constants.'+path);
-  return value;
-}
-
-function requireFormulaConstants(formula){
-  if(!formula||typeof formula!=='object') throw new Error('Missing formula_constants in pricing data');
-  REQUIRED_FORMULA_NUMBER_PATHS.forEach(path=>requireFormulaValue(formula,path));
-  const productionMode=requireFormulaText(formula,'precious_production_mode');
-  requireFormulaValue(formula,'fixed_costs.printing_'+productionMode);
-  requireFormulaValue(formula,'fixed_costs.cast_labor_'+productionMode);
-  return formula;
-}
-
-function pricingPayloadIsComplete(kv){
-  if(!kv||kv._schema_version!==2||!kv.base_prices||!kv.material_groups||!kv.formula_constants||!kv.misc_costs) return false;
-  if(!kv.width_prices||!Array.isArray(kv.meteorite_prices)||!Array.isArray(kv.mokume_prices)) return false;
-  if(!kv.catalog||!kv.catalog.materials||!kv.catalog.colors||!kv.builder_config||!kv.services||!kv.business) return false;
-  if(!kv.spot_validation||!kv.quote_config||!kv.audit_config) return false;
-  const b=kv.builder_config;
+function designerConfigIsComplete(config){
+  if(!config||config._schema_version!==3) return false;
+  if(!config.catalog||!config.catalog.materials||!config.catalog.colors||!config.builder_config||!config.services||!config.business) return false;
+  if(!config.quote_config||!config.audit_config) return false;
+  const b=config.builder_config;
   if(!Array.isArray(b.steps)||!b.steps.length||!Array.isArray(b.metal_groups)||!b.ring_size||!b.ring_width||!b.strip_width) return false;
-  if(!b.defaults||!b.rules||!b.pricing_classification||!b.engraving||!b.limits||!b.ui||!b.ring_view) return false;
-  if(!Number.isFinite(b.ring_size.default)||typeof kv.business.brand_name!=='string'||typeof kv.business.support_email!=='string') return false;
-  if(!['website_url','designer_url','contact_url','ring_sizer_url','engraving_url'].every(key=>typeof kv.business[key]==='string'&&/^https:\/\//.test(kv.business[key]))) return false;
-  if(!Number.isFinite(kv.business.quote_turnaround_business_days)||!Number.isFinite(kv.services.cors_max_age_seconds)||!Number.isFinite(kv.quote_config.email_tld_min_length)) return false;
-  if(kv.audit_config.retention_mode!=='indefinite_no_automatic_purge'||!Number.isFinite(kv.audit_config.beacon_max_bytes)) return false;
-  if(!['ui.slider_debounce_ms','ui.quote_spot_poll_ms','ui.rule_toast_ms','ui.touch_long_press_ms','ui.touch_move_cancel_pixels','ui.touch_vibration_ms','ui.section_scroll_delay_ms','ring_view.default_elevation','ring_view.default_azimuth','ring_view.max_elevation','ring_view.drag_azimuth_sensitivity','ring_view.drag_elevation_sensitivity','ring_view.minimum_device_pixel_ratio','ring_view.default_container_width','ring_view.max_canvas_width','ring_view.canvas_height','ring_view.width_scale','ring_view.max_radius_pixels'].every(path=>Number.isFinite(pricingValue(b,path)))) return false;
-  if(Object.keys(kv.catalog.materials).length!==Object.keys(kv.material_groups).length) return false;
-  try{requireFormulaConstants(kv.formula_constants);}catch(e){return false;}
-  return REQUIRED_MISC_COST_KEYS.every(key=>typeof kv.misc_costs[key]==='number'&&Number.isFinite(kv.misc_costs[key]));
+  if(!b.defaults||!b.rules||!b.engraving||!b.limits||!b.ui||!b.ring_view) return false;
+  if(!b.ring_geometry||!['thickness_mm','size_multiplier_mm','size_intercept_mm'].every(key=>Number.isFinite(b.ring_geometry[key]))) return false;
+  if(!Number.isFinite(b.ring_size.default)||typeof config.business.brand_name!=='string'||typeof config.business.support_email!=='string') return false;
+  if(!['website_url','designer_url','contact_url','ring_sizer_url','engraving_url'].every(key=>typeof config.business[key]==='string'&&/^https:\/\//.test(config.business[key]))) return false;
+  if(!Number.isFinite(config.business.quote_turnaround_business_days)||!Number.isFinite(config.services.cors_max_age_seconds)||!Number.isFinite(config.quote_config.email_tld_min_length)) return false;
+  if(config.audit_config.retention_mode!=='indefinite_no_automatic_purge'||!Number.isFinite(config.audit_config.beacon_max_bytes)) return false;
+  if(!['estimate_url','quote_url','staff_session_url','staff_components_url','audit_events_url'].every(key=>typeof config.services[key]==='string'&&config.services[key])) return false;
+  if(!['ui.slider_debounce_ms','ui.rule_toast_ms','ui.touch_long_press_ms','ui.touch_move_cancel_pixels','ui.touch_vibration_ms','ui.section_scroll_delay_ms','ring_view.default_elevation','ring_view.default_azimuth','ring_view.max_elevation','ring_view.drag_azimuth_sensitivity','ring_view.drag_elevation_sensitivity','ring_view.minimum_device_pixel_ratio','ring_view.default_container_width','ring_view.max_canvas_width','ring_view.canvas_height','ring_view.width_scale','ring_view.max_radius_pixels'].every(path=>Number.isFinite(pricingValue(b,path)))) return false;
+  return true;
 }
 
 function numberRange(config){
@@ -1758,18 +1724,15 @@ function snapToStep(value,config,mode='round'){
   return Number(snapped.toFixed(6));
 }
 
-function applyPricingPayload(kv,options={}){
-  if(!pricingPayloadIsComplete(kv)) throw new Error('Cloudflare KV payload is incomplete or uses an unsupported schema');
-  BUILDER=kv.builder_config;
-  SERVICES=kv.services;
-  BUSINESS=kv.business;
+function applyDesignerConfig(config,options={}){
+  if(!designerConfigIsComplete(config)) throw new Error('Designer configuration is incomplete or uses an unsupported schema');
+  BUILDER=config.builder_config;
+  SERVICES=config.services;
+  BUSINESS=config.business;
   DATA={
-    m:kv.catalog.materials,c:kv.catalog.colors,p:kv.base_prices,pm:kv.width_prices,
-    mp:kv.meteorite_prices,mk:kv.mokume_prices,f:kv.formula_constants,
-    misc_costs:kv.misc_costs,material_groups:kv.material_groups,
-    meteorite_partial_per_mm:kv.meteorite_partial_per_mm,
-    spot_validation:kv.spot_validation,quote_config:kv.quote_config,audit_config:kv.audit_config,
-    _version:kv._version,_schema_version:kv._schema_version
+    m:config.catalog.materials,c:config.catalog.colors,
+    quote_config:config.quote_config,audit_config:config.audit_config,
+    _version:config._version,_schema_version:config._schema_version
   };
   STEPS.splice(0,STEPS.length,...BUILDER.steps);
   METAL_GROUPS.splice(0,METAL_GROUPS.length,...BUILDER.metal_groups);
@@ -1788,406 +1751,232 @@ function applyPricingPayload(kv,options={}){
   state.profile=BUILDER.defaults.profile;
   state.wantsInlays=BUILDER.defaults.wants_inlays;
   state.finish=BUILDER.defaults.finish;
-  if(options.configureAudit!==false)ringAudit.configure(kv.audit_config,SERVICES.audit_events_url);
+  if(options.configureAudit!==false)ringAudit.configure(config.audit_config,SERVICES.audit_events_url);
 }
 
-function preciousMetalInputs(metalName,formula,spotPrices){
-  const classification=BUILDER.pricing_classification;
-  const namedRule=classification.precious_metal_rules.find(rule=>metalName.includes(rule.name_token));
-  let densityKey,spotKey,karatKey;
-  if(namedRule){
-    densityKey=namedRule.density_key;
-    spotKey=namedRule.spot_key;
-    karatKey=namedRule.karat_factor_key;
-  }else{
-    karatKey=classification.gold_karats.find(karat=>new RegExp('(?:^|\\s)'+karat+'(?:\\s|$)').test(metalName));
-    if(!karatKey) throw new Error('Missing precious-metal mapping for '+metalName);
-    densityKey=classification.gold_density_key;
-    spotKey=classification.gold_spot_key;
-  }
-  const spotPerOz=spotPrices&&spotPrices[spotKey];
-  if(typeof spotPerOz!=='number'||!Number.isFinite(spotPerOz)) throw new Error('Missing spot price for '+spotKey);
-  return{
-    density:requireFormulaValue(formula,'densities_g_per_cm3.'+densityKey),
-    spotPerOz,
-    karatFactor:requireFormulaValue(formula,'karat_factors.'+karatKey)
+// ── SERVER ESTIMATES (protected pricing) ──
+// The design is priced exclusively by the protected Worker. No prices, formulas,
+// or fallbacks exist in the browser; when no estimate is available the UI shows '—'.
+const ESTIMATE_DEBOUNCE_MS=400;
+let _estimateTimer=null;
+let _estimateSeq=0;
+let _estimatePending=false;
+let _lastEstimateKey=null;
+
+function designReady(){
+  return Boolean(DATA&&state.baseMetal&&state.ringSize!=null&&state.ringWidth!=null&&state.profile&&state.finish);
+}
+
+function designPayload(){
+  return {
+    baseMetal:state.baseMetal,
+    ringSize:state.ringSize,
+    ringWidth:state.ringWidth,
+    profile:state.profile,
+    sleeve:state.sleeve||state.baseMetal,
+    finish:state.finish,
+    strips:state.strips.filter(strip=>strip.material!=='(choose)').map(strip=>({material:strip.material,width:strip.width})),
+    engraving:state.engraving||'',
+    font:state.engravingFont||''
   };
 }
 
-function calcPrice(){
-  if(!DATA||!state.baseMetal||!state.ringSize)return null;
+function clearEstimate(){
+  state.serverTotal=null;
+  state.estimateToken=null;
+  state.staffBreakdown=null;
+}
+
+function showEstimateError(message){
+  console.error('Estimate failed: '+message);
+  ringAudit.record('error','estimate_unavailable',{message});
+  if(document.getElementById('pricing-error-banner'))return;
+  const errorDiv=document.createElement('div');
+  errorDiv.id='pricing-error-banner';
+  errorDiv.style.cssText='background:#f8d7da;border:1px solid #f5c6cb;color:#721c24;padding:12px;margin:8px;border-radius:4px;text-align:center;font-size:0.9rem;';
+  const label=document.createElement('strong');
+  label.textContent='⚠️ Pricing temporarily unavailable.';
+  errorDiv.appendChild(label);
+  errorDiv.appendChild(document.createTextNode(' Your selections are saved.'));
+  const retry=document.createElement('button');
+  retry.type='button';
+  retry.textContent='Retry';
+  retry.style.cssText='margin-left:8px;padding:4px 8px;background:#721c24;color:white;border:none;border-radius:3px;cursor:pointer;';
+  retry.onclick=()=>{clearEstimateError();updatePrice();};
+  errorDiv.appendChild(retry);
+  const host=document.getElementById('v2-error-host')||document.querySelector('.main-content')||document.body;
+  host.prepend(errorDiv);
+}
+
+function clearEstimateError(){
+  const banner=document.getElementById('pricing-error-banner');
+  if(banner)banner.remove();
+}
+
+function requestEstimate(){
+  if(!SERVICES)return;
+  if(!designReady()){
+    clearTimeout(_estimateTimer);
+    _estimatePending=false;
+    clearEstimate();
+    _lastEstimateKey=null;
+    return;
+  }
+  const key=JSON.stringify(designPayload());
+  if(key===_lastEstimateKey&&state.estimateToken&&!_estimatePending)return; // unchanged since the last successful estimate
+  if(key!==_lastEstimateKey)clearEstimate(); // the previous total/token no longer match this design
+  _estimatePending=true;
+  clearTimeout(_estimateTimer);
+  _estimateTimer=setTimeout(sendEstimateRequest,ESTIMATE_DEBOUNCE_MS);
+}
+
+async function sendEstimateRequest(){
+  if(!designReady()){_estimatePending=false;refreshPriceDisplays();return;}
+  const design=designPayload();
+  const key=JSON.stringify(design);
+  const seq=++_estimateSeq;
   try{
-  const formula=requireFormulaConstants(DATA.f);
-  let total=0;
-  const breakdown=[];
-
-  const bm=state.baseMetal;
-  const slv=state.sleeve||bm;
-  const hasInlays=state.strips.some(s=>!isMetal(s.material));
-  const hasNonMetalInlays=state.strips.some(s=>!isMetal(s.material)&&!isMetalGroup(s.material));
-  // misc() reads misc_costs from jbj-pricing.json (via DATA.misc_costs). NO hardcoded fallback —
-  // if a misc cost is missing, calcPrice() fails loudly (caught below, returns null → UI shows "—" instead of a guessed price).
-  const misc=(k)=>{
-    if(DATA.misc_costs&&DATA.misc_costs[k]!=null) return DATA.misc_costs[k];
-    throw new Error('Missing misc_costs.'+k+' in pricing data');
-  };
-
-  // 1. Base metal cost (always included, as if sleeve = base metal)
-  if(isPrecious(bm)){
-    const pCost=calcPreciousMetalCost(bm, state.ringWidth, state.ringSize, hasInlays);
-    total+=pCost;
-    breakdown.push({label:`${bm} (Base Metal)`, price:pCost});
-    total+=misc('precious_base_metal');
-    breakdown.push({label:`Precious Base Metal Misc`, price:misc('precious_base_metal')});
-  } else {
-    const pData=DATA.p[bm];
-    if(pData){
-      // PIRO base-material path: fixed component first, then a static full-ring
-      // component, then a width-driven base. Sleeve prices belong to Step 5 only.
-      let cost=null;
-      let baseLabel=`${bm} (Base Metal)`;
-      if(pData.fixed_price!=null) cost=pData.fixed_price;
-      else if(pData.full_ring!=null) cost=pData.full_ring;
-      else if(pData.per_mm_base!=null){
-        cost=pData.per_mm_base*state.ringWidth;
-        baseLabel=`${bm} (Base Metal, ${state.ringWidth}mm)`;
-      }
-      if(cost!=null){
-        total+=cost;
-        breakdown.push({label:baseLabel, price:cost});
-        total+=misc('non_precious_base_metal');
-        breakdown.push({label:`Base Metal Misc`, price:misc('non_precious_base_metal')});
-      }else throw new Error('Missing base price route for '+bm);
-    }else throw new Error('Missing base price for '+bm);
-  }
-
-  // 2. Sleeve adder (only when sleeve is different from base metal)
-  if(slv!==bm){
-    if(isPrecious(slv)){
-      const sCost=calcPreciousSleeveCost(slv, state.ringWidth, state.ringSize);
-      total+=sCost;
-      breakdown.push({label:`${slv} (Sleeve)`, price:sCost});
-      total+=misc('precious_sleeve');
-      breakdown.push({label:`Precious Sleeve Metal Misc`, price:misc('precious_sleeve')});
-    } else if(DATA.p[slv] && Number.isFinite(DATA.p[slv].per_mm_sleeve)){
-      const cost=DATA.p[slv].per_mm_sleeve*state.ringWidth;
-      total+=cost;
-      breakdown.push({label:`${slv} (Sleeve, ${state.ringWidth}mm)`, price:cost});
-      total+=misc('non_precious_sleeve');
-      breakdown.push({label:`Sleeve Metal Misc`, price:misc('non_precious_sleeve')});
-    } else {
-      const sData=DATA.p[slv];
-      if(sData){
-        let cost=null;
-        if(hasNonMetalInlays && sData.sleeve_with_inlay!=null) cost=sData.sleeve_with_inlay;
-        else if(sData.sleeve!=null) cost=sData.sleeve;
-        else if(sData.fixed_price!=null) cost=sData.fixed_price;
-        if(!Number.isFinite(cost))throw new Error('Missing sleeve price for '+slv);
-        total+=cost;
-        breakdown.push({label:`${slv} (Sleeve)`, price:cost});
-        total+=misc('non_precious_sleeve');
-        breakdown.push({label:`Sleeve Metal Misc`, price:misc('non_precious_sleeve')});
-      }else throw new Error('Missing sleeve pricing for '+slv);
+    const headers={'Content-Type':'application/json'};
+    const body=_staffMode?Object.assign({staff:true},design):design;
+    const response=await fetch(SERVICES.estimate_url,{method:'POST',headers,body:JSON.stringify(body)});
+    const json=await response.json().catch(()=>({}));
+    if(seq!==_estimateSeq)return; // a newer request superseded this one
+    if(response.ok&&json.ok&&Number.isFinite(json.total)&&json.estimateToken){
+      state.serverTotal=json.total;
+      state.estimateToken=json.estimateToken;
+      state.staffBreakdown=Array.isArray(json.breakdown)?json.breakdown:null;
+      _lastEstimateKey=key;
+      _estimatePending=false;
+      clearEstimateError();
+      refreshPriceDisplays();
+      return;
     }
-  }
-
-  // 3. Strip costs (inlays and pinstripes)
-  for(const strip of state.strips){
-    if(isMetal(strip.material)){
-      // Base metal strip (edge/pinstripe) — included in base metal cost
-      // Skip charging unless it's a different metal from both base and sleeve
-      if(strip.material!==bm && strip.material!==slv){
-        if(isPrecious(strip.material)){
-          const psCost=calcPinstripePrice(strip.material, strip.width, state.ringSize, 1, false);
-          total+=psCost;
-          breakdown.push({label:`${strip.material} (${strip.width}mm)`, price:psCost});
-        } else {
-          const pd=DATA.p[strip.material];
-          if(pd && Number.isFinite(pd.partials)){
-            total+=pd.partials;
-            breakdown.push({label:`${strip.material} (${strip.width}mm)`, price:pd.partials});
-          }else throw new Error('Missing partial price for '+strip.material);
-        }
-      }
-    } else if(isMetalGroup(strip.material)){
-      // Non-base metal used as inlay
-      if(isPrecious(strip.material)){
-        const psCost=calcPinstripePrice(strip.material, strip.width, state.ringSize, 1, true);
-        total+=psCost;
-        breakdown.push({label:`${strip.material} (${strip.width}mm)`, price:psCost});
-      } else if(DATA.p[strip.material] && Array.isArray(DATA.p[strip.material].inlay_by_width) && DATA.p[strip.material].inlay_by_width.length){
-        // Width-based inlay pricing (e.g. Zirconium, Damascus, Stainless)
-        const tbl=DATA.p[strip.material].inlay_by_width;
-        let cost=0;
-        for(let i=0;i<tbl.length;i++){
-          if(strip.width<=tbl[i][0]||i===tbl.length-1){cost=tbl[i][1];break;}
-          if(strip.width>tbl[i][0]&&strip.width<=tbl[i+1][0]){
-            const frac=(strip.width-tbl[i][0])/(tbl[i+1][0]-tbl[i][0]);
-            cost=tbl[i][1]+frac*(tbl[i+1][1]-tbl[i][1]);break;
-          }
-        }
-        const currencyScale=requireFormulaValue(formula,'currency_minor_unit_multiplier');
-        cost=Math.round(cost*currencyScale)/currencyScale;
-        total+=cost;
-        breakdown.push({label:`${strip.material} (${strip.width}mm)`, price:cost});
-      } else if(DATA.p[strip.material] && Number.isFinite(DATA.p[strip.material].per_mm_inlay)){
-        // Per-mm inlay pricing (e.g. Metal Mokume)
-        const cost=DATA.p[strip.material].per_mm_inlay*strip.width;
-        total+=cost;
-        breakdown.push({label:`${strip.material} (${strip.width}mm)`, price:cost});
-      } else {
-        const pd=DATA.p[strip.material];
-        if(pd && Number.isFinite(pd.partials)){
-          total+=pd.partials;
-          breakdown.push({label:`${strip.material} (${strip.width}mm)`, price:pd.partials});
-        }else throw new Error('Missing metal inlay price for '+strip.material);
-      }
-    } else {
-      // Non-metal inlay material (wood, stone, meteorite, etc.)
-      const cost=getInlayPrice(strip.material, strip.width);
-      total+=cost;
-      breakdown.push({label:`${strip.material} (${strip.width}mm)`, price:cost});
+    if(response.status===400&&Array.isArray(json.validationErrors)){
+      // The in-progress design is not a priceable arrangement yet — show '—' without the outage banner.
+      clearEstimate();
+      _lastEstimateKey=null;
+      _estimatePending=false;
+      refreshPriceDisplays();
+      return;
     }
-  }
-
-  // 4. Inlay misc (only when inlays exist)
-  if(hasInlays){
-    const hasPreciousInlay=state.strips.some(s=>!isMetal(s.material)&&isPrecious(s.material));
-    if(hasPreciousInlay){
-      total+=misc('precious_inlay');
-      breakdown.push({label:`Precious Inlay Metal Misc`, price:misc('precious_inlay')});
-    } else {
-      total+=misc('non_precious_inlay');
-      breakdown.push({label:`Inlay Metal Misc`, price:misc('non_precious_inlay')});
-    }
-  }
-
-  return{total, breakdown};
-  }catch(e){
-    console.error('%c❌ calcPrice() failed: '+e.message,'color:#c0392b;font-weight:bold');
-    return null;
+    throw new Error(json.error||('HTTP '+response.status));
+  }catch(error){
+    if(seq!==_estimateSeq)return;
+    clearEstimate();
+    _lastEstimateKey=null;
+    _estimatePending=false;
+    showEstimateError(error.message);
+    refreshPriceDisplays();
   }
 }
 
-// ── STAFF MODE: per-item price helpers (display only; mirror calcPrice logic, NO hardcoded fallbacks — unknown = null → '—') ──
+// ── STAFF MODE: per-item price labels (?staff — no key required) ──
+
 function staffFmtPrice(v){
   if(v==null||isNaN(v))return '—';
   if(v===0)return 'included';
   return '$'+v.toFixed(2);
 }
+
+// Per-item staff prices come from POST /staff/components.
+// Unknown items queue into one microtask-batched request; responses fill a
+// cache and re-apply the labels/tooltips on the already-rendered cards.
+const staffPriceCache=new Map();
+const _staffPriceQueue=new Map();
+const _staffLabelTargets=new Map();
+let _staffFlushScheduled=false;
+
+function staffDesignDigestLite(){
+  const raw=[
+    state.baseMetal||'',
+    state.sleeve||state.baseMetal||'',
+    state.ringSize==null?'':state.ringSize,
+    state.ringWidth==null?'':state.ringWidth,
+    state.strips.map(strip=>strip.material+'@'+strip.width).join('|')
+  ].join('~');
+  let hash=5381;
+  for(let i=0;i<raw.length;i++)hash=((hash*33)^raw.charCodeAt(i))>>>0;
+  return hash.toString(36);
+}
+
+function staffPriceKey(kind,material,width){
+  return kind+'|'+material+'|'+width+'|'+staffDesignDigestLite();
+}
+
+function staffPriceLookup(kind,material,width){
+  if(!_staffMode||!material||material==='(choose)'||!designReady())return null;
+  const key=staffPriceKey(kind,material,width);
+  if(staffPriceCache.has(key))return staffPriceCache.get(key);
+  _staffPriceQueue.set(key,{key,kind,material,width:Number(width)});
+  if(!_staffFlushScheduled){
+    _staffFlushScheduled=true;
+    Promise.resolve().then(()=>{_staffFlushScheduled=false;flushStaffPriceQueue();});
+  }
+  return null;
+}
+
 function staffBaseMetalPrice(name,widthMm){
-  if(!DATA||!DATA.p||!name)return null;
-  const w=widthMm||state.ringWidth||BUILDER.ring_width.default;
-  try{
-    const hasInlays=state.strips.some(st=>!isMetal(st.material));
-    if(isPrecious(name)){
-      if(!state.ringSize)return null;
-      return calcPreciousMetalCost(name,w,state.ringSize,hasInlays);
-    }
-    const pd=DATA.p[name];
-    if(!pd)return null;
-    if(pd.fixed_price!=null)return pd.fixed_price;
-    if(pd.full_ring!=null)return pd.full_ring;
-    if(pd.per_mm_base!=null)return pd.per_mm_base*w;
-    return null;
-  }catch(e){return null;}
+  if(!name)return null;
+  const w=widthMm||state.ringWidth||(BUILDER&&BUILDER.ring_width.default);
+  return staffPriceLookup('base',name,w);
 }
+
 function staffStripPrice(material,width){
-  if(!DATA||!DATA.p||!material||material==='(choose)')return null;
+  return staffPriceLookup('strip',material,width);
+}
+
+function applyStaffPriceToTarget(target,price){
+  if(!target.el)return;
+  if(target.mode==='title'){
+    if(price!=null)target.el.title=(target.prefix||'')+staffFmtPrice(price);
+  }else{
+    target.el.textContent=staffFmtPrice(price);
+  }
+}
+
+// Bind a rendered element to a staff component price: applies the cached value
+// now (or '—' while pending) and re-applies when the batched response lands.
+function bindStaffPrice(el,mode,kind,material,width,prefix){
+  if(!_staffMode||!el||!material||material==='(choose)')return;
+  const price=staffPriceLookup(kind,material,width);
+  const key=staffPriceKey(kind,material,width);
+  el['__staffKey_'+mode]=key;
+  applyStaffPriceToTarget({el,mode,prefix},price);
+  if(!staffPriceCache.has(key)){
+    const list=_staffLabelTargets.get(key)||[];
+    list.push({el,mode,prefix,key});
+    _staffLabelTargets.set(key,list);
+  }
+}
+
+async function flushStaffPriceQueue(){
+  if(!_staffPriceQueue.size)return;
+  if(!_staffMode||!designReady()){_staffPriceQueue.clear();return;}
+  const items=[..._staffPriceQueue.values()].slice(0,250);
+  _staffPriceQueue.clear();
   try{
-    const bm=state.baseMetal,slv=state.sleeve||bm;
-    if(isMetal(material)){
-      if(material===bm||material===slv)return 0;
-      if(isPrecious(material)){
-        if(!state.ringSize)return null;
-        return calcPinstripePrice(material,width,state.ringSize,1,false);
+    const response=await fetch(SERVICES.staff_components_url,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({design:designPayload(),items:items.map(item=>({key:item.key,kind:item.kind,material:item.material,width:item.width}))})
+    });
+    const json=await response.json().catch(()=>({}));
+    if(!response.ok||!json.ok||!Array.isArray(json.prices))return;
+    if(staffPriceCache.size>1500)staffPriceCache.clear();
+    json.prices.forEach(entry=>{
+      if(!entry||typeof entry.key!=='string')return;
+      const price=Number.isFinite(entry.price)?entry.price:null;
+      staffPriceCache.set(entry.key,price);
+      const targets=_staffLabelTargets.get(entry.key);
+      if(targets){
+        targets.forEach(target=>{
+          if(target.el&&target.el.isConnected&&target.el['__staffKey_'+target.mode]===target.key)applyStaffPriceToTarget(target,price);
+        });
+        _staffLabelTargets.delete(entry.key);
       }
-      const pd=DATA.p[material];
-      return(pd&&pd.partials!=null)?pd.partials:null;
-    }
-    if(isMetalGroup(material)){
-      if(isPrecious(material)){
-        if(!state.ringSize)return null;
-        return calcPinstripePrice(material,width,state.ringSize,1,true);
-      }
-      const pd=DATA.p[material];
-      if(pd&&pd.inlay_by_width){
-        const tbl=pd.inlay_by_width;let cost=0;
-        for(let i=0;i<tbl.length;i++){
-          if(width<=tbl[i][0]||i===tbl.length-1){cost=tbl[i][1];break;}
-          if(width>tbl[i][0]&&width<=tbl[i+1][0]){const frac=(width-tbl[i][0])/(tbl[i+1][0]-tbl[i][0]);cost=tbl[i][1]+frac*(tbl[i+1][1]-tbl[i][1]);break;}
-        }
-        const scale=requireFormulaValue(DATA.f,'currency_minor_unit_multiplier');
-        return Math.round(cost*scale)/scale;
-      }
-      if(pd&&Number.isFinite(pd.per_mm_inlay))return pd.per_mm_inlay*width;
-      return(pd&&pd.partials!=null)?pd.partials:null;
-    }
-    return getInlayPrice(material,width);
-  }catch(e){return null;}
-}
-
-function calcPreciousMetalCost(metalName, ringWidthMm, ringSize, hasInlays){
-  const f=requireFormulaConstants(DATA.f);
-  const dia=ringSize*requireFormulaValue(f,'base_ring_diameter.ring_size_multiplier_mm')+requireFormulaValue(f,'base_ring_diameter.intercept_mm');
-  const circ=Math.PI*dia;
-  const mmPerCm=requireFormulaValue(f,'millimeters_per_centimeter');
-  const thickness=requireFormulaValue(f,'ring_thickness_mm');
-  const inlayDepth=requireFormulaValue(f,'inlay_depth_mm');
-
-  // Total volume
-  const totalVol=(circ/mmPerCm)*(ringWidthMm/mmPerCm)*(thickness/mmPerCm);
-
-  // Inlay volume (rough estimate based on strips)
-  let inlayWidthTotal=0;
-  if(hasInlays){
-    for(const s of state.strips){
-      if(!isMetal(s.material)) inlayWidthTotal+=s.width;
-    }
-  }
-  const inlayVol=(circ/mmPerCm)*(inlayWidthTotal/mmPerCm)*(inlayDepth/mmPerCm);
-  const metalVol=totalVol-inlayVol;
-  const inputs=preciousMetalInputs(metalName,f,state.spotPrices);
-  const metalWeight=metalVol*inputs.density;
-  const weightScrap=metalWeight*requireFormulaValue(f,'scrap_multiplier');
-  const pricePerGram=(inputs.spotPerOz/requireFormulaValue(f,'troy_oz_to_grams'))*inputs.karatFactor;
-  const alloyCost=pricePerGram*weightScrap;
-  const productionMode=requireFormulaText(f,'precious_production_mode');
-  const printing=requireFormulaValue(f,'fixed_costs.printing_'+productionMode);
-  const castLabor=requireFormulaValue(f,'fixed_costs.cast_labor_'+productionMode);
-  const desprue=requireFormulaValue(f,'fixed_costs.desprue');
-  return(alloyCost+printing+castLabor)*requireFormulaValue(f,'precious_markup')+desprue;
-}
-
-function calcPreciousSleeveCost(metalName, ringWidthMm, ringSize){
-  const f=requireFormulaConstants(DATA.f);
-  const dia=ringSize*requireFormulaValue(f,'base_ring_diameter.ring_size_multiplier_mm')+requireFormulaValue(f,'base_ring_diameter.intercept_mm');
-  const circ=Math.PI*dia;
-  const mmPerCm=requireFormulaValue(f,'millimeters_per_centimeter');
-  const sleeveThickness=requireFormulaValue(f,'sleeve_thickness_mm');
-  const vol=(circ/mmPerCm)*(ringWidthMm/mmPerCm)*(sleeveThickness/mmPerCm);
-  const inputs=preciousMetalInputs(metalName,f,state.spotPrices);
-  const weight=vol*inputs.density;
-  const weightScrap=weight*requireFormulaValue(f,'scrap_multiplier');
-  const pricePerGram=(inputs.spotPerOz/requireFormulaValue(f,'troy_oz_to_grams'))*inputs.karatFactor;
-  const alloyCost=pricePerGram*weightScrap;
-  const productionMode=requireFormulaText(f,'precious_production_mode');
-  const printing=requireFormulaValue(f,'fixed_costs.printing_'+productionMode);
-  const castLabor=requireFormulaValue(f,'fixed_costs.cast_labor_'+productionMode);
-  const desprue=requireFormulaValue(f,'fixed_costs.desprue');
-  return(alloyCost+printing+castLabor)*requireFormulaValue(f,'precious_markup')+desprue;
-}
-
-function calcPinstripePrice(metalName, widthMm, ringSize, qty, isInlay){
-  // Both pinstripes and inlays use outer-surface diameter (matches Excel pinstripe calculator)
-  const f=requireFormulaConstants(DATA.f);
-  const dia=requireFormulaValue(f,'pinstripe_outer_diameter.base_mm')+
-    requireFormulaValue(f,'pinstripe_outer_diameter.ring_size_multiplier_mm')*
-    (ringSize-requireFormulaValue(f,'pinstripe_outer_diameter.reference_ring_size'));
-  const circ=Math.PI*dia;
-  const depth=requireFormulaValue(f,'pinstripe_depth_mm');
-  const vol=(widthMm*depth*circ*qty)/requireFormulaValue(f,'cubic_millimeters_per_cubic_centimeter');
-  const inputs=preciousMetalInputs(metalName,f,state.spotPrices);
-  const weight=vol*inputs.density;
-  const weightScrap=weight*requireFormulaValue(f,'scrap_multiplier');
-  const pricePerGram=(inputs.spotPerOz/requireFormulaValue(f,'troy_oz_to_grams'))*inputs.karatFactor;
-  const matCost=pricePerGram*weightScrap;
-  return(matCost+requireFormulaValue(f,'fixed_costs.pinstripe_bench_labor'))*requireFormulaValue(f,'precious_markup');
-}
-
-function getInlayPrice(materialName, widthMm){
-  // Check width-based pricing first
-  if(DATA.pm[materialName]){
-    const prices=DATA.pm[materialName];
-    let closest=prices[0];
-    for(const[mm,price]of prices){
-      if(mm<=widthMm) closest=[mm,price];
-      else break;
-    }
-    if(!closest||!Number.isFinite(closest[1]))throw new Error('Missing width price for '+materialName);
-    return closest[1];
-  }
-
-  // Check meteorite pricing
-  const classification=BUILDER.pricing_classification;
-  if(classification.meteorite_name_tokens.some(token=>materialName.includes(token))){
-    const mp=DATA.mp.filter(r=>r.m===materialName);
-    if(mp.length){
-      let closest=mp[0];
-      for(const r of mp){
-        if(r.w<=widthMm) closest=r;
-        else break;
-      }
-      const price=closest.mm??closest.pt;
-      if(!Number.isFinite(price))throw new Error('Missing meteorite price for '+materialName);
-      return price;
-    }
-  }
-
-  // Check mokume pricing
-  if(materialName===classification.metal_mokume_material&&DATA.p[materialName]&&Number.isFinite(DATA.p[materialName].per_mm_inlay)){
-    return DATA.p[materialName].per_mm_inlay*widthMm;
-  }
-  if(materialName.includes(classification.mokume_name_token)&&!materialName.includes(classification.mokume_excluded_name_token)){
-    let closest=DATA.mk[0];
-    for(const[mm,price]of DATA.mk){
-      if(mm<=widthMm) closest=[mm,price];
-      else break;
-    }
-    if(!closest||!Number.isFinite(closest[1]))throw new Error('Missing mokume price for '+materialName);
-    return closest[1];
-  }
-
-  // Fixed pricing
-  if(DATA.p[materialName]){
-    if(Number.isFinite(DATA.p[materialName].fixed_price))return DATA.p[materialName].fixed_price;
-  }
-  throw new Error('Missing inlay price for '+materialName);
-}
-
-// ── FETCH LIVE SPOT PRICES ──
-function validSpotValue(name,value){
-  const range=DATA&&DATA.spot_validation&&DATA.spot_validation[name];
-  return Boolean(range&&typeof value==='number'&&Number.isFinite(value)&&value>range.min_exclusive&&value<range.max_exclusive);
-}
-
-async function fetchSpotPrices(){
-  const showError=(msg)=>{
-    console.error('Spot prices failed: '+msg);
-    ringAudit.record('error','spot_prices_unavailable',{message:msg});
-    const banner=document.getElementById('pricing-error-banner');
-    if(banner)return;
-    const errorDiv=document.createElement('div');
-    errorDiv.id='pricing-error-banner';
-    errorDiv.style.cssText='background:#f8d7da;border:1px solid #f5c6cb;color:#721c24;padding:12px;margin:8px;border-radius:4px;text-align:center;font-size:0.9rem;';
-    errorDiv.innerHTML='<strong>⚠️ Pricing temporarily unavailable.</strong><br>Please refresh the page or try again later. <button onclick="window.location.reload()" style="margin-left:8px;padding:4px 8px;background:#721c24;color:white;border:none;border-radius:3px;cursor:pointer;">Refresh</button>';
-    const host=document.querySelector('.main-content');
-    if(host)host.prepend(errorDiv);
-  };
-  state.spotPrices=null;
-  state.spotsLoaded=false;
-  for(let attempt=0;attempt<SERVICES.spot_max_attempts;attempt++){
-    if(attempt>0)await new Promise(resolve=>setTimeout(resolve,SERVICES.spot_retry_delay_ms));
-    try{
-      const res=await fetch(SERVICES.spot_prices_url,{cache:'no-store'});
-      if(!res.ok)throw new Error('HTTP '+res.status);
-      const data=await res.json();
-      if(data.error)throw new Error(data.error);
-      const prices={Gold:data.Gold??data.gold,Platinum:data.Platinum??data.platinum,Silver:data.Silver??data.silver};
-      const invalid=Object.entries(prices).filter(([name,value])=>!validSpotValue(name,value)).map(([name])=>name);
-      if(invalid.length)throw new Error('Missing or invalid '+invalid.join(', ')+' spot price');
-      state.spotPrices=prices;
-      state.spotsLoaded=true;
-      console.log('%c✅ Gold API prices fetched from Cloudflare KV','color:#4a7c59;font-weight:bold');
-      console.log('   Source API: '+(data.source||'unknown')+' | Gold: $'+prices.Gold+'/oz | Platinum: $'+prices.Platinum+'/oz | Silver: $'+prices.Silver+'/oz');
-      ringAudit.record('pricing','spot_prices_loaded',{source:data.source||null,updated:data.updated||null});
-      updatePrice();
-      return true;
-    }catch(error){
-      if(attempt===SERVICES.spot_max_attempts-1){showError(error.message);return false;}
-    }
-  }
-  return false;
+    });
+    if(_staffLabelTargets.size>500)_staffLabelTargets.clear();
+  }catch(error){}
 }
 
 // ── 3D RING RENDERER (Canvas) ──
@@ -2467,12 +2256,12 @@ function renderRing(){
   const cx=dispW/2, cy=dispH/2;
 
   // Ring geometry — real proportions (diameter scales with size, width with width)
-  const formula=requireFormulaConstants(DATA.f);
-  const sizeMultiplier=requireFormulaValue(formula,'base_ring_diameter.ring_size_multiplier_mm');
-  const sizeIntercept=requireFormulaValue(formula,'base_ring_diameter.intercept_mm');
+  const geometry=BUILDER.ring_geometry;
+  const sizeMultiplier=geometry.size_multiplier_mm;
+  const sizeIntercept=geometry.size_intercept_mm;
   const rSz=state.ringSize||BUILDER.ring_size.default;
   const innerDiam=rSz*sizeMultiplier+sizeIntercept;
-  const wallT=requireFormulaValue(formula,'ring_thickness_mm');
+  const wallT=geometry.thickness_mm;
   const outerDiam=innerDiam+2*wallT;               // mm outer diameter
   const refOuter=BUILDER.ring_size.default*sizeMultiplier+sizeIntercept+2*wallT;
   const pxMm=Math.min(dispW*BUILDER.ring_view.width_scale,BUILDER.ring_view.max_radius_pixels)/(refOuter/2);
@@ -2847,16 +2636,54 @@ function updateLegend(){
 }
 
 // ── UPDATE PRICE DISPLAY ──
-function updatePrice(){
+function priceDisplayText(){
+  if(!designReady())return '—';
+  if(Number.isFinite(state.serverTotal))return '$'+state.serverTotal.toFixed(2);
+  return _estimatePending?'Calculating…':'—';
+}
+
+function fillStaffBreakdown(){
+  const box=document.getElementById('staffBreakdownBox');
+  if(!box)return;
+  box.innerHTML='';
+  if(!_staffMode||!Array.isArray(state.staffBreakdown)||!state.staffBreakdown.length)return;
+  box.appendChild(h('h4',{},['Price Breakdown']));
+  state.staffBreakdown.forEach(item=>{
+    if(!item||!Number.isFinite(item.price))return;
+    const row=h('div',{class:'summary-row'});
+    row.appendChild(h('span',{class:'label'},[String(item.label)]));
+    row.appendChild(h('span',{class:'price'},['$'+item.price.toFixed(2)]));
+    box.appendChild(row);
+  });
+}
+
+function refreshSubmitGate(){
+  const btn=document.getElementById('quoteSubmitBtn');
+  if(!btn||state._quoteSubmitted||btn.dataset.busy==='1')return;
+  const ready=Boolean(state.estimateToken)&&Number.isFinite(state.serverTotal);
+  btn.disabled=!ready;
+  btn.style.opacity=ready?'1':'0.6';
+  btn.style.cursor=ready?'pointer':'not-allowed';
+  btn.textContent=ready?'Submit Design Request':'Waiting for Price…';
+}
+
+function refreshPriceDisplays(){
+  const txt=priceDisplayText();
   const el=$('#priceAmount');
   const elMobile=$('#priceAmountMobile');
-  const result=calcPrice();
-  const txt=(!result||result.total===0)?'—':'$'+result.total.toFixed(2);
-  el.textContent=txt;
+  if(el) el.textContent=txt;
   if(elMobile) elMobile.textContent=txt;
+  $$('[data-estimate-total]').forEach(node=>{node.textContent=txt;});
+  fillStaffBreakdown();
+  refreshSubmitGate();
   // Update mobile step info
   const stepInfo=$('#mobileStepInfo');
-  if(stepInfo) stepInfo.textContent='Step '+(state.step+1)+' of '+STEPS.length+': '+STEPS[state.step].label;
+  if(stepInfo&&STEPS[state.step]) stepInfo.textContent='Step '+(state.step+1)+' of '+STEPS.length+': '+STEPS[state.step].label;
+}
+
+function updatePrice(){
+  requestEstimate();
+  refreshPriceDisplays();
 }
 
 // ── RENDER STEPS BAR ──
@@ -2966,8 +2793,7 @@ function showExitEmailModal(onDone){
     overlay.querySelector('.btn-exit-submit').textContent='Sending...';
     overlay.querySelector('.btn-exit-submit').disabled=true;
     // Fire the quote to the worker
-    const result=calcPrice();
-    if(!result){
+    if(!state.estimateToken||!Number.isFinite(state.serverTotal)){
       ringAudit.record('validation','exit_quote_blocked_pricing_incomplete');
       overlay.querySelector('.btn-exit-submit').disabled=false;
       overlay.querySelector('.btn-exit-submit').textContent='Send my quote';
@@ -2980,7 +2806,7 @@ function showExitEmailModal(onDone){
       const response=await fetch(SERVICES.quote_url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         email:state.email,notes:state.notes,auditVisitorId:ringAudit.visitorId,auditSessionId:ringAudit.sessionId,baseMetal:state.baseMetal,ringSize:state.ringSize,ringWidth:state.ringWidth,
         profile:state.profile,sleeve:state.sleeve,finish:state.finish,engraving:state.engraving,font:state.engravingFont||'',
-        strips:state.strips,breakdown:result.breakdown,total:result.total,pricingVersion:DATA._version,spotPrices:state.spotPrices,shareUrl,
+        strips:state.strips,total:state.serverTotal,estimateToken:state.estimateToken,pricingVersion:DATA._version,shareUrl,
         ringImage:_getCanvasImage()
       })});
       const responseBody=await response.json().catch(()=>({}));
@@ -3026,10 +2852,9 @@ function renderPanel(){
     case 'summary': renderSummaryPanel(col); break;
   }
   updateCanvasUndoBtn();
-  // Show/hide sticky price bar
+  // Estimated Total stays visible to every visitor on every step
   const priceBarM=document.getElementById('priceBarMobile');
-  const showBar=_staffMode ? true : (STEPS[state.step].id==='summary');
-  if(priceBarM) priceBarM.style.display=showBar?'flex':'none';
+  if(priceBarM) priceBarM.style.display='flex';
 }
 
 // ── STEP 1: RING SIZE ──
@@ -3128,9 +2953,10 @@ function renderMetalPanel(col){
         h('div',{class:'name'},[name])
       ]);
       if(_staffMode){
-        const _sp=staffBaseMetalPrice(name,state.ringWidth);
-        card.appendChild(h('div',{class:'staff-price'},[staffFmtPrice(_sp)]));
-        card.title=name+' as base metal @ '+state.ringWidth+'mm: '+staffFmtPrice(_sp);
+        const staffPriceEl=h('div',{class:'staff-price'},[staffFmtPrice(null)]);
+        card.appendChild(staffPriceEl);
+        bindStaffPrice(staffPriceEl,'text','base',name,state.ringWidth);
+        bindStaffPrice(card,'title','base',name,state.ringWidth,name+' as base metal @ '+state.ringWidth+'mm: ');
       }
       grid.appendChild(card);
     });
@@ -3200,7 +3026,8 @@ function renderWidthPanel(col){
     sipW.appendChild(h('div',{class:'sip-row'},[sipLbl,sipVal]));
     window._staffWidthPriceRefresh=()=>{
       sipLbl.textContent=(state.baseMetal||'—')+' @ '+state.ringWidth+'mm';
-      sipVal.textContent=staffFmtPrice(staffBaseMetalPrice(state.baseMetal,state.ringWidth));
+      sipVal.textContent=staffFmtPrice(null);
+      bindStaffPrice(sipVal,'text','base',state.baseMetal,state.ringWidth);
     };
     window._staffWidthPriceRefresh();
     col.appendChild(sipW);
@@ -3401,11 +3228,14 @@ function renderComposePanel(col){
   if(_staffMode){
     const sip=h('div',{class:'staff-item-prices'});
     sip.appendChild(h('div',{class:'sip-title'},['Staff: Item Prices']));
-    const _bmp=staffBaseMetalPrice(state.baseMetal,state.ringWidth);
-    sip.appendChild(h('div',{class:'sip-row'},[h('span',{},[(state.baseMetal||'—')+' (Base Metal, '+state.ringWidth+'mm)']),h('span',{class:'p'},[staffFmtPrice(_bmp)])]));
+    const bmVal=h('span',{class:'p'},[staffFmtPrice(null)]);
+    sip.appendChild(h('div',{class:'sip-row'},[h('span',{},[(state.baseMetal||'—')+' (Base Metal, '+state.ringWidth+'mm)']),bmVal]));
+    bindStaffPrice(bmVal,'text','base',state.baseMetal,state.ringWidth);
     state.strips.forEach((st,ix)=>{
       if(st.material==='(choose)')return;
-      sip.appendChild(h('div',{class:'sip-row'},[h('span',{},['Strip '+(ix+1)+': '+st.material+' ('+st.width+'mm)']),h('span',{class:'p'},[staffFmtPrice(staffStripPrice(st.material,st.width))])]));
+      const stripVal=h('span',{class:'p'},[staffFmtPrice(null)]);
+      sip.appendChild(h('div',{class:'sip-row'},[h('span',{},['Strip '+(ix+1)+': '+st.material+' ('+st.width+'mm)']),stripVal]));
+      bindStaffPrice(stripVal,'text','strip',st.material,st.width);
     });
     col.appendChild(sip);
   }
@@ -3456,7 +3286,7 @@ function renderComposePanel(col){
       }},['×'])
     ]);
 
-    if(_staffMode&&s.material!=='(choose)')block.title=s.material+' '+s.width+'mm: '+staffFmtPrice(staffStripPrice(s.material,s.width));
+    if(_staffMode&&s.material!=='(choose)')bindStaffPrice(block,'title','strip',s.material,s.width,s.material+' '+s.width+'mm: ');
 
     // Drag events
     block.addEventListener('dragstart',(e)=>{
@@ -4161,7 +3991,7 @@ function openAddStripModal(){
         matSwatch(name),
         h('div',{class:'name'},[name+(tooWide?' (min '+matMin+'mm)':'')])
       ]);
-      if(_staffMode&&!tooWide)card.title=name+' @ '+stripWidth+'mm: '+staffFmtPrice(staffStripPrice(name,stripWidth));
+      if(_staffMode&&!tooWide)bindStaffPrice(card,'title','strip',name,stripWidth,name+' @ '+stripWidth+'mm: ');
       grid.appendChild(card);
     });
     modal.appendChild(grid);
@@ -4289,7 +4119,7 @@ function openEditStripModal(idx){
         matSwatch(name),
         h('div',{class:'name'},[name+(tooNarrow?' (min '+matMin+'mm)':'')])
       ]);
-      if(_staffMode&&!tooNarrow)card.title=name+' @ '+stripWidth+'mm: '+staffFmtPrice(staffStripPrice(name,stripWidth));
+      if(_staffMode&&!tooNarrow)bindStaffPrice(card,'title','strip',name,stripWidth,name+' @ '+stripWidth+'mm: ');
       grid.appendChild(card);
     });
     modal.appendChild(grid);
@@ -4468,8 +4298,6 @@ function renderSummaryPanel(col){
   col.appendChild(h('h2',{class:'panel-title'},['Your Design Summary']));
   col.appendChild(h('p',{class:'panel-desc'},['Review your custom ring configuration below.']));
 
-  const result=calcPrice();
-
   // Design details
   const section1=h('div',{class:'summary-section'});
   section1.appendChild(h('h4',{},['Configuration']));
@@ -4492,29 +4320,15 @@ function renderSummaryPanel(col){
     col.appendChild(section2);
   }
 
-  // Price breakdown
-  if(result&&result.breakdown.length){
-    const section3=h('div',{class:'summary-section'});
-    if(_staffMode){
-      section3.appendChild(h('h4',{},['Price Breakdown']));
-      result.breakdown.forEach(item=>{
-        const row=h('div',{class:'summary-row'});
-        row.appendChild(h('span',{class:'label'},[item.label]));
-        row.appendChild(h('span',{class:'price'},['$'+item.price.toFixed(2)]));
-        section3.appendChild(row);
-      });
-    }
-
-    const total=h('div',{class:'summary-total'});
-    total.appendChild(h('span',{class:'label'},['Estimated Total']));
-    total.appendChild(h('span',{class:'price'},['$'+result.total.toFixed(2)]));
-    section3.appendChild(total);
-
-    if(!state.spotsLoaded){
-      section3.appendChild(h('div',{class:'validation-msg warn'},['Metal spot prices are estimated. Final price will be calculated with live market rates at time of order.']));
-    }
-    col.appendChild(section3);
-  }
+  // Price (server-verified estimate; staff sessions also get the itemized breakdown)
+  const section3=h('div',{class:'summary-section'});
+  if(_staffMode) section3.appendChild(h('div',{id:'staffBreakdownBox'}));
+  const total=h('div',{class:'summary-total'});
+  total.appendChild(h('span',{class:'label'},['Estimated Total']));
+  total.appendChild(h('span',{class:'price','data-estimate-total':'true'},[priceDisplayText()]));
+  section3.appendChild(total);
+  col.appendChild(section3);
+  fillStaffBreakdown();
 
   // Engraving (optional)
   const engSection=h('div',{class:'summary-section'});
@@ -4580,17 +4394,18 @@ function renderSummaryPanel(col){
 
   const submitBtn=h('button',{
     class:'btn btn-gold',
+    id:'quoteSubmitBtn',
     style:{
       width:'100%',padding:'12px',marginTop:'4px',fontSize:'.85rem',
-      opacity:state.spotsLoaded?'1':'0.6',
-      cursor:state.spotsLoaded?'pointer':'not-allowed'
+      opacity:state.estimateToken?'1':'0.6',
+      cursor:state.estimateToken?'pointer':'not-allowed'
     },
     onClick:async()=>{
-      if(!state.spotsLoaded){
-        ringAudit.record('validation','quote_blocked_spot_prices_unavailable');
+      if(!state.estimateToken||!Number.isFinite(state.serverTotal)){
+        ringAudit.record('validation','quote_blocked_estimate_unavailable');
         submitStatus.style.display='block';
         submitStatus.style.color='#c0392b';
-        submitStatus.textContent='Pricing data not loaded yet. Please refresh the page and try again.';
+        submitStatus.textContent='Your estimate is still being calculated. Please wait a moment and try again.';
         return;
       }
       if(!isValidEmail(state.email)){
@@ -4600,14 +4415,7 @@ function renderSummaryPanel(col){
         emailInput.focus();
         return;
       }
-      const currentResult=calcPrice();
-      if(!currentResult){
-        ringAudit.record('validation','quote_blocked_pricing_incomplete');
-        submitStatus.style.display='block';
-        submitStatus.style.color='#c0392b';
-        submitStatus.textContent='This design cannot be priced from the current catalog. Please review the selections or try again later.';
-        return;
-      }
+      submitBtn.dataset.busy='1';
       submitBtn.disabled=true;
       submitBtn.textContent='Sending...';
       submitStatus.style.display='none';
@@ -4632,10 +4440,9 @@ function renderSummaryPanel(col){
         finish:state.finish,
         engraving:state.engraving,font:state.engravingFont||'',
         strips:state.strips,
-        breakdown:currentResult.breakdown,
-        total:currentResult.total,
+        total:state.serverTotal,
+        estimateToken:state.estimateToken,
         pricingVersion:DATA._version,
-        spotPrices:state.spotPrices,
         shareUrl:shareUrl,
         ringImage:_getCanvasImage()
       };
@@ -4664,6 +4471,7 @@ function renderSummaryPanel(col){
       }catch(err){
         ringAudit.record('quote','quote_submit_failed',{message:err.message});
         console.error('Quote submit error:',err);
+        delete submitBtn.dataset.busy;
         submitBtn.disabled=false;
         submitBtn.textContent='Submit Design Request';
         submitStatus.style.display='block';
@@ -4671,27 +4479,11 @@ function renderSummaryPanel(col){
         submitStatus.textContent='Something went wrong. Please try again or email us directly at '+BUSINESS.support_email+'.';
       }
     }
-  },state.spotsLoaded ? ['Submit Design Request'] : ['Loading Prices...']);
+  },state.estimateToken ? ['Submit Design Request'] : ['Waiting for Price…']);
 
-  // Update button appearance when spots load
-  if(!state.spotsLoaded){
-    submitBtn.disabled=true;
-    const updateSubmitBtn=()=>{
-      if(state.spotsLoaded){
-        submitBtn.disabled=false;
-        submitBtn.textContent='Submit Design Request';
-        submitBtn.style.opacity='1';
-        submitBtn.style.cursor='pointer';
-      }
-    };
-    // Check periodically for spotPrices loading
-    const checkInterval=setInterval(()=>{
-      if(state.spotsLoaded){
-        updateSubmitBtn();
-        clearInterval(checkInterval);
-      }
-    },500);
-  }
+  // The gate re-opens automatically: refreshPriceDisplays() → refreshSubmitGate()
+  // enables this button as soon as a current estimateToken arrives from the Worker.
+  if(!state.estimateToken) submitBtn.disabled=true;
   form.appendChild(submitBtn);
   form.appendChild(submitStatus);
   col.appendChild(form);
@@ -4789,12 +4581,12 @@ function loadDesignFromURL(){
 // ── INIT ──
 async function init(){
   try{
-    const response=await fetch(KV_PRICING_URL,{cache:'no-store'});
-    if(!response.ok)throw new Error('Cloudflare KV returned HTTP '+response.status);
-    const kv=await response.json();
-    applyPricingPayload(kv);
+    const response=await fetch(DESIGNER_CONFIG_URL,{cache:'no-store'});
+    if(!response.ok)throw new Error('Designer configuration returned HTTP '+response.status);
+    const config=await response.json();
+    applyDesignerConfig(config);
     loadDesignFromURL();
-    await fetchSpotPrices();
+    updatePrice();
     const overlay=$('#addStripModal');
     if(overlay&&!overlay.__auditCloseInstalled){
       overlay.__auditCloseInstalled=true;
@@ -4835,17 +4627,14 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
 <!-- ===== V2 ENGINE HOOK (parity harness) ===== -->
 <script>
 (function(){
+  // Pricing parity is verified against the protected Worker (tests/pricing-parity.mjs);
+  // the browser exposes only its design state and the server-issued estimate.
   window.__V2_ENGINE__={
-    calcPrice:(typeof calcPrice==='function')?calcPrice:null,
-    setDATA:function(kv){ applyPricingPayload(kv,{configureAudit:false}); },
-    priceConfig:function(pins,cfg){
-      state.spotPrices={Gold:pins.Gold,Platinum:pins.Platinum,Silver:pins.Silver};
-      state.spotsLoaded=true;state.baseMetal=cfg.baseMetal;state.ringSize=cfg.ringSize;
-      state.ringWidth=cfg.ringWidth;state.profile=cfg.profile||BUILDER.defaults.profile;state.sleeve=cfg.sleeve;
-      state.strips=(cfg.strips||[]).map(s=>({...s}));state.wantsInlays=(cfg.strips||[]).length>0;
-      state.selectedStrip=-1;
-      try{return calcPrice();}catch(e){return{__err:e.message};}
-    }
+    getState:function(){ return state; },
+    serverTotal:function(){ return state.serverTotal; },
+    estimateToken:function(){ return state.estimateToken; },
+    designPayload:(typeof designPayload==='function')?designPayload:null,
+    requestEstimate:(typeof requestEstimate==='function')?requestEstimate:null
   };
 })();
 </script>
@@ -4855,7 +4644,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
    One focused tool is open at a time. The seven original engine panels are unchanged.
    No Next button, no auto-scroll, no auto-advance, no ledger, no floating submit.
    Sections 1-6 = verbatim renderXPanel builders. Section 7 = renderSummaryPanel (submit+share).
-   Price: retail sees it only when summary is open; staff (?staff) always. */
+   Price: the Estimated Total bar is always visible to every visitor. */
 (function(){
   'use strict';
 
@@ -4956,19 +4745,17 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     });
   }
 
-  // ---- Price (retail: only when summary open; staff: always) ----
+  // ---- Price (Estimated Total is always visible; amount mirrors the engine's server estimate) ----
   function updatePriceBar(){
     const bar=document.getElementById('v2-price'); if(!bar) return;
     const amt=document.getElementById('v2-price-amount')||bar;
     bar.style.display='flex';   // always visible to retail + staff
-    let total=null;
+    let txt='—';
     try{
-      if(typeof DATA!=='undefined' && DATA && DATA.p && state.baseMetal){
-        const r=calcPrice();
-        if(r && typeof r.total==='number') total=r.total;
-      }
-    }catch(e){ total=null; }
-    amt.textContent = (total==null)?'—':('$'+total.toFixed(2));
+      if(typeof priceDisplayText==='function') txt=priceDisplayText();
+      else{ const src=document.getElementById('priceAmount'); if(src&&src.textContent) txt=src.textContent; }
+    }catch(e){ txt='—'; }
+    amt.textContent=txt;
   }
 
   // ---- Central hook fired after every engine selection (via updatePrice wrapper) ----
