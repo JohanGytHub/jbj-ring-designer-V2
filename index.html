@@ -904,6 +904,25 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
   .studio-controls .mat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 #v1-scaffold{position:absolute;left:-99999px;top:0;width:1px;height:1px;overflow:hidden;pointer-events:none}
+/* ── V2 UX cluster (2026-08-13): strip rows, grips, toasts ── */
+.rule-toast.v2-hold{animation:toastIn .3s ease,toastOut .4s ease 6.5s forwards;pointer-events:auto;padding-right:42px}
+.v2-toast-x{position:absolute;top:5px;right:7px;background:none;border:none;color:inherit;opacity:.7;font-size:1.05rem;cursor:pointer;line-height:1;padding:2px 5px}
+.v2-toast-x:hover{opacity:1}
+.v2-ok-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10000;background:#14381f;color:#c9f0d2;padding:11px 20px;border-radius:12px;border:1px solid #2e6b3d;font-size:.84rem;line-height:1.4;max-width:420px;text-align:center;box-shadow:var(--shadow-lg);animation:toastIn .3s ease,toastOut .4s ease 2.6s forwards;pointer-events:none;font-family:'DM Sans',sans-serif}
+.v2-grip{position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.5rem;letter-spacing:1px;color:var(--strip-text-dim);opacity:.7;pointer-events:none;line-height:1}
+.v2-strip-rows{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
+.v2-strip-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.v2-strip-row.v2-row-selected{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.v2-row-dot{width:14px;height:14px;border-radius:4px;flex:0 0 auto;border:1px solid rgba(0,0,0,.25)}
+.v2-row-name{flex:1 1 auto;min-width:0;font-size:.78rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left;background:none;border:none;padding:0;font-family:inherit}
+.v2-row-name:hover{color:var(--gold)}
+.v2-row-min{font-size:.62rem;color:var(--text-muted);margin-left:6px}
+.v2-row-group{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.v2-row-btn{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--bg4);color:var(--text-dim);font-size:.82rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:var(--transition);line-height:1;padding:0}
+.v2-row-btn:hover:not(:disabled){border-color:var(--gold);color:var(--gold);background:var(--gold-wash)}
+.v2-row-btn:disabled{opacity:.35;cursor:not-allowed}
+.v2-row-w{min-width:52px;text-align:center;font-size:.78rem;color:var(--gold);font-weight:600;font-family:var(--font-display)}
+@media(max-width:840px){.v2-row-btn{width:38px;height:38px;font-size:.92rem}.v2-strip-row{padding:8px 10px;gap:6px}.v2-row-name{font-size:.82rem}.v2-row-w{min-width:46px}}
 </style>
 </head>
 <body>
@@ -5311,6 +5330,253 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(link && link.parentNode) link.parentNode.insertBefore(wrap, link); else host.appendChild(wrap);
   }
 
+
+  // ══════════════ UX CLUSTER (2026-08-13, client-only) ══════════════
+  // 1) Tap an inlay strip once to open its Edit modal (Jackie 4a).
+  // 2) Per-strip rows under the composer: « » reorder + − + width steppers (in-screen
+  //    width editing; widths clamp at each material's manufacturing minimum).
+  // 3) Drag-to-reorder: grip affordance, "Order updated" confirmation (incl. merge
+  //    explanation), longer dismissable rule toast (Jackie 4c).
+  // Engine untouched: everything below wraps or decorates the engine's composer.
+
+  var _v2DragSig=null,_v2DragLen=0;
+  function v2StripSig(){ return (state.strips||[]).map(function(s){return s.material+':'+s.width;}).join('|'); }
+
+  function showOkToast(msg){
+    var old=document.querySelector('.v2-ok-toast'); if(old) old.remove();
+    var t=document.createElement('div'); t.className='v2-ok-toast'; t.textContent=msg;
+    document.body.appendChild(t);
+    setTimeout(function(){ if(t.parentNode) t.remove(); },3200);
+  }
+
+  // Longer, dismissable rule toast (same audit record as the engine's version).
+  function installRuleToastUpgrade(){
+    if(typeof showRuleToast!=='function'||window.__v2ToastUpgraded) return;
+    window.__v2ToastUpgraded=true;
+    showRuleToast=function(msg){
+      try{ ringAudit.record('validation','composer_rule_blocked',{message:msg}); }catch(e){}
+      var old=document.querySelector('.rule-toast'); if(old) old.remove();
+      var toast=document.createElement('div');
+      toast.className='rule-toast v2-hold';
+      toast.textContent='⚠ '+msg;
+      var x=document.createElement('button');
+      x.type='button'; x.className='v2-toast-x'; x.setAttribute('aria-label','Dismiss'); x.textContent='×';
+      x.onclick=function(){ toast.remove(); };
+      toast.appendChild(x);
+      document.body.appendChild(toast);
+      setTimeout(function(){ if(toast.parentNode) toast.remove(); },Math.max((BUILDER&&BUILDER.ui&&BUILDER.ui.rule_toast_ms)||0,7000));
+    };
+  }
+
+  // Manufacturing minimum for a material (mirrors the engine validator's fields).
+  function v2MaterialMin(name){
+    if(typeof DATA==='undefined'||!DATA||!DATA.m||!DATA.m[name]) return BUILDER.strip_width.min;
+    var mi=DATA.m[name].mi||{};
+    var m=isMetal(name)?(mi.edge_same_sleeve||BUILDER.strip_width.min):(mi.solid_inlay||mi.inlay_swarf||BUILDER.material_default_min_width);
+    m=parseFloat(m);
+    return isNaN(m)?BUILDER.strip_width.min:m;
+  }
+
+  // Validate a proposed arrangement, then commit it through the engine's own pipeline.
+  function v2ApplyStrips(proposed,okMsg,col,keepSel){
+    var err=(typeof validateProposedStrips==='function')?validateProposedStrips(proposed):null;
+    if(err){ if(typeof showRuleToast==='function') showRuleToast(err); return false; }
+    if(typeof pushUndo==='function'){ try{ pushUndo(); }catch(e){} }
+    state.strips=proposed;
+    if(!keepSel) state.selectedStrip=-1;
+    if(state.selectedStrip>=state.strips.length) state.selectedStrip=state.strips.length-1;
+    renderComposePanel(col);
+    if(typeof renderRing==='function'){ try{ renderRing(); }catch(e){} }
+    if(typeof updatePrice==='function'){ try{ updatePrice(); }catch(e){} }
+    if(okMsg) showOkToast(okMsg);
+    return true;
+  }
+
+  function v2StepWidth(i,dir,col){
+    var strips=state.strips; if(!strips||!strips[i]) return;
+    var step=BUILDER.strip_width.step, s=strips[i];
+    var used=strips.reduce(function(a,st){return a+st.width;},0);
+    var remaining=parseFloat((state.ringWidth-used).toFixed(2));
+    if(dir>0 && remaining<step-BUILDER.width_epsilon){
+      showRuleToast('No free width left — reduce another strip or increase the Ring Width slider first.');
+      return;
+    }
+    if(dir<0){
+      var minW=Math.max(v2MaterialMin(s.material),BUILDER.strip_width.min);
+      if(s.width-step<minW-BUILDER.width_epsilon){
+        showRuleToast('"'+s.material+'" can’t go below its '+minW+'mm minimum width.');
+        return;
+      }
+    }
+    var proposed=strips.map(function(st){return {material:st.material,width:st.width};});
+    proposed[i].width=parseFloat((proposed[i].width+dir*step).toFixed(2));
+    v2ApplyStrips(proposed,null,col,true);
+  }
+
+  // Move a strip left/right. If the adjacent slot violates a rule (e.g. two inlays
+  // touching), retry one position further so inlays hop over their metal separators.
+  function v2MoveStrip(i,dir,col){
+    var strips=state.strips; if(!strips||!strips[i]) return;
+    var beforeLen=strips.length, firstErr=null;
+    var targets=dir<0?[i-1,i-2]:[i+1,i+2];
+    for(var t=0;t<targets.length;t++){
+      var pos=targets[t];
+      if(pos<0||pos>beforeLen-1) continue;
+      var proposed=strips.map(function(st){return {material:st.material,width:st.width};});
+      var moved=proposed.splice(i,1)[0];
+      proposed.splice(pos,0,moved);
+      var err=(typeof validateProposedStrips==='function')?validateProposedStrips(proposed):null;
+      if(err){ if(firstErr===null) firstErr=err; continue; }
+      if(typeof pushUndo==='function'){ try{ pushUndo(); }catch(e){} }
+      state.strips=proposed;
+      state.selectedStrip=-1;
+      renderComposePanel(col);
+      if(typeof renderRing==='function'){ try{ renderRing(); }catch(e){} }
+      if(typeof updatePrice==='function'){ try{ updatePrice(); }catch(e){} }
+      showOkToast(state.strips.length<beforeLen?'✓ Strip moved — matching neighbors merged into one':'✓ Strip moved');
+      return;
+    }
+    if(firstErr && typeof showRuleToast==='function') showRuleToast(firstErr);
+  }
+
+  function v2OpenEdit(i,col){
+    var ref=state.strips[i]; if(!ref) return;
+    state.selectedStrip=i;
+    renderComposePanel(col);
+    var idx=state.strips.indexOf(ref);
+    if(idx<0) idx=Math.min(i,state.strips.length-1);
+    if(idx<0) return;
+    state.selectedStrip=idx;
+    if(typeof openEditStripModal==='function') openEditStripModal(idx);
+  }
+
+  function v2BuildStripRows(col){
+    var composer=col.querySelector('.composer-strips'); if(!composer) return;
+    var oldRows=col.querySelector('.v2-strip-rows'); if(oldRows) oldRows.remove();
+    if(!state.strips||!state.strips.length) return;
+    var step=BUILDER.strip_width.step;
+    var used=state.strips.reduce(function(a,st){return a+st.width;},0);
+    var remaining=parseFloat((state.ringWidth-used).toFixed(2));
+    var rows=document.createElement('div'); rows.className='v2-strip-rows';
+    state.strips.forEach(function(s,i){
+      var row=document.createElement('div');
+      row.className='v2-strip-row'+(state.selectedStrip===i?' v2-row-selected':'');
+      var dot=document.createElement('span'); dot.className='v2-row-dot';
+      var color=(s.material==='(choose)'||typeof getColor!=='function')?'#444':getColor(s.material);
+      dot.style.background=color;
+      var name=document.createElement('button');
+      name.type='button'; name.className='v2-row-name';
+      name.title='Edit this strip';
+      name.textContent=(i+1)+'. '+s.material;
+      var minW=Math.max(v2MaterialMin(s.material),BUILDER.strip_width.min);
+      if(minW>BUILDER.strip_width.min){
+        var minSpan=document.createElement('span'); minSpan.className='v2-row-min';
+        minSpan.textContent='min '+minW+'mm';
+        name.appendChild(minSpan);
+      }
+      name.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2OpenEdit(i,col); };
+      var moveGrp=document.createElement('span'); moveGrp.className='v2-row-group';
+      var left=document.createElement('button');
+      left.type='button'; left.className='v2-row-btn'; left.textContent='«'; left.title='Move left';
+      left.disabled=(i===0);
+      left.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2MoveStrip(i,-1,col); };
+      var right=document.createElement('button');
+      right.type='button'; right.className='v2-row-btn'; right.textContent='»'; right.title='Move right';
+      right.disabled=(i===state.strips.length-1);
+      right.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2MoveStrip(i,1,col); };
+      moveGrp.appendChild(left); moveGrp.appendChild(right);
+      var wGrp=document.createElement('span'); wGrp.className='v2-row-group';
+      var minus=document.createElement('button');
+      minus.type='button'; minus.className='v2-row-btn'; minus.textContent='−';
+      var atMin=s.width-step<minW-BUILDER.width_epsilon;
+      minus.disabled=atMin;
+      minus.title=atMin?('At the '+minW+'mm minimum for this material'):('Narrower ('+step+'mm)');
+      minus.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2StepWidth(i,-1,col); };
+      var wLbl=document.createElement('span'); wLbl.className='v2-row-w';
+      wLbl.textContent=parseFloat(s.width)+'mm';
+      var plus=document.createElement('button');
+      plus.type='button'; plus.className='v2-row-btn'; plus.textContent='+';
+      var noRoom=remaining<step-BUILDER.width_epsilon;
+      plus.disabled=noRoom;
+      plus.title=noRoom?'No free width — reduce another strip or widen the ring':('Wider (+'+step+'mm)');
+      plus.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2StepWidth(i,1,col); };
+      wGrp.appendChild(minus); wGrp.appendChild(wLbl); wGrp.appendChild(plus);
+      row.appendChild(dot); row.appendChild(name); row.appendChild(moveGrp); row.appendChild(wGrp);
+      rows.appendChild(row);
+    });
+    composer.parentNode.insertBefore(rows,composer.nextSibling);
+  }
+
+  function v2WireComposer(col){
+    var composer=col.querySelector('.composer-strips'); if(!composer||composer.__v2ux) return;
+    composer.__v2ux=true;
+    // One tap on a strip opens its Edit modal (capture runs before the engine's
+    // select-then-edit click handler). The engine's × remove button still works.
+    composer.addEventListener('click',function(e){
+      var block=e.target.closest('.strip-block');
+      if(!block||!composer.contains(block)) return;
+      if(e.target.closest('.s-remove')) return;
+      if(block.classList.contains('dragging')) return;
+      var blocks=Array.prototype.slice.call(composer.querySelectorAll('.strip-block'));
+      var i=blocks.indexOf(block);
+      if(i<0||i>=state.strips.length) return;
+      e.preventDefault(); e.stopPropagation();
+      v2OpenEdit(i,col);
+    },true);
+    function v2DragBegin(){ _v2DragSig=v2StripSig(); _v2DragLen=state.strips.length; }
+    function v2AfterDrag(){
+      setTimeout(function(){
+        if(_v2DragSig===null) return;
+        var now=v2StripSig();
+        if(now!==_v2DragSig){
+          showOkToast(state.strips.length<_v2DragLen?'✓ Order updated — matching neighbors merged into one strip':'✓ Order updated');
+        }
+        _v2DragSig=null;
+      },60);
+    }
+    composer.addEventListener('dragstart',v2DragBegin);
+    composer.addEventListener('touchstart',v2DragBegin,{passive:true});
+    composer.addEventListener('dragend',v2AfterDrag);
+    composer.addEventListener('touchend',v2AfterDrag,{passive:true});
+  }
+
+  function v2AddGrips(col){
+    col.querySelectorAll('.composer-strips .strip-block').forEach(function(b){
+      if(b.querySelector('.v2-grip')) return;
+      var w=parseFloat(b.style.minWidth);
+      if(!isNaN(w)&&w>=44){
+        var g=document.createElement('span'); g.className='v2-grip'; g.textContent='⣿';
+        b.appendChild(g);
+      }
+    });
+  }
+
+  function v2PatchHints(col){
+    col.querySelectorAll('p').forEach(function(p){
+      var t=p.textContent||'';
+      if(t.indexOf('Tap again to edit')>=0){ p.textContent=t.replace('Tap again to edit','Tap to edit'); }
+      else if(t.indexOf('Tap to select & move')>=0){ p.textContent='Tap a strip to edit · « » below to reorder · Long-press & drag also reorders · × removes'; }
+    });
+  }
+
+  var _v2PrevRenderComposePanel=null;
+  function v2EnhanceComposer(col){
+    if(!col) return;
+    v2WireComposer(col);
+    v2BuildStripRows(col);
+    v2AddGrips(col);
+    v2PatchHints(col);
+  }
+  function installComposerUx(){
+    if(_v2PrevRenderComposePanel||typeof renderComposePanel!=='function') return;
+    _v2PrevRenderComposePanel=renderComposePanel;
+    renderComposePanel=function(col){
+      var out=_v2PrevRenderComposePanel(col);
+      try{ v2EnhanceComposer(col); }catch(e){}
+      return out;
+    };
+  }
+
   window.__V2_ROUTER__={ openSection, toggleSection, render:function(){ renderAll(); refreshHeaders(); updatePriceBar(); }, V2_STEPS, updatePriceBar, applyDependencyRules, rerenderSection };
 
   document.addEventListener('DOMContentLoaded', async function(){
@@ -5352,6 +5618,8 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     pruneMaterials();
     installAdjacentMaterialMerge();
     installTrailingBaseRemainderMerge();
+    installComposerUx();
+    installRuleToastUpgrade();
     installStripModalObserver();
     installJewelerLineObserver();
     installUpdateHook();
