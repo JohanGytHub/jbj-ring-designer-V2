@@ -3123,14 +3123,13 @@ function renderWidthPanel(col){
   // If user wants inlays, only show inlay-compatible profiles
   let visibleProfiles=state.wantsInlays?allowedProfiles.filter(p=>INLAY_PROFILES.includes(p)):allowedProfiles;
   const flatOnlyActive=state.strips.some(st=>st&&FLAT_ONLY_INLAYS.has(st.material));
-  if(flatOnlyActive)visibleProfiles=visibleProfiles.filter(p=>p===FLAT_ONLY_PROFILE);
 
   if(state.wantsInlays){
     col.appendChild(h('p',{style:{fontSize:'.8rem',color:'var(--text-muted)',margin:'-4px 0 12px',fontStyle:'italic'}},['Showing Flat and Round profiles — inlays require a smooth surface.']));
   }
 
   if(flatOnlyActive){
-    col.appendChild(h('p',{style:{fontSize:'.8rem',color:'var(--text-muted)',margin:'-4px 0 12px',fontStyle:'italic'}},['A material in your design is available on the '+FLAT_ONLY_PROFILE+' profile only.']));
+    col.appendChild(h('p',{style:{fontSize:'.8rem',color:'var(--text-muted)',margin:'-4px 0 12px',fontStyle:'italic'}},[(function(){var n=[];state.strips.forEach(st=>{if(st&&FLAT_ONLY_INLAYS.has(st.material)&&n.indexOf(st.material)<0)n.push(st.material);});return n.join(' and ')+(n.length>1?' are':' is')+' available on the '+FLAT_ONLY_PROFILE+' profile only \u2014 selecting another profile will remove '+(n.length>1?'them':'it')+' from your design.';})()]));
   }
 
   const pg=h('div',{class:'profile-grid'});
@@ -4884,6 +4883,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     ringAudit.record('navigation',id?'section_opened':'section_closed',{from:previousSection,to:id});
     if(id){ state._touched=state._touched||{}; state._touched[id]=true; }
     if(id==='compose'){ try{ reclaimTrailingBaseMetal(); }catch(e){} rerenderSection('compose'); }
+    if(id==='width'){ rerenderSection('width'); }
     if(id==='summary'){ closeBand(); rerenderSection('summary'); if(window.renderRing){try{renderRing();}catch(e){}} }
     function applyOpenState(){
       V2_STEPS.forEach(function(st){
@@ -5394,7 +5394,8 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
 
   function v2StepWidth(i,dir,col){
     var strips=state.strips; if(!strips||!strips[i]) return;
-    var step=BUILDER.strip_width.step, s=strips[i];
+    var s=strips[i];
+    var step=v2MaterialIncrement(s.material)||BUILDER.strip_width.step;
     var used=strips.reduce(function(a,st){return a+st.width;},0);
     var remaining=parseFloat((state.ringWidth-used).toFixed(2));
     if(dir>0 && remaining<step-BUILDER.width_epsilon){
@@ -5454,7 +5455,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var composer=col.querySelector('.composer-strips'); if(!composer) return;
     var oldRows=col.querySelector('.v2-strip-rows'); if(oldRows) oldRows.remove();
     if(!state.strips||!state.strips.length) return;
-    var step=BUILDER.strip_width.step;
+    var defStep=BUILDER.strip_width.step;
     var used=state.strips.reduce(function(a,st){return a+st.width;},0);
     var remaining=parseFloat((state.ringWidth-used).toFixed(2));
     var rows=document.createElement('div'); rows.className='v2-strip-rows';
@@ -5488,6 +5489,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       var wGrp=document.createElement('span'); wGrp.className='v2-row-group';
       var minus=document.createElement('button');
       minus.type='button'; minus.className='v2-row-btn'; minus.textContent='−';
+      var step=v2MaterialIncrement(s.material)||defStep;
       var atMin=s.width-step<minW-BUILDER.width_epsilon;
       minus.disabled=atMin;
       minus.title=atMin?('At the '+minW+'mm minimum for this material'):('Narrower ('+step+'mm)');
@@ -5559,6 +5561,71 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     });
   }
 
+
+
+  // ── Per-material width increments (2026-08-13, KV rules.width_increment_materials):
+  // solid dino must sit on 0.5mm steps. Chained after the engine validator so every
+  // path (add/edit modal Save, drag, slide, steppers) enforces it with a toast.
+  function v2MaterialIncrement(name){
+    var map=(typeof BUILDER!=='undefined'&&BUILDER&&BUILDER.rules&&BUILDER.rules.width_increment_materials)||{};
+    var inc=parseFloat(map[name]);
+    return (inc>0)?inc:0;
+  }
+  var _v2PrevValidateStrips=null;
+  function installWidthIncrementRule(){
+    if(_v2PrevValidateStrips||typeof validateProposedStrips!=='function') return;
+    _v2PrevValidateStrips=validateProposedStrips;
+    validateProposedStrips=function(strips){
+      var err=_v2PrevValidateStrips(strips);
+      if(err) return err;
+      for(var i=0;i<strips.length;i++){
+        var s=strips[i]; if(!s) continue;
+        var inc=v2MaterialIncrement(s.material); if(!inc) continue;
+        var q=s.width/inc;
+        if(Math.abs(q-Math.round(q))>BUILDER.width_epsilon) return '"'+s.material+'" must be in '+inc+'mm width steps (e.g. 2, 2.5, 3\u2026).';
+      }
+      var maxMap=(BUILDER&&BUILDER.rules&&BUILDER.rules.max_width_materials)||{};
+      for(var j=0;j<strips.length;j++){
+        var sj=strips[j]; if(!sj) continue;
+        var mx=parseFloat(maxMap[sj.material]);
+        if(mx>0 && sj.width>mx+BUILDER.width_epsilon) return '"'+sj.material+'" has a maximum width of '+mx+'mm.';
+      }
+      return null;
+    };
+  }
+  // ── Flat-only profile guard (2026-08-13 fix): switching to a non-Flat profile
+  // with a flat-only inlay (e.g. Dino Bone Solid) in the design removes that inlay
+  // and tells the customer why, instead of silently building an invalid ring.
+  function v2FlatOnlyNames(){
+    if(typeof FLAT_ONLY_INLAYS==='undefined'||!state.strips) return [];
+    var seen=[];
+    state.strips.forEach(function(st){ if(st&&FLAT_ONLY_INLAYS.has(st.material)&&seen.indexOf(st.material)<0) seen.push(st.material); });
+    return seen;
+  }
+  function v2FlatOnlySweep(targetProfile){
+    if(typeof FLAT_ONLY_INLAYS==='undefined'||typeof FLAT_ONLY_PROFILE==='undefined') return false;
+    if(!targetProfile||targetProfile===FLAT_ONLY_PROFILE) return false;
+    var names=v2FlatOnlyNames(); if(!names.length) return false;
+    state.strips=state.strips.filter(function(st){ return !(st&&FLAT_ONLY_INLAYS.has(st.material)); });
+    if(state.selectedStrip>=state.strips.length) state.selectedStrip=-1;
+    if(typeof showRuleToast==='function') showRuleToast(names.join(' and ')+(names.length>1?' are':' is')+' available on the '+FLAT_ONLY_PROFILE+' profile only, so '+(names.length>1?'they were':'it was')+' removed from your design. Switch the profile back to '+FLAT_ONLY_PROFILE+' to add '+(names.length>1?'them':'it')+' again.');
+    return true;
+  }
+  function installFlatOnlyProfileGuard(){
+    var host=document.getElementById('acc-body-width'); if(!host||host.__v2flatGuard) return;
+    host.__v2flatGuard=true;
+    host.addEventListener('click',function(e){
+      var card=e.target.closest('.profile-card');
+      if(!card||!host.contains(card)||card.classList.contains('disabled')) return;
+      var profileName=(card.textContent||'').trim();
+      if(!v2FlatOnlySweep(profileName)) return;
+      // Strips were removed BEFORE the engine applies the new profile, so
+      // renderRing/updatePrice run on a valid design (the worker would reject
+      // a flat-only inlay on another profile). Refresh the affected panels.
+      rerenderSection('compose');
+      setTimeout(function(){ rerenderSection('width'); },0);
+    },true);
+  }
   var _v2PrevRenderComposePanel=null;
   function v2EnhanceComposer(col){
     if(!col) return;
@@ -5571,6 +5638,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(_v2PrevRenderComposePanel||typeof renderComposePanel!=='function') return;
     _v2PrevRenderComposePanel=renderComposePanel;
     renderComposePanel=function(col){
+      try{ v2FlatOnlySweep(state.profile); }catch(e){}
       var out=_v2PrevRenderComposePanel(col);
       try{ v2EnhanceComposer(col); }catch(e){}
       return out;
@@ -5620,6 +5688,8 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     installTrailingBaseRemainderMerge();
     installComposerUx();
     installRuleToastUpgrade();
+    installFlatOnlyProfileGuard();
+    installWidthIncrementRule();
     installStripModalObserver();
     installJewelerLineObserver();
     installUpdateHook();
