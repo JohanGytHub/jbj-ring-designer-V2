@@ -923,6 +923,7 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
 .v2-row-btn:disabled{opacity:.35;cursor:not-allowed}
 .v2-row-w{min-width:52px;text-align:center;font-size:.78rem;color:var(--gold);font-weight:600;font-family:var(--font-display)}
 @media(max-width:840px){.v2-row-btn{width:38px;height:38px;font-size:.92rem}.v2-strip-row{padding:8px 10px;gap:6px}.v2-row-name{font-size:.82rem}.v2-row-w{min-width:46px}}
+.v2-preview #crossSectionHost #profileImg{background:#e9edf4;border-color:rgba(255,255,255,.28)}
 </style>
 </head>
 <body>
@@ -5607,6 +5608,11 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(!targetProfile||targetProfile===FLAT_ONLY_PROFILE) return false;
     var names=v2FlatOnlyNames(); if(!names.length) return false;
     state.strips=state.strips.filter(function(st){ return !(st&&FLAT_ONLY_INLAYS.has(st.material)); });
+    // If only bare base-metal edge strips remain (auto-inserted around the removed
+    // inlay), clear them too so the band returns to a clean no-inlay state.
+    if(state.strips.length && state.strips.every(function(st){ return st&&st.material===state.baseMetal; })){
+      state.strips=[];
+    }
     if(state.selectedStrip>=state.strips.length) state.selectedStrip=-1;
     if(typeof showRuleToast==='function') showRuleToast(names.join(' and ')+(names.length>1?' are':' is')+' available on the '+FLAT_ONLY_PROFILE+' profile only, so '+(names.length>1?'they were':'it was')+' removed from your design. Switch the profile back to '+FLAT_ONLY_PROFILE+' to add '+(names.length>1?'them':'it')+' again.');
     return true;
