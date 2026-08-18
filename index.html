@@ -4999,7 +4999,9 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(_nativeRenderComposePanel || typeof renderComposePanel!=='function') return;
     _nativeRenderComposePanel=renderComposePanel;
     renderComposePanel=function(col){
-      absorbTrailingBaseRemainder();
+      // 2026-08-18: absorbTrailingBaseRemainder() call removed (Johan) — free width must stay
+      // visible as "Remaining" while composing; the band only closes via closeBand() on Continue,
+      // exactly as the on-screen hint promises.
       var result=_nativeRenderComposePanel(col);
       var last=state.strips&&state.strips[state.strips.length-1];
       var used=state.strips.reduce(function(total,strip){return total+Number(strip.width||0);},0);
