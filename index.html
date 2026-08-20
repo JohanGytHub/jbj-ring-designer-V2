@@ -606,9 +606,11 @@ body.staff-mode{padding-bottom:64px}
 .acc-body .panel-title{font-size:.95rem;color:var(--text-dim);margin-bottom:10px}
 .acc-body .panel-desc{font-size:.8rem;color:var(--text-muted);margin-bottom:14px;line-height:1.5}
 
-/* price: bottom-right of the list, hidden by default (JS toggles display) */
+/* price: bottom-right of the list, hidden by default (JS toggles display).
+   bottom offset clears the site chat bubble that the parent page floats over
+   the bottom-right corner (Johan, 2026-08-20 — total was hidden behind Chat). */
 .v2-price{
-  position:fixed;right:20px;bottom:20px;z-index:9000;
+  position:fixed;right:20px;bottom:104px;z-index:9000;
   display:flex;flex-direction:column;align-items:flex-end;gap:2px;
   background:var(--bg2);border:1px solid var(--border);
   border-radius:var(--radius-lg);padding:12px 20px;
@@ -625,7 +627,7 @@ body.staff-mode{padding-bottom:64px}
   font-size:1.9rem;font-weight:500;line-height:1.05;color:var(--gold);
 }
 @media(max-width:767px){
-  .v2-price{right:12px;bottom:12px;padding:9px 15px}
+  .v2-price{right:12px;bottom:88px;padding:9px 15px}
   .v2-price .v2-price-amount{font-size:1.45rem}
 }
 
@@ -856,7 +858,8 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
 .studio-controls .summary-total{border-color:var(--gold-ring);background:linear-gradient(145deg,var(--gold-wash),transparent 70%),var(--bg2)}
 
 .v2-price{
-  right:22px;bottom:20px;z-index:9000;min-width:154px;padding:13px 16px;align-items:flex-start;
+  /* bottom clears the site chat bubble floated over the corner by the parent page (Johan, 2026-08-20) */
+  right:22px;bottom:104px;z-index:9000;min-width:154px;padding:13px 16px;align-items:flex-start;
   border:1px solid var(--border);border-radius:16px;background:var(--glass);color:var(--gold);
   -webkit-backdrop-filter:blur(20px) saturate(1.2);backdrop-filter:blur(20px) saturate(1.2);
   box-shadow:0 18px 50px rgba(18,24,40,.18);pointer-events:none;
@@ -892,7 +895,7 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
   .tool-tab.active::after{bottom:-13px}
   .acc-panel{scroll-margin-top:96px}
   .acc-stack{padding-top:24px;padding-bottom:220px}
-  .v2-price{right:12px;bottom:12px;min-width:132px;padding:10px 13px}
+  .v2-price{right:12px;bottom:88px;min-width:132px;padding:10px 13px}
   .v2-price .v2-price-amount{font-size:1.22rem}
 }
 @media(max-width:480px){
@@ -4956,6 +4959,10 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     // Manufacturability (2026-08-20): the finish grid depends on the current strips
     // and profile, so it must re-render on every open (same fix as the width panel).
     if(id==='finish'){ rerenderSection('finish'); }
+    // Sleeve panel (2026-08-20, Johan): it was rendered once at boot before a base
+    // metal existed — "null (same as base metal)" label and no Continue button until
+    // the card was clicked. Re-render on every open so it defaults correctly.
+    if(id==='sleeve'){ rerenderSection('sleeve'); }
     if(id==='summary'){ closeBand(); rerenderSection('summary'); if(window.renderRing){try{renderRing();}catch(e){}} }
     function applyOpenState(){
       V2_STEPS.forEach(function(st){
