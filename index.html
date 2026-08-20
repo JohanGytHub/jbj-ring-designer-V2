@@ -631,6 +631,14 @@ body.staff-mode{padding-bottom:64px}
   .v2-price .v2-price-amount{font-size:1.45rem}
 }
 
+/* SHOW_PRICES=n (Cloudflare env var on jbj-ring-quote): hide every customer price
+   display. Staff mode (?staff) never gets this class. */
+.v2-hide-prices #v2-price{display:none !important}
+.v2-hide-prices .summary-total{display:none !important}
+.v2-hide-prices .price-bar{display:none !important}
+.v2-hide-prices .price-bar-mobile .label,
+.v2-hide-prices .price-bar-mobile .amount{display:none !important}
+
 /* error banner host */
 #v2-error-host #v2-pricing-error{background:var(--val-error-bg);border:1px solid var(--val-error-border);color:var(--val-error-text);border-radius:var(--radius);padding:12px 16px;margin:12px 24px;font-size:.85rem}
 #v2-error-host #v2-pricing-error button{margin-left:12px;background:var(--gold-grad);color:#fff;border:none;border-radius:999px;padding:6px 14px;cursor:pointer}
@@ -1762,6 +1770,8 @@ function applyDesignerConfig(config,options={}){
   BUILDER=config.builder_config;
   SERVICES=config.services;
   BUSINESS=config.business;
+  PUBLIC_SHOW_PRICES=_staffMode?true:(config.show_prices!==false);
+  try{ document.body.classList.toggle('v2-hide-prices',!PUBLIC_SHOW_PRICES); }catch(e){}
   DATA={
     m:config.catalog.materials,c:config.catalog.colors,
     quote_config:config.quote_config,audit_config:config.audit_config,
@@ -2681,6 +2691,7 @@ function updateLegend(){
 
 // ── UPDATE PRICE DISPLAY ──
 function priceDisplayText(){
+  if(!PUBLIC_SHOW_PRICES)return '';
   if(!designReady())return '—';
   if(Number.isFinite(state.serverTotal))return '$'+state.serverTotal.toFixed(2);
   return _estimatePending?'Calculating…':'—';
@@ -2708,7 +2719,7 @@ function refreshSubmitGate(){
   btn.disabled=!ready;
   btn.style.opacity=ready?'1':'0.6';
   btn.style.cursor=ready?'pointer':'not-allowed';
-  btn.textContent=ready?'Submit Design Request':'Waiting for Price…';
+  btn.textContent=ready?'Submit Design Request':(PUBLIC_SHOW_PRICES?'Waiting for Price…':'Preparing Design…');
 }
 
 function refreshPriceDisplays(){
@@ -3790,6 +3801,9 @@ let NEEDS_METAL_EDGES_GROUPS=new Set();
 let FLAT_ONLY_INLAYS=new Set();
 let FLAT_ONLY_PROFILE='Flat';
 // Manufacturability rules (2026-08-20) — all tolerant-read from KV builder_config.rules
+// SHOW_PRICES (2026-08-20, Johan): worker env var via designer-config `show_prices`.
+// false = customers see no prices anywhere; staff mode (?staff) always sees prices.
+let PUBLIC_SHOW_PRICES=true;
 let HARD_EDGE_BASES={};
 let BASE_ALLOWED_GROUPS={};
 let BASE_BLOCKED_SOLID={};
@@ -4619,7 +4633,7 @@ function renderSummaryPanel(col){
         submitStatus.textContent='Something went wrong. Please try again or email us directly at '+BUSINESS.support_email+'.';
       }
     }
-  },state.estimateToken ? ['Submit Design Request'] : ['Waiting for Price…']);
+  },state.estimateToken ? ['Submit Design Request'] : [PUBLIC_SHOW_PRICES?'Waiting for Price…':'Preparing Design…']);
 
   // The gate re-opens automatically: refreshPriceDisplays() → refreshSubmitGate()
   // enables this button as soon as a current estimateToken arrives from the Worker.
