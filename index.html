@@ -1777,6 +1777,13 @@ function applyDesignerConfig(config,options={}){
   NEEDS_METAL_EDGES_GROUPS=new Set(BUILDER.rules.needs_metal_edges_groups);
   FLAT_ONLY_INLAYS=new Set(BUILDER.rules.flat_only_inlay_materials||[]);
   FLAT_ONLY_PROFILE=BUILDER.rules.flat_only_profile||'Flat';
+  HARD_EDGE_BASES=BUILDER.rules.hard_edge_base_metals||{};
+  BASE_ALLOWED_GROUPS=BUILDER.rules.base_inlay_allowed_groups||{};
+  BASE_BLOCKED_SOLID=BUILDER.rules.base_blocked_solid_groups||{};
+  HAMMERED_FINISH=BUILDER.rules.hammered_finish||null;
+  HAMMERED_PROFILES=BUILDER.rules.hammered_profiles||[];
+  HAMMERED_MIN_EDGE=Number(BUILDER.rules.hammered_min_edge_mm)||0;
+  NON_COMFORT_SLEEVES=new Set(BUILDER.rules.non_comfort_sleeves||[]);
   UNDO_MAX=BUILDER.limits.undo_history;
   ringView.elevation=BUILDER.ring_view.default_elevation;
   ringView.azimuth=BUILDER.ring_view.default_azimuth;
@@ -3779,6 +3786,28 @@ function validateStrips(){
 let NEEDS_METAL_EDGES_GROUPS=new Set();
 let FLAT_ONLY_INLAYS=new Set();
 let FLAT_ONLY_PROFILE='Flat';
+// Manufacturability rules (2026-08-20) — all tolerant-read from KV builder_config.rules
+let HARD_EDGE_BASES={};
+let BASE_ALLOWED_GROUPS={};
+let BASE_BLOCKED_SOLID={};
+let HAMMERED_FINISH=null;
+let HAMMERED_PROFILES=[];
+let HAMMERED_MIN_EDGE=0;
+let NON_COMFORT_SLEEVES=new Set();
+// Returns {kind,suffix,toast} when `name` cannot be used as a strip with the current
+// base metal / finish, else null. kind 'finish' is resolved by changing the finish,
+// the others by removing/blocking the material.
+function stripRuleBlock(name){
+  const mat=DATA.m[name]; if(!mat) return null;
+  const base=state.baseMetal; if(!base||name===base) return null;
+  const allowed=BASE_ALLOWED_GROUPS[base];
+  if(Array.isArray(allowed)&&!allowed.includes(mat.g)) return {kind:'group',suffix:' (not available in '+base+')',toast:name+' cannot be inlaid into '+base+'.'};
+  const blockedSolid=BASE_BLOCKED_SOLID[base];
+  // Cloned crushed materials inherited s:'Solid' from their anchors (data drift), so a 'Crushed' name also counts as crushed.
+  if(Array.isArray(blockedSolid)&&mat.s==='Solid'&&!/crushed/i.test(name)&&blockedSolid.includes(mat.g)) return {kind:'solid',suffix:' (crushed only on '+base+')',toast:name+' must be crushed to be inlaid into '+base+'. Look for its Crushed version instead.'};
+  if(HAMMERED_FINISH&&state.finish===HAMMERED_FINISH&&Array.isArray(mat.f)&&!mat.f.includes(HAMMERED_FINISH)) return {kind:'finish',suffix:' (not with '+HAMMERED_FINISH+' finish)',toast:name+' cannot receive the '+HAMMERED_FINISH+' finish. Change the Metal Finish first to add this material.'};
+  return null;
+}
 
 function needsMetalEdges(matName){
   const d=DATA.m[matName];
@@ -4027,14 +4056,15 @@ function openAddStripModal(){
       const matMin=isMetal(name)?(mat.mi.edge_same_sleeve||BUILDER.strip_width.min):(mat.mi.solid_inlay||mat.mi.inlay_swarf||BUILDER.material_default_min_width);
       const tooWide=stripWidth<matMin;
       const flatBlocked=FLAT_ONLY_INLAYS.has(name)&&state.profile!==FLAT_ONLY_PROFILE;
+      const ruleBlock=(!flatBlocked&&!tooWide)?stripRuleBlock(name):null;
       const card=h('div',{
-        class:'mat-card'+(selectedMat===name?' selected':'')+((tooWide||flatBlocked)?' disabled':''),
-        onClick:()=>{if(flatBlocked){showRuleToast(name+' is available on the '+FLAT_ONLY_PROFILE+' profile only');return;}if(!tooWide){selectedMat=name;render();}}
+        class:'mat-card'+(selectedMat===name?' selected':'')+((tooWide||flatBlocked||ruleBlock)?' disabled':''),
+        onClick:()=>{if(flatBlocked){showRuleToast(name+' is available on the '+FLAT_ONLY_PROFILE+' profile only');return;}if(ruleBlock){showRuleToast(ruleBlock.toast);return;}if(!tooWide){selectedMat=name;render();}}
       },[
         matSwatch(name),
-        h('div',{class:'name'},[name+(tooWide?' (min '+matMin+'mm)':flatBlocked?' ('+FLAT_ONLY_PROFILE+' profile only)':'')])
+        h('div',{class:'name'},[name+(tooWide?' (min '+matMin+'mm)':flatBlocked?' ('+FLAT_ONLY_PROFILE+' profile only)':ruleBlock?ruleBlock.suffix:'')])
       ]);
-      if(_staffMode&&!tooWide&&!flatBlocked)bindStaffPrice(card,'title','strip',name,stripWidth,name+' @ '+stripWidth+'mm: ');
+      if(_staffMode&&!tooWide&&!flatBlocked&&!ruleBlock)bindStaffPrice(card,'title','strip',name,stripWidth,name+' @ '+stripWidth+'mm: ');
       grid.appendChild(card);
     });
     modal.appendChild(grid);
@@ -4163,14 +4193,15 @@ function openEditStripModal(idx){
       const matMin=isMetal(name)?(mat.mi.edge_same_sleeve||BUILDER.strip_width.min):(mat.mi.solid_inlay||mat.mi.inlay_swarf||BUILDER.material_default_min_width);
       const tooNarrow=stripWidth<matMin;
       const flatBlocked=FLAT_ONLY_INLAYS.has(name)&&state.profile!==FLAT_ONLY_PROFILE;
+      const ruleBlock=(!flatBlocked&&!tooNarrow)?stripRuleBlock(name):null;
       const card=h('div',{
-        class:'mat-card'+(selectedMat===name?' selected':'')+((tooNarrow||flatBlocked)?' disabled':''),
-        onClick:()=>{if(flatBlocked){showRuleToast(name+' is available on the '+FLAT_ONLY_PROFILE+' profile only');return;}if(!tooNarrow){selectedMat=name;render();}}
+        class:'mat-card'+(selectedMat===name?' selected':'')+((tooNarrow||flatBlocked||ruleBlock)?' disabled':''),
+        onClick:()=>{if(flatBlocked){showRuleToast(name+' is available on the '+FLAT_ONLY_PROFILE+' profile only');return;}if(ruleBlock){showRuleToast(ruleBlock.toast);return;}if(!tooNarrow){selectedMat=name;render();}}
       },[
         matSwatch(name),
-        h('div',{class:'name'},[name+(tooNarrow?' (min '+matMin+'mm)':flatBlocked?' ('+FLAT_ONLY_PROFILE+' profile only)':'')])
+        h('div',{class:'name'},[name+(tooNarrow?' (min '+matMin+'mm)':flatBlocked?' ('+FLAT_ONLY_PROFILE+' profile only)':ruleBlock?ruleBlock.suffix:'')])
       ]);
-      if(_staffMode&&!tooNarrow&&!flatBlocked)bindStaffPrice(card,'title','strip',name,stripWidth,name+' @ '+stripWidth+'mm: ');
+      if(_staffMode&&!tooNarrow&&!flatBlocked&&!ruleBlock)bindStaffPrice(card,'title','strip',name,stripWidth,name+' @ '+stripWidth+'mm: ');
       grid.appendChild(card);
     });
     modal.appendChild(grid);
@@ -4330,13 +4361,30 @@ function renderFinishPanel(col){
   col.appendChild(h('p',{class:'panel-desc'},['Choose the surface treatment for the metal portions of your ring.']));
 
   const matData=state.baseMetal?DATA.m[state.baseMetal]:null;
-  const allowedFinishes=matData?matData.f:FINISHES;
+  // Manufacturability rules (2026-08-20): a finish must be receivable by the base metal
+  // AND every inlay strip material; Hammer additionally needs an allowed profile.
+  let allowedFinishes=matData?matData.f.slice():FINISHES.slice();
+  const finishBlockers={};
+  (state.strips||[]).forEach(s=>{
+    const m=s&&DATA.m[s.material];
+    if(!m||!Array.isArray(m.f))return;
+    allowedFinishes=allowedFinishes.filter(f=>{
+      if(m.f.includes(f))return true;
+      if(!finishBlockers[f])finishBlockers[f]='your "'+s.material+'" inlay';
+      return false;
+    });
+  });
+  if(HAMMERED_FINISH&&HAMMERED_PROFILES.length&&!HAMMERED_PROFILES.includes(state.profile)&&allowedFinishes.includes(HAMMERED_FINISH)){
+    allowedFinishes=allowedFinishes.filter(f=>f!==HAMMERED_FINISH);
+    finishBlockers[HAMMERED_FINISH]='the '+state.profile+' profile (needs '+HAMMERED_PROFILES.join(' or ')+')';
+  }
 
   const grid=h('div',{class:'finish-grid'});
   FINISHES.forEach(f=>{
     const allowed=allowedFinishes.includes(f);
     const card=h('div',{
       class:'finish-card'+(state.finish===f?' selected':'')+(allowed?'':' disabled'),
+      title:allowed?'':(finishBlockers[f]?('Not available with '+finishBlockers[f]):('Not available for '+(state.baseMetal||'this metal'))),
       onClick:()=>{
         if(!allowed)return;
         state.finish=f;
@@ -4348,8 +4396,15 @@ function renderFinishPanel(col){
   });
   col.appendChild(grid);
 
+  const blockedList=Object.keys(finishBlockers);
+  if(blockedList.length){
+    col.appendChild(h('p',{class:'panel-desc',style:{fontStyle:'italic',marginTop:'8px'}},[
+      'Unavailable with your current design: '+blockedList.map(f=>f+' — blocked by '+finishBlockers[f]).join('; ')+'.'
+    ]));
+  }
+
   if(!allowedFinishes.includes(state.finish) && allowedFinishes.length){
-    state.finish=allowedFinishes[0];
+    state.finish=allowedFinishes.includes('Polished')?'Polished':allowedFinishes[0];
   }
 
   col.appendChild(navButtons(true, true));
@@ -4370,7 +4425,7 @@ function renderSummaryPanel(col){
   section1.appendChild(summaryRow('Sleeve',state.sleeve||state.baseMetal||'—'));
   section1.appendChild(summaryRow('Finish',state.finish));
   section1.appendChild(summaryRow('Ring Size',state.ringSize));
-  section1.appendChild(summaryRow('Fit','Comfort fit — rounded interior edges'));
+  section1.appendChild(summaryRow('Fit',NON_COMFORT_SLEEVES.has(state.sleeve||state.baseMetal)?'Non-comfort fit':'Comfort fit — rounded interior edges'));
   if(state.engraving) section1.appendChild(summaryRow('Engraving','"'+state.engraving+'"'));
   col.appendChild(section1);
 
@@ -4887,6 +4942,9 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(id){ state._touched=state._touched||{}; state._touched[id]=true; }
     if(id==='compose'){ try{ reclaimTrailingBaseMetal(); }catch(e){} rerenderSection('compose'); }
     if(id==='width'){ rerenderSection('width'); }
+    // Manufacturability (2026-08-20): the finish grid depends on the current strips
+    // and profile, so it must re-render on every open (same fix as the width panel).
+    if(id==='finish'){ rerenderSection('finish'); }
     if(id==='summary'){ closeBand(); rerenderSection('summary'); if(window.renderRing){try{renderRing();}catch(e){}} }
     function applyOpenState(){
       V2_STEPS.forEach(function(st){
@@ -5628,6 +5686,14 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       var card=e.target.closest('.profile-card');
       if(!card||!host.contains(card)||card.classList.contains('disabled')) return;
       var profileName=(card.textContent||'').trim();
+      // Manufacturability (2026-08-20): the Hammer finish only exists on configured
+      // profiles — if the new profile is incompatible, reset the finish and explain.
+      try{
+        if(HAMMERED_FINISH&&state.finish===HAMMERED_FINISH&&HAMMERED_PROFILES.length&&HAMMERED_PROFILES.indexOf(profileName)===-1){
+          state.finish='Polished';
+          showRuleToast('The '+HAMMERED_FINISH+' finish is only available on the '+HAMMERED_PROFILES.join(' or ')+' profile, so the finish was changed to Polished.');
+        }
+      }catch(err){}
       if(!v2FlatOnlySweep(profileName)) return;
       // Strips were removed BEFORE the engine applies the new profile, so
       // renderRing/updatePrice run on a valid design (the worker would reject
@@ -5644,13 +5710,96 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     v2AddGrips(col);
     v2PatchHints(col);
   }
+  // ── MANUFACTURABILITY SWEEPS (2026-08-20) ──
+  // Finish first: if the chosen finish is impossible with a strip on the ring
+  // (e.g. Hammer + Dino Bone Solid), reset the finish rather than the design.
+  function v2FinishSweep(){
+    if(!state.baseMetal||!state.finish) return;
+    var blocker=null;
+    (state.strips||[]).forEach(function(s){
+      if(blocker) return;
+      var m=s&&DATA.m[s.material];
+      if(m&&Array.isArray(m.f)&&m.f.indexOf(state.finish)===-1) blocker=s.material;
+    });
+    if(!blocker) return;
+    var old=state.finish;
+    state.finish='Polished';
+    try{ showRuleToast('The '+old+' finish is not available with "'+blocker+'", so the finish was changed to Polished.'); }catch(e){}
+  }
+  // Base-metal rules second: strips that this base metal cannot take (KV-driven,
+  // e.g. Zirconium group limits, Black Ceramic crushed-only lapidary) are removed
+  // with an explanation — same behavior as the flat-only profile sweep.
+  function v2BaseRuleSweep(){
+    if(!state.baseMetal||!state.strips||!state.strips.length) return;
+    var removed=[];
+    for(var i=state.strips.length-1;i>=0;i--){
+      var s=state.strips[i]; if(!s) continue;
+      var rb=null;
+      try{ rb=stripRuleBlock(s.material); }catch(e){}
+      if(rb&&rb.kind!=='finish'){ removed.push(s.material); state.strips.splice(i,1); }
+    }
+    if(!removed.length) return;
+    if(state.selectedStrip>=state.strips.length) state.selectedStrip=-1;
+    try{ showRuleToast('"'+removed.join('", "')+'" cannot be inlaid into '+state.baseMetal+' and was removed from your design.'); }catch(e){}
+    try{ renderRing(); }catch(e){}
+    try{ if(typeof requestEstimate==='function') requestEstimate(); }catch(e){}
+  }
+  // Edge requirements (KV rules.hard_edge_base_metals + rules.hammered_min_edge_mm).
+  // These cannot be auto-fixed without redesigning the band, so they render as a
+  // persistent note in the composer; the worker rejects the design server-side too.
+  function v2EdgeIssues(){
+    var issues=[];
+    var strips=state.strips||[];
+    var base=state.baseMetal;
+    if(!base||!strips.length) return issues;
+    var hasInlay=false, used=0, valid=true;
+    strips.forEach(function(s){
+      if(!s||typeof s.width!=='number'){ valid=false; return; }
+      used+=s.width;
+      if(s.material!==base) hasInlay=true;
+    });
+    if(!valid||!hasInlay) return issues;
+    var eps=(BUILDER.width_epsilon||0.01);
+    var remainder=state.ringWidth-used;
+    function edgesAtLeast(min){
+      var first=strips[0], last=strips[strips.length-1];
+      var leftOk=first.material===base&&first.width>=min-eps;
+      var rightOk=(last.material===base&&last.width>=min-eps)||remainder>=min-eps;
+      return {leftOk:leftOk,rightOk:rightOk};
+    }
+    var hardMin=Number(HARD_EDGE_BASES[base])||0;
+    if(hardMin>0){
+      var e=edgesAtLeast(hardMin);
+      var overlay=strips.some(function(s,i){ return i>0&&i<strips.length-1&&s.material===base&&s.width>=hardMin-eps; });
+      if(!(e.leftOk&&e.rightOk)&&!overlay) issues.push(base+' rings need at least '+hardMin+'mm '+base+' edges on both sides — add a '+hardMin+'mm '+base+' strip at each end (or a '+base+' pinstripe between inlays for an overlay build).');
+    }
+    if(HAMMERED_MIN_EDGE>0&&HAMMERED_FINISH&&state.finish===HAMMERED_FINISH){
+      var he=edgesAtLeast(HAMMERED_MIN_EDGE);
+      if(!he.leftOk||!he.rightOk) issues.push('The '+HAMMERED_FINISH+' finish needs at least '+HAMMERED_MIN_EDGE+'mm '+base+' edges on both sides of the inlays.');
+    }
+    return issues;
+  }
+  function v2RenderEdgeNote(col){
+    var old=col.querySelector('#v2-edge-note'); if(old) old.remove();
+    var issues=v2EdgeIssues();
+    if(!issues.length) return;
+    var note=h('div',{id:'v2-edge-note',style:{margin:'10px 0',padding:'10px 12px',border:'1px solid #c2410c',borderRadius:'8px',background:'rgba(194,65,12,.08)',color:'#c2410c',fontSize:'.78rem',lineHeight:'1.45'}},[
+      h('strong',{},['⚠ This layout can’t be crafted yet. ']),
+      issues.join(' ')
+    ]);
+    var grid=col.querySelector('.mat-grid,.compose-band');
+    if(grid&&grid.parentNode===col) col.insertBefore(note,grid); else col.insertBefore(note,col.firstChild&&col.firstChild.nextSibling?col.firstChild.nextSibling:col.firstChild);
+  }
   function installComposerUx(){
     if(_v2PrevRenderComposePanel||typeof renderComposePanel!=='function') return;
     _v2PrevRenderComposePanel=renderComposePanel;
     renderComposePanel=function(col){
       try{ v2FlatOnlySweep(state.profile); }catch(e){}
+      try{ v2FinishSweep(); }catch(e){}
+      try{ v2BaseRuleSweep(); }catch(e){}
       var out=_v2PrevRenderComposePanel(col);
       try{ v2EnhanceComposer(col); }catch(e){}
+      try{ v2RenderEdgeNote(col); }catch(e){}
       return out;
     };
   }
