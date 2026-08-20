@@ -3947,9 +3947,20 @@ function showRuleToast(msg){
 }
 
 // ── ADD STRIP MODAL ──
+// Manufacturability (2026-08-20): metal strips of a hard base metal (KV
+// rules.hard_edge_base_metals) default to the rule minimum, so auto-inserted
+// edges/pinstripes are born craftable (e.g. Tungsten edges auto-insert at 1mm).
+function metalStripMin(name){
+  const mat=DATA.m[name];
+  const configured=(mat&&mat.mi&&mat.mi.edge_same_sleeve)||BUILDER.strip_width.min;
+  const hardMin=(name===state.baseMetal)?(Number(HARD_EDGE_BASES[name])||0):0;
+  return Math.max(configured,hardMin);
+}
 function getBaseMetalMinWidth(){
   if(!state.baseMetal||!DATA.m[state.baseMetal])return BUILDER.material_default_min_width;
-  return DATA.m[state.baseMetal].mi.edge_same_sleeve||BUILDER.material_default_min_width;
+  const configured=DATA.m[state.baseMetal].mi.edge_same_sleeve||BUILDER.material_default_min_width;
+  const hardMin=Number(HARD_EDGE_BASES[state.baseMetal])||0;
+  return Math.max(configured,hardMin);
 }
 
 function openAddStripModal(){
@@ -4053,7 +4064,7 @@ function openAddStripModal(){
 
     materials.forEach(name=>{
       const mat=DATA.m[name];
-      const matMin=isMetal(name)?(mat.mi.edge_same_sleeve||BUILDER.strip_width.min):(mat.mi.solid_inlay||mat.mi.inlay_swarf||BUILDER.material_default_min_width);
+      const matMin=isMetal(name)?metalStripMin(name):(mat.mi.solid_inlay||mat.mi.inlay_swarf||BUILDER.material_default_min_width);
       const tooWide=stripWidth<matMin;
       const flatBlocked=FLAT_ONLY_INLAYS.has(name)&&state.profile!==FLAT_ONLY_PROFILE;
       const ruleBlock=(!flatBlocked&&!tooWide)?stripRuleBlock(name):null;
@@ -4190,7 +4201,7 @@ function openEditStripModal(idx){
 
     materials.forEach(name=>{
       const mat=DATA.m[name];
-      const matMin=isMetal(name)?(mat.mi.edge_same_sleeve||BUILDER.strip_width.min):(mat.mi.solid_inlay||mat.mi.inlay_swarf||BUILDER.material_default_min_width);
+      const matMin=isMetal(name)?metalStripMin(name):(mat.mi.solid_inlay||mat.mi.inlay_swarf||BUILDER.material_default_min_width);
       const tooNarrow=stripWidth<matMin;
       const flatBlocked=FLAT_ONLY_INLAYS.has(name)&&state.profile!==FLAT_ONLY_PROFILE;
       const ruleBlock=(!flatBlocked&&!tooNarrow)?stripRuleBlock(name):null;
@@ -5435,7 +5446,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   function v2MaterialMin(name){
     if(typeof DATA==='undefined'||!DATA||!DATA.m||!DATA.m[name]) return BUILDER.strip_width.min;
     var mi=DATA.m[name].mi||{};
-    var m=isMetal(name)?(mi.edge_same_sleeve||BUILDER.strip_width.min):(mi.solid_inlay||mi.inlay_swarf||BUILDER.material_default_min_width);
+    var m=isMetal(name)?((typeof metalStripMin==='function')?metalStripMin(name):(mi.edge_same_sleeve||BUILDER.strip_width.min)):(mi.solid_inlay||mi.inlay_swarf||BUILDER.material_default_min_width);
     m=parseFloat(m);
     return isNaN(m)?BUILDER.strip_width.min:m;
   }
@@ -5779,6 +5790,29 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     }
     return issues;
   }
+  // Self-heal (2026-08-20, Johan): edge strips of a hard base metal that sit below the
+  // rule minimum (e.g. an old auto-inserted 0.5mm Tungsten edge) are bumped up to the
+  // minimum automatically when free width allows, instead of stranding the design.
+  function v2EdgeAutoBump(){
+    var base=state.baseMetal; if(!base) return;
+    var hardMin=Number(HARD_EDGE_BASES[base])||0; if(!hardMin) return;
+    var strips=state.strips||[]; if(strips.length<2) return;
+    if(!strips.some(function(s){ return s&&s.material!==base; })) return;
+    var used=strips.reduce(function(a,s){ return a+((s&&s.width)||0); },0);
+    var free=state.ringWidth-used;
+    var bumped=false;
+    [0,strips.length-1].forEach(function(i){
+      var s=strips[i];
+      if(!s||s.material!==base) return;
+      if(s.width>=hardMin-0.001) return;
+      var need=hardMin-s.width;
+      if(free>=need-0.001){ s.width=hardMin; free-=need; bumped=true; }
+    });
+    if(!bumped) return;
+    try{ showRuleToast(base+' edges were increased to the '+hardMin+'mm manufacturing minimum for '+base+' rings.'); }catch(e){}
+    try{ renderRing(); }catch(e){}
+    try{ if(typeof requestEstimate==='function') requestEstimate(); }catch(e){}
+  }
   function v2RenderEdgeNote(col){
     var old=col.querySelector('#v2-edge-note'); if(old) old.remove();
     var issues=v2EdgeIssues();
@@ -5797,6 +5831,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       try{ v2FlatOnlySweep(state.profile); }catch(e){}
       try{ v2FinishSweep(); }catch(e){}
       try{ v2BaseRuleSweep(); }catch(e){}
+      try{ v2EdgeAutoBump(); }catch(e){}
       var out=_v2PrevRenderComposePanel(col);
       try{ v2EnhanceComposer(col); }catch(e){}
       try{ v2RenderEdgeNote(col); }catch(e){}
