@@ -239,6 +239,7 @@ details.sec .secbody{padding:4px 16px 16px;border-top:1px solid #26304d}
 // demand by collectPayload(); nothing is stored in the browser.
 // ────────────────────────────────────────────────────────────────
 let original = null;
+let liveVersion = null; // version currently live in KV — set by fetchLive, probeLiveVersion (file mode) and a successful upload
 let dataSource = null;          // 'kv' or 'local'
 let backupVersionTag = null;    // version string at time of the last backup this session
 
@@ -719,6 +720,16 @@ function formatRaw(i) {
   }
 }
 
+// File mode: read the live KV version without the API key via the quote worker's public
+// designer-config (same origin rules as the builder). Stops the uploader from silently
+// stamping every upload as "file version + 1" — the file's own _version is used when it differs from live.
+function probeLiveVersion() {
+  return fetch('https://jbj-ring-quote.johan-475.workers.dev/designer-config', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) { liveVersion = (j && j._version) ? String(j._version) : null; return liveVersion; })
+    .catch(function () { liveVersion = null; return null; });
+}
+
 function suggestedVersion(v) {
   const parts = String(v || '0.0').split('.');
   const last = Number(parts[parts.length - 1]);
@@ -731,8 +742,10 @@ function useSuggestedVersion() {
 }
 
 function renderVersion() {
-  const cur = original._version || '?';
-  const sug = suggestedVersion(original._version);
+  const fileVer = original._version || null;
+  const live = liveVersion || fileVer;
+  const cur = live || '?';
+  const sug = (fileVer && liveVersion && fileVer !== liveVersion) ? fileVer : suggestedVersion(live);
   document.getElementById('verCurrent').textContent = cur;
   document.getElementById('verSuggested').textContent = sug;
   document.getElementById('newVersion').value = sug;
@@ -862,7 +875,7 @@ function runChecks() {
   }
   const validationErrors = pricingValidationErrors(c.payload);
   const changed = diffSections(c.payload);
-  const versionOk = c.payload._version && c.payload._version !== original._version;
+  const versionOk = c.payload._version && c.payload._version !== (liveVersion || original._version);
   return { payload: c.payload, validationErrors: validationErrors, changed: changed, versionOk: versionOk };
 }
 
@@ -885,8 +898,8 @@ function checkAll() {
     blocks.push('<div class="r-warn" style="margin-top:8px">No content changes yet — the editor matches the downloaded data.</div>');
   }
   blocks.push(r.versionOk
-    ? '<div class="r-ok" style="margin-top:8px">Version: ' + esc(original._version || '?') + ' → ' + esc(r.payload._version) + ' ✓</div>'
-    : '<div class="r-err" style="margin-top:8px">Version number must be changed before upload (currently ' + esc(original._version || '?') + ').</div>');
+    ? '<div class="r-ok" style="margin-top:8px">Version: ' + esc(liveVersion || original._version || '?') + ' → ' + esc(r.payload._version) + ' ✓</div>'
+    : '<div class="r-err" style="margin-top:8px">Version number must be changed before upload (currently ' + esc(liveVersion || original._version || '?') + ').</div>');
   blocks.push(backupVersionTag
     ? '<div class="r-ok">Backup downloaded this session ✓</div>'
     : '<div class="r-warn">No backup downloaded yet this session — use "Download backup" before uploading.</div>');
@@ -905,6 +918,7 @@ async function fetchLive() {
     try { data = await r.json(); } catch (e) { throw new Error('HTTP ' + r.status + ' — response was not JSON'); }
     if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
     original = deepClone(data);
+    liveVersion = data._version || null;
     setSource('kv', 'Version ' + (data._version || '?') + ' — updated ' + (data._updated || data._uploaded || '?'));
     log('Live data loaded. Version ' + (data._version || '?') + ', ' + (JSON.stringify(data).length / 1024).toFixed(1) + ' KB.', 'log-ok');
     const problems = pricingValidationErrors(data);
@@ -933,6 +947,13 @@ function handleLocalFile(e) {
       const problems = pricingValidationErrors(parsed);
       if (problems.length) log('Note: this file has ' + problems.length + ' validation issue(s); run "Check everything" for details.', 'log-err');
       renderAll();
+      probeLiveVersion().then(function (v) {
+        if (!v) { log('Could not read the live KV version — the version field falls back to file version + 1.', 'log-err'); return; }
+        renderVersion();
+        log('Live KV version is ' + v + '. ' + (parsed._version && parsed._version !== v
+          ? 'The file will be uploaded as its own version ' + parsed._version + '.'
+          : 'This file carries the same version as live — change it before uploading (suggested ' + suggestedVersion(v) + ').'), 'log-ok');
+      });
     } catch (err) {
       log('Invalid JSON in ' + file.name + ': ' + err.message, 'log-err');
     }
@@ -973,8 +994,8 @@ async function uploadPayload() {
     return;
   }
   if (!r.versionOk) {
-    log('Upload blocked: change the version number first (currently ' + (original._version || '?') + ').', 'log-err');
-    alert('Change the version number first.\nCurrent: ' + (original._version || '?') + '\nSuggested: ' + suggestedVersion(original._version));
+    log('Upload blocked: change the version number first (currently ' + (liveVersion || original._version || '?') + ').', 'log-err');
+    alert('Change the version number first.\nCurrent: ' + (liveVersion || original._version || '?') + '\nSuggested: ' + suggestedVersion(liveVersion || original._version));
     return;
   }
   const summary = r.changed.length
@@ -1003,6 +1024,7 @@ async function uploadPayload() {
     if (result.ok) {
       log('Upload successful! ' + (result.message || '') + ' Version ' + (result.version || r.payload._version) + ', ' + result.materials + ' materials, ' + result.basePrices + ' base prices, ' + (result.size / 1024).toFixed(1) + ' KB stored.', 'log-ok');
       original = deepClone(r.payload);
+      liveVersion = original._version || null;
       setSource('kv', 'Version ' + (original._version || '?') + ' — updated ' + (original._updated || '?'));
       renderAll();
       renderReport(['<div class="r-ok"><b>✓ Uploaded and live.</b> Version ' + esc(String(result.version || r.payload._version)) + ' is now the data of record.</div>']);
