@@ -1133,6 +1133,8 @@ const state = {
   finish: null,
   ringSize: null,
   engraving: '',
+  firstName: '',
+  lastName: '',
   email: '',
   notes: '',
   serverTotal: null,   // no hardcoded fallback — populated only by the protected /estimate endpoint
@@ -1253,6 +1255,8 @@ const ringAudit = (() => {
       ringSize: state.ringSize,
       engraving: state.engraving,
       engravingFont: state.engravingFont || '',
+      firstName: state.firstName,
+      lastName: state.lastName,
       email: state.email,
       notes: state.notes,
       pricingVersion: DATA ? DATA._version : null,
@@ -2826,7 +2830,9 @@ function showExitEmailModal(onDone){
   overlay.className='exit-overlay';
   overlay.innerHTML=`<div class="exit-modal">
     <h3>Before you go...</h3>
-    <p>Enter your email so we can send you a quote for this custom ring design.</p>
+    <p>Enter your name and email so we can send you a quote for this custom ring design.</p>
+    <div style="display:flex;gap:10px"><input type="text" class="exit-first" placeholder="First name" autocomplete="given-name" maxlength="${BUILDER.limits.name_max_length}" style="flex:1;min-width:0" /><input type="text" class="exit-last" placeholder="Last name" autocomplete="family-name" maxlength="${BUILDER.limits.name_max_length}" style="flex:1;min-width:0" /></div>
+    <div class="exit-err exit-err-name">Please enter your first and last name.</div>
     <input type="email" placeholder="your@email.com" value="${state.email||''}" />
     <div class="exit-err">Please enter a valid email address.</div>
     <div class="exit-btns">
@@ -2835,10 +2841,25 @@ function showExitEmailModal(onDone){
     </div>
   </div>`;
   document.body.appendChild(overlay);
-  const inp=overlay.querySelector('input');
-  const err=overlay.querySelector('.exit-err');
-  inp.focus();
+  const inp=overlay.querySelector('input[type="email"]');
+  const err=overlay.querySelector('.exit-err:not(.exit-err-name)');
+  const firstInp=overlay.querySelector('.exit-first');
+  const lastInp=overlay.querySelector('.exit-last');
+  const nameErr=overlay.querySelector('.exit-err-name');
+  firstInp.value=state.firstName||''; lastInp.value=state.lastName||'';
+  const isValidName=(n)=>{const t=String(n||'').trim();return t.length>0&&t.length<=BUILDER.limits.name_max_length&&!/[<>]/.test(t);};
+  [firstInp,lastInp].forEach(el=>el.addEventListener('input',()=>{nameErr.style.display='none';el.style.borderColor='';}));
+  (state.firstName?(state.lastName?inp:lastInp):firstInp).focus();
   overlay.querySelector('.btn-exit-submit').onclick=async()=>{
+    const firstName=firstInp.value.trim(), lastName=lastInp.value.trim();
+    if(!isValidName(firstName)||!isValidName(lastName)){
+      ringAudit.record('validation','exit_quote_name_invalid',{firstName,lastName});
+      nameErr.style.display='block';
+      if(!isValidName(firstName)) firstInp.style.borderColor='#c0392b';
+      if(!isValidName(lastName)) lastInp.style.borderColor='#c0392b';
+      (isValidName(firstName)?lastInp:firstInp).focus(); return;
+    }
+    state.firstName=firstName; state.lastName=lastName;
     const email=inp.value.trim();
     if(!isValid(email)){
       ringAudit.record('validation','exit_quote_email_invalid',{email});
@@ -2859,7 +2880,7 @@ function showExitEmailModal(onDone){
     ringAudit.record('quote','exit_quote_submit_attempt',{shareUrl});
     try{
       const response=await fetch(SERVICES.quote_url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        email:state.email,notes:state.notes,auditVisitorId:ringAudit.visitorId,auditSessionId:ringAudit.sessionId,baseMetal:state.baseMetal,ringSize:state.ringSize,ringWidth:state.ringWidth,
+        firstName:state.firstName,lastName:state.lastName,email:state.email,notes:state.notes,auditVisitorId:ringAudit.visitorId,auditSessionId:ringAudit.sessionId,baseMetal:state.baseMetal,ringSize:state.ringSize,ringWidth:state.ringWidth,
         profile:state.profile,sleeve:state.sleeve,finish:state.finish,engraving:state.engraving,font:state.engravingFont||'',
         strips:state.strips,total:state.serverTotal,estimateToken:state.estimateToken,pricingVersion:DATA._version,shareUrl,
         ringImage:_getCanvasImage()
@@ -4516,6 +4537,35 @@ function renderSummaryPanel(col){
     form.appendChild(h('p',{style:{fontSize:'.75rem',color:'var(--text-muted)',marginBottom:'12px'}},["We'll review your design and send you a final quote with exact pricing."]));
   }
 
+  // Customer name (2026-08-22, Johan): first + last name, required, sent with the quote
+  const nameMax=String(BUILDER.limits.name_max_length);
+  const nameErr=h('div',{style:{color:'#c0392b',fontSize:'.7rem',marginTop:'-8px',marginBottom:'12px',display:'none'}},['Please enter your first and last name.']);
+  const nameRow=h('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap'}});
+  const firstCol=h('div',{class:'form-row',style:{flex:'1 1 140px',minWidth:'0'}});
+  firstCol.appendChild(h('label',{},['First Name']));
+  const firstInput=h('input',{type:'text',id:'quoteFirstName',placeholder:'First name',autocomplete:'given-name',value:state.firstName,maxlength:nameMax,
+    onInput:(e)=>{
+      state.firstName=e.target.value.trim();
+      nameErr.style.display='none';
+      firstInput.style.borderColor='';
+    }
+  });
+  firstCol.appendChild(firstInput);
+  nameRow.appendChild(firstCol);
+  const lastCol=h('div',{class:'form-row',style:{flex:'1 1 140px',minWidth:'0'}});
+  lastCol.appendChild(h('label',{},['Last Name']));
+  const lastInput=h('input',{type:'text',id:'quoteLastName',placeholder:'Last name',autocomplete:'family-name',value:state.lastName,maxlength:nameMax,
+    onInput:(e)=>{
+      state.lastName=e.target.value.trim();
+      nameErr.style.display='none';
+      lastInput.style.borderColor='';
+    }
+  });
+  lastCol.appendChild(lastInput);
+  nameRow.appendChild(lastCol);
+  form.appendChild(nameRow);
+  form.appendChild(nameErr);
+
   const emailRow=h('div',{class:'form-row'});
   emailRow.appendChild(h('label',{},['Email Address']));
   const emailInput=h('input',{type:'email',id:'quoteEmail',placeholder:'your@email.com',value:state.email,maxlength:String(BUILDER.limits.email_max_length),
@@ -4545,6 +4595,10 @@ function renderSummaryPanel(col){
     const match=String(email).match(/^([^\s@]+)@([^\s@]+)\.([^\s@]+)$/);
     return Boolean(match&&match[3].length>=DATA.quote_config.email_tld_min_length);
   };
+  const isValidName=(name)=>{
+    const t=String(name||'').trim();
+    return t.length>0&&t.length<=BUILDER.limits.name_max_length&&!/[<>]/.test(t);
+  };
 
   const submitBtn=h('button',{
     class:'btn btn-gold',
@@ -4560,6 +4614,14 @@ function renderSummaryPanel(col){
         submitStatus.style.display='block';
         submitStatus.style.color='#c0392b';
         submitStatus.textContent='Your estimate is still being calculated. Please wait a moment and try again.';
+        return;
+      }
+      if(!isValidName(state.firstName)||!isValidName(state.lastName)){
+        ringAudit.record('validation','quote_name_invalid',{firstName:state.firstName,lastName:state.lastName});
+        nameErr.style.display='block';
+        if(!isValidName(state.firstName)) firstInput.style.borderColor='#c0392b';
+        if(!isValidName(state.lastName)) lastInput.style.borderColor='#c0392b';
+        (isValidName(state.firstName)?lastInput:firstInput).focus();
         return;
       }
       if(!isValidEmail(state.email)){
@@ -4582,6 +4644,8 @@ function renderSummaryPanel(col){
       const shareUrl=window.location.origin+window.location.pathname+'?design='+utoa(JSON.stringify(config));
 
       const payload={
+        firstName:state.firstName,
+        lastName:state.lastName,
         email:state.email,
         notes:state.notes,
         auditVisitorId:ringAudit.visitorId,
