@@ -924,35 +924,15 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
 html.v2-modal-lock{overflow:hidden!important;overscroll-behavior:none}
 html.v2-modal-lock body{position:fixed!important;left:0;right:0;width:100%;overflow:hidden!important}
 .modal-overlay,.modal,.modal .mat-grid,.swatch-lightbox{overscroll-behavior:contain}
-/* 2026-08-23 PRECUT BLANKS (Tungsten / Black Ceramic): blank picker in Width & Profile + locked channels in the composer (router installPrecutBlanks) */
-.v2-blank-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin:4px 0 14px}
-.v2-blank-card{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:12px 12px 10px;cursor:pointer}
-.v2-blank-card .name,.v2-blank-card .v2-blank-sub{text-align:center}
-.v2-blank-card .name{font-size:.82rem;font-weight:500;color:var(--text)}
-.v2-blank-sub{font-size:.68rem;color:var(--text-muted);line-height:1.3}
-.v2-blank-bar{display:flex;width:100%;align-self:stretch;height:44px;border-radius:6px;overflow:hidden;border:1px solid var(--border);background:var(--bg3)}
-.v2-blank-seg{display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:600;min-width:0;overflow:hidden;white-space:nowrap}
-.v2-blank-base{background:linear-gradient(180deg,#8d9097,#5f6269);color:#fff}
-.v2-blank-inlay{background:repeating-linear-gradient(135deg,#e9d7b6 0 6px,#d8c39b 6px 12px);color:#4a3a1f}
-.v2-blank-legend{display:flex;gap:14px;font-size:.7rem;color:var(--text-muted);margin:0 0 10px}
-.v2-blank-legend i{display:inline-block;width:14px;height:10px;border-radius:2px;vertical-align:middle;margin-right:5px;border:1px solid var(--border)}
-.v2-blank-flip{margin:0 0 16px}
+/* 2026-08-23 PRECUT BLANKS (Tungsten / Black Ceramic): same composer as every base metal; the rule shows as a note like the edge rule (router v2RenderPrecutNote / v2ConstrainWidthPanel) */
 .tool-tab[hidden]{display:none!important}
-.v2-blank-head{font-family:var(--font-display);font-weight:400;font-size:1rem;color:var(--text-dim);margin:6px 0 8px}
-.v2-blank-plain .v2-blank-bar{opacity:.85}
-.v2-precut .remaining-width,.v2-precut .strip-arrows,.v2-precut .width-control{display:none!important}
-.v2-precut .strip-block.v2-seg-base{cursor:not-allowed;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0 4px,transparent 4px 8px)}
-.v2-precut .strip-block.v2-seg-empty{background:repeating-linear-gradient(135deg,#e9d7b6 0 6px,#d8c39b 6px 12px)!important;outline:2px dashed #9b7e4f;outline-offset:-2px;cursor:pointer}
-.v2-precut .strip-block.v2-seg-empty .s-name,.v2-precut .strip-block.v2-seg-empty .s-width{color:#4a3a1f}
-.v2-strip-row.v2-row-base{opacity:.72}
-.v2-strip-row.v2-row-base .v2-row-name{cursor:not-allowed}
-.v2-strip-row.v2-row-empty{border-style:dashed;border-color:#9b7e4f}
-.v2-row-w-fixed{margin-left:auto;font-size:.78rem;color:var(--gold);white-space:nowrap}
-.v2-precut-note{margin:10px 0;padding:10px 12px;border-radius:8px;font-size:.78rem;line-height:1.45;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.v2-precut-note{margin:10px 0;padding:10px 12px;border-radius:8px;font-size:.78rem;line-height:1.45}
 .v2-precut-note.v2-precut-open{border:1px solid #b7791f;background:rgba(183,121,31,.08);color:#8a5a0f}
 .v2-precut-note.v2-precut-done{border:1px solid #2e6b3d;background:rgba(46,107,61,.08);color:#1f6b3a}
-.v2-precut-size-note,.v2-precut-sleeve-note{font-size:.78rem;color:var(--text-muted);margin:10px 0 0;line-height:1.5}
-#addStripModalInner .mat-card.v2-precut-blocked{opacity:.35!important;cursor:not-allowed!important}
+.v2-precut-list{margin:6px 0 0;padding-left:18px}
+.v2-precut-list li{margin:2px 0}
+.v2-precut-size-note,.v2-precut-sleeve-note,.v2-precut-width-note{font-size:.78rem;color:var(--text-muted);margin:10px 0 0;line-height:1.5}
+.v2-precut-width-note{margin:6px 0 10px}
 .v2-grip{position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.5rem;letter-spacing:1px;color:var(--strip-text-dim);opacity:.7;pointer-events:none;line-height:1}
 .v2-strip-rows{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
 .v2-strip-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
@@ -4909,10 +4889,8 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     switch(stepId){
       case 'size':    return state.ringSize!=null?('Size '+state.ringSize):'';
       case 'metal':   return state.baseMetal||'';
-      case 'width':   if(typeof v2IsPrecut==='function'&&v2IsPrecut()){ var bk=v2CurrentBlank(); return bk?(v2BlankIsPlain(bk)?('Plain · '+bk.width+'mm '+bk.profile):('Style '+bk.style+' · '+bk.width+'mm '+bk.profile)):'Choose a blank'; }
-                      return (state.ringSize!=null&&state.baseMetal)?(state.ringWidth+'mm · '+(state.profile||'Flat')):'';
-      case 'compose': if(typeof v2IsPrecut==='function'&&v2IsPrecut()){ if(v2BlankIsPlain(v2CurrentBlank())) return 'No inlays'; var empty=(state.strips||[]).filter(function(s){return s&&s.material==='(choose)';}).length; var filled=(state.strips||[]).filter(function(s){return s&&s.material!=='(choose)'&&s.material!==state.baseMetal;}).length; return empty?(empty+' channel'+(empty>1?'s':'')+' to fill'):(filled?('Inlays: '+filled):'Choose a blank'); }
-                      return (state.strips&&state.strips.length)?('Inlays: '+state.strips.filter(function(s){return window.isMetal?!isMetal(s.material):true;}).length):'No inlays';
+      case 'width':   return (state.ringSize!=null&&state.baseMetal)?(state.ringWidth+'mm · '+(state.profile||'Flat')):'';
+      case 'compose': return (state.strips&&state.strips.length)?('Inlays: '+state.strips.filter(function(s){return window.isMetal?!isMetal(s.material):true;}).length):'No inlays';
       case 'sleeve':  return state.sleeve?('Sleeve: '+state.sleeve):(state.baseMetal?('Sleeve: '+state.baseMetal):'');
       case 'finish':  return state.finish||'';
       case 'summary': return '';
@@ -5063,18 +5041,6 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(id && ['width','compose','sleeve','finish'].indexOf(id)>=0 && !state.baseMetal){
       if(window.showRuleToast) try{ showRuleToast('Please choose a Base Metal first (Section 2) before making changes here.'); }catch(e){}
       id='metal';   // send them to Base Metal instead
-    }
-    // Precut blanks (2026-08-23): a blank must be chosen before the inlay/sleeve/finish/summary
-    // steps, and every channel must be filled before the Summary.
-    if(id && typeof v2IsPrecut==='function' && v2IsPrecut()){
-      try{ v2PrecutNormalize(); }catch(e){}
-      if(['compose','sleeve','finish','summary'].indexOf(id)>=0 && !v2CurrentBlank()){
-        try{ showRuleToast(state.baseMetal+' rings are made from precut blanks — choose your blank in Width & Profile first.'); }catch(e){}
-        id='width';
-      } else if(id==='summary' && v2PrecutUnfilled()){
-        try{ showRuleToast('Please choose an inlay for every channel of your '+state.baseMetal+' blank before continuing.'); }catch(e){}
-        id='compose';
-      }
     }
     state._openSection=id; syncStep(id);
     ringAudit.record('navigation',id?'section_opened':'section_closed',{from:previousSection,to:id});
@@ -5304,7 +5270,6 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   // If the band was auto-closed with a trailing base-metal remainder, reclaim it so the
   // engine sees the real free width when opening the Add-Inlay modal (fixes false "no room").
   function reclaimTrailingBaseMetal(){
-    if(typeof v2IsPrecut==='function' && v2IsPrecut()) return;   // precut blanks: the trailing base segment belongs to the blank
     if(!state.strips || state.strips.length<2 || !state.baseMetal) return;
     var used=state.strips.reduce(function(a,st){return a+st.width;},0);
     var remaining=state.ringWidth-used;
@@ -5428,8 +5393,6 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       var proposed=state.strips.map(function(strip){return {material:strip.material,width:strip.width};});
       var pos=insertIdx;
       var bmMinimum=getBaseMetalMinWidth();
-      // Precut blanks (2026-08-23): the modal opens preset to the channel's free width — keep it (a channel is usually filled by one material) unless the material needs more.
-      if(typeof v2IsPrecut==='function'&&v2IsPrecut()){ var presetW=parseFloat(input.value); if(!isNaN(presetW)&&presetW>materialMinimum) materialMinimum=Math.min(presetW,remaining); }
       if(!isMetal(material) && needsAutoBefore && remaining-materialMinimum>=bmMinimum){
         proposed.splice(pos,0,{material:state.baseMetal,width:bmMinimum}); pos++;
       }
@@ -5651,7 +5614,6 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
 
   function v2OpenEdit(i,col){
     var ref=state.strips[i]; if(!ref) return;
-    if(v2IsPrecut()){ v2PrecutOpen(i,col); return; }
     state.selectedStrip=i;
     renderComposePanel(col);
     var idx=state.strips.indexOf(ref);
@@ -6004,14 +5966,12 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   // ══ PRECUT BLANKS (2026-08-23, Johan) ══
   // Tungsten and Black Ceramic rings are bought as precut blanks and only the inlays are
   // added. KV rules.precut_blanks lists every blank (style, width, profile, base/inlay
-  // segments); rules.precut_ring_size is the size range for blanks. For these bases:
-  //   · Width & Profile becomes a blank picker (width + profile come from the blank),
-  //   · the composer shows the blank's fixed channels — tap a channel to choose its inlay
-  //     (several inlays may share a channel when the normal inlay rules allow), base
-  //     segments are locked, no auto pinstripes, no width slider, no drag/reorder/steppers,
-  //   · a blank may be used as its mirror image (Flip),
-  //   · the sleeve is always the base metal, sizes follow precut_ring_size,
-  //   · the worker rejects anything that is not exactly one of the blanks.
+  // segments, plain bands); rules.precut_ring_size is the size range for blanks.
+  // Johan: SAME screen + edit functions as every other base metal — so the composer is
+  // untouched; the rule works like the other manufacturability rules: the Width step only
+  // offers blank widths/profiles, auto edges default to the blank edge width, a note under
+  // the composer says which blank the layout matches (or lists the available layouts), and
+  // the worker rejects anything that is not exactly a blank (mirror images allowed).
   function v2PrecutBlanks(base){
     var pb=(typeof BUILDER!=='undefined'&&BUILDER&&BUILDER.rules&&BUILDER.rules.precut_blanks)||null;
     var list=pb&&pb[base||state.baseMetal];
@@ -6032,28 +5992,48 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var segs=(b&&Array.isArray(b.segments)?b.segments:[]).map(function(sg){ return {t:sg.t==='base'?'base':'inlay',w:Number(sg.w)}; });
     return flipped?segs.reverse():segs;
   }
-  function v2BlankSymmetric(b){
-    var a=v2BlankSegments(b,false), r=v2BlankSegments(b,true);
-    return a.every(function(sg,i){ return sg.t===r[i].t&&Math.abs(sg.w-r[i].w)<1e-9; });
-  }
   function v2BlankIsPlain(b){ return !!b&&(b.plain===true||!v2BlankSegments(b,false).some(function(sg){ return sg.t==='inlay'; })); }
-  function v2BlankLayoutStrips(b,flipped){
-    if(v2BlankIsPlain(b)) return [];   // plain band: base metal only, no strips
-    return v2BlankSegments(b,flipped).map(function(sg){ return sg.t==='base'?{material:state.baseMetal,width:sg.w}:{material:'(choose)',width:sg.w}; });
+  function v2PrecutWidths(base){
+    var out=[]; (v2PrecutBlanks(base)||[]).forEach(function(b){ var w=Number(b.width); if(w>0&&out.indexOf(w)<0) out.push(w); });
+    return out.sort(function(a,b){ return a-b; });
   }
-  function v2BlankTitle(b){ return v2BlankIsPlain(b)?('Plain · '+b.width+'mm · '+b.profile):('Style '+b.style+' · '+b.width+'mm · '+b.profile); }
-  function v2CurrentBlank(){
-    var list=v2PrecutBlanks(); if(!list||state.blankStyle==null) return null;
-    for(var i=0;i<list.length;i++) if(String(list[i].style)===String(state.blankStyle)) return list[i];
-    return null;
+  function v2PrecutProfiles(base,width){
+    var out=[]; (v2PrecutBlanks(base)||[]).forEach(function(b){ if(Math.abs(Number(b.width)-width)<1e-9&&out.indexOf(b.profile)<0) out.push(b.profile); });
+    var order=(BUILDER.common_profiles||[]).concat(BUILDER.profiles||[]);   // catalog order: Flat, Round, … Bevel
+    return out.sort(function(a,b){ return order.indexOf(a)-order.indexOf(b); });
+  }
+  function v2NearestWidth(widths,w){ var best=widths[0]; widths.forEach(function(x){ if(Math.abs(x-w)<=Math.abs(best-w)) best=x; }); return best; }   // ties go to the wider blank
+  // Edge width the composer auto-inserts on a blank: the smallest leading base segment of
+  // the blanks at this width/profile (8mm Flat → 1mm, 8mm Round → 0.5mm), else the smallest base segment, else 1mm.
+  function v2PrecutAutoEdge(){
+    var list=(v2PrecutBlanks()||[]).filter(function(b){ return !v2BlankIsPlain(b)&&Math.abs(Number(b.width)-state.ringWidth)<1e-9&&b.profile===state.profile; });
+    if(!list.length) list=(v2PrecutBlanks()||[]).filter(function(b){ return !v2BlankIsPlain(b); });
+    var lead=null, any=null;
+    list.forEach(function(b){ var segs=v2BlankSegments(b,false); segs.forEach(function(sg,i){ if(sg.t!=='base') return; if(any===null||sg.w<any) any=sg.w; if(i===0&&(lead===null||sg.w<lead)) lead=sg.w; }); });
+    return lead!=null?lead:(any!=null?any:1);
+  }
+  function v2BlankLayoutText(b){
+    if(v2BlankIsPlain(b)) return 'plain band (no inlays)';
+    return v2BlankSegments(b,false).map(function(sg){ return sg.w+'mm '+(sg.t==='base'?state.baseMetal:'inlay'); }).join(' – ');
+  }
+  // The layout as it will be sent: the composer closes any free width with a base-metal edge.
+  function v2ClosedStrips(strips){
+    var out=(strips||[]).filter(function(st){ return st&&st.width>0; }).map(function(st){ return {material:st.material,width:st.width}; });
+    var used=out.reduce(function(a,st){ return a+st.width; },0);
+    var rem=parseFloat((state.ringWidth-used).toFixed(2));
+    if(rem>(BUILDER.width_epsilon||0.01)){
+      if(out.length&&out[out.length-1].material===state.baseMetal) out[out.length-1].width=parseFloat((out[out.length-1].width+rem).toFixed(2));
+      else out.push({material:state.baseMetal,width:rem});
+    }
+    return out;
   }
   // Same matcher as the worker's precutMatch(): base segments exact, channels filled edge to edge, mirror allowed.
   function v2MatchBlank(strips){
     var list=v2PrecutBlanks(); if(!list) return null;
     var eps=BUILDER.width_epsilon||0.01, base=state.baseMetal;
-    strips=(strips||[]).filter(function(st){ return st&&st.width>0; });
+    strips=v2ClosedStrips(strips);
     function matches(segs){
-      if(!strips.length) return state.wantsInlays===false && !segs.some(function(sg){ return sg.t==='inlay'; });   // plain band (explicitly no inlays, e.g. a share link)
+      if(!strips.length) return !segs.some(function(sg){ return sg.t==='inlay'; });   // plain band
       var pos=0;
       for(var i=0;i<segs.length;i++){
         var sg=segs[i];
@@ -6066,206 +6046,151 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       var b=list[i];
       if(Math.abs(Number(b.width)-state.ringWidth)>eps||b.profile!==state.profile) continue;
       if(matches(v2BlankSegments(b,false))) return {blank:b,flipped:false};
-      if(matches(v2BlankSegments(b,true))) return {blank:b,flipped:true};
+      if(!v2BlankIsPlain(b)&&matches(v2BlankSegments(b,true))) return {blank:b,flipped:true};
     }
     return null;
   }
-  function v2ApplyBlank(b,flipped){
-    state.blankStyle=b.style; state.blankFlipped=!!flipped;
-    state.ringWidth=Number(b.width); state.profile=b.profile; state.wantsInlays=!v2BlankIsPlain(b);
-    state.sleeve=state.baseMetal;
-    state.strips=v2BlankLayoutStrips(b,flipped);
-    state.selectedStrip=-1;
-    if(typeof undoStack!=='undefined') undoStack.length=0;
-  }
-  function v2PrecutUnfilled(){
-    return v2IsPrecut() && (!v2CurrentBlank() || (state.strips||[]).some(function(st){ return st&&st.material==='(choose)'; }));
-  }
-  function v2StripSigOf(strips){ return JSON.stringify((strips||[]).map(function(st){ return [st.material,st.width]; })); }
-  // Keep state.strips aligned with the chosen blank: base segments exact and in place, each
-  // channel = its inlays + a '(choose)' placeholder for any unfilled width. Anything that
-  // cannot be aligned (old free-form design, drag, width change) resets to the empty blank.
-  // Returns true when state.strips changed.
-  function v2PrecutNormalize(){
-    var before=v2StripSigOf(state.strips);
-    if(!v2IsPrecut()){
-      // not a precut base: drop channel placeholders + anchors; when leaving a blank, drop its
-      // old base segments too (the chosen inlays carry over into the free composer)
-      var leaving=state.blankStyle!=null;
-      var precutBases=Object.keys((BUILDER.rules&&BUILDER.rules.precut_blanks)||{});
-      state.strips=(state.strips||[]).filter(function(st){ return st&&st.material!=='(choose)'&&st.width>0&&!(leaving&&precutBases.indexOf(st.material)>=0); });
-      if(leaving){ state.blankStyle=null; state.blankFlipped=false; state.selectedStrip=-1; state.wantsInlays=true; }
-      return v2StripSigOf(state.strips)!==before;
-    }
-    var base=state.baseMetal, eps=BUILDER.width_epsilon||0.01;
-    var blank=v2CurrentBlank();
-    if(!blank){
-      var m=v2MatchBlank(state.strips);
-      if(m){ state.blankStyle=m.blank.style; state.blankFlipped=m.flipped; blank=m.blank; }
-      else { state.strips=[]; state.selectedStrip=-1; state.blankFlipped=false; return v2StripSigOf(state.strips)!==before; }
-    }
-    if(v2BlankIsPlain(blank)){
-      var keepPlain=(state.strips||[]).every(function(st){ return st&&st.material===base; });
-      state.strips=[]; state.selectedStrip=-1; state.wantsInlays=false;
-      state.ringWidth=Number(blank.width); state.profile=blank.profile;
-      if(!keepPlain){ try{ showRuleToast('This is a plain '+base+' band — choose an inlay blank in Width & Profile to add inlays.'); }catch(e){} }
-      return v2StripSigOf(state.strips)!==before;
-    }
-    state.wantsInlays=true;
-    var strips=(state.strips||[]).filter(function(st){ return st&&st.width>0; });
-    var segs=v2BlankSegments(blank,state.blankFlipped);
-    var out=[], pos=0, ok=true, clamped=false, removed=[];
-    for(var i=0;i<segs.length&&ok;i++){
-      var sg=segs[i];
-      if(sg.t==='base'){
-        var st=strips[pos];
-        if(st&&st.material===base&&Math.abs(st.width-sg.w)<=eps){ out.push({material:base,width:sg.w}); pos++; }
-        else ok=false;
-      } else {
-        var filled=0, items=[];
-        while(pos<strips.length&&filled<sg.w-eps){
-          var cur=strips[pos];
-          if(cur.material===base) break;
-          pos++;
-          if(cur.material==='(choose)') continue;
-          var take=Math.min(cur.width,parseFloat((sg.w-filled).toFixed(2)));
-          if(take<cur.width-eps) clamped=true;
-          items.push({material:cur.material,width:parseFloat(take.toFixed(2))}); filled+=take;
-        }
-        var gap=parseFloat((sg.w-filled).toFixed(2));
-        if(gap>eps) items.push({material:'(choose)',width:gap});
-        out=out.concat(items);
-      }
-    }
-    if(ok&&pos<strips.length){ for(var k=pos;k<strips.length;k++){ if(strips[k].material!=='(choose)'){ ok=false; break; } } }
-    if(!ok){
-      state.strips=v2BlankLayoutStrips(blank,state.blankFlipped); state.selectedStrip=-1;
-      if(strips.length){ try{ showRuleToast(base+' rings are made from precut blanks — Style '+blank.style+' was restored. Tap a channel to choose its inlay.'); }catch(e){} }
-      return true;
-    }
-    // Materials that need metal on both sides can only fill a base-bordered channel by themselves.
-    for(var j=out.length-1;j>=0;j--){
-      var o=out[j];
-      if(o.material===base||o.material==='(choose)') continue;
-      if(typeof needsMetalEdges!=='function'||!needsMetalEdges(o.material)) continue;
-      var leftBase=j>0&&out[j-1].material===base, rightBase=j<out.length-1&&out[j+1].material===base;
-      if(!leftBase||!rightBase){ removed.push(o.material); var w=o.width; out.splice(j,1); // give the width back to the channel
-        var ph=(j<out.length&&out[j].material==='(choose)')?out[j]:((j>0&&out[j-1].material==='(choose)')?out[j-1]:null);
-        if(ph) ph.width=parseFloat((ph.width+w).toFixed(2)); else out.splice(j,0,{material:'(choose)',width:w});
-      }
-    }
-    for(var q=0;q<out.length-1;q++){ if(out[q].material==='(choose)'&&out[q+1].material==='(choose)'){ out[q].width=parseFloat((out[q].width+out[q+1].width).toFixed(2)); out.splice(q+1,1); q--; } }
-    state.ringWidth=Number(blank.width); state.profile=blank.profile;
-    if(v2StripSigOf(out)!==before){ state.strips=out; if(state.selectedStrip>=out.length) state.selectedStrip=-1; }
-    if(removed.length){ try{ showRuleToast('"'+removed.join('", "')+'" needs '+base+' on both sides — in a precut blank it can only fill a channel that has '+base+' on both sides, by itself.'); }catch(e){} }
-    else if(clamped){ try{ showRuleToast('The inlay width was trimmed to fit its channel.'); }catch(e){} }
-    return v2StripSigOf(state.strips)!==before;
-  }
-  // Which channel (and its context) a strip index belongs to.
-  function v2PrecutChannelAt(i){
-    var blank=v2CurrentBlank(); if(!blank) return null;
-    var base=state.baseMetal, strips=state.strips||[], segs=v2BlankSegments(blank,state.blankFlipped);
-    var pos=0;
-    for(var s=0;s<segs.length;s++){
-      var sg=segs[s];
-      if(sg.t==='base'){ if(pos===i) return null; pos++; continue; }
-      var start=pos, filled=0, free=0;
-      while(pos<strips.length&&strips[pos].material!==base){ if(strips[pos].material==='(choose)') free+=strips[pos].width; else filled+=strips[pos].width; pos++; }
-      if(i>=start&&i<pos) return {seg:s,start:start,end:pos,width:sg.w,filled:filled,free:free,leftBase:s>0&&segs[s-1].t==='base',rightBase:s<segs.length-1&&segs[s+1].t==='base'};
-    }
-    return null;
-  }
-  var _v2PrecutModal=null;
-  // Tap handling in the composer for a precut base (blocks + rows).
-  function v2PrecutOpen(i,col){
-    var st=state.strips[i]; if(!st) return;
-    var base=state.baseMetal;
-    if(st.material===base){
-      try{ showRuleToast('The '+base+' sections are part of the precut blank and can’t be changed — pick a different blank in Width & Profile.'); }catch(e){}
-      return;
-    }
-    var ch=v2PrecutChannelAt(i); if(!ch) return;
-    _v2PrecutModal={channel:ch,width:null};
-    state.selectedStrip=-1;
-    if(st.material==='(choose)'){
-      // open the Add modal with the placeholder taken out so the engine sees the free width
-      var phWidth=st.width;
-      state.strips.splice(i,1);
-      if(i===0){ state.strips.unshift({material:base,width:0}); state.selectedStrip=0; }   // zero-width anchor → insert at 0
-      else state.selectedStrip=i-1;
-      _v2PrecutModal.width=phWidth;
-      if(typeof openAddStripModal==='function') openAddStripModal();
-      v2PrecutPresetWidth(phWidth);
-    } else {
-      // edit: lend the channel's unfilled width to the strip (placeholder sits at the channel end)
-      for(var k=ch.end-1;k>=ch.start;k--){ if(state.strips[k].material==='(choose)'){ state.strips.splice(k,1); break; } }
-      var idx=state.strips.indexOf(st); if(idx<0) idx=Math.min(i,state.strips.length-1);
-      if(typeof openEditStripModal==='function') openEditStripModal(idx);
+  // The composer's own Ring Width control: blank widths only (same control, limited range).
+  function v2ConstrainComposerWidth(col){
+    var widths=v2PrecutWidths(state.baseMetal); if(!widths.length) return;
+    var wc=col.querySelector('.width-control'); if(!wc) return;
+    var minW=widths[0], maxW=widths[widths.length-1];
+    var step=0; for(var i=1;i<widths.length;i++){ var d=widths[i]-widths[i-1]; step=step?gcdQ(step,d):d; }
+    function gcdQ(a,b){ a=Math.round(a*4); b=Math.round(b*4); while(b){ var t=a%b; a=b; b=t; } return a/4; }
+    if(!step) step=BUILDER.ring_width.step;
+    wc.querySelectorAll('input').forEach(function(inp){ inp.min=String(minW); inp.max=String(maxW); inp.step=String(step); });
+    wc.querySelectorAll('span').forEach(function(sp){ var t=(sp.textContent||'').trim(); if(t===BUILDER.ring_width.min+'mm') sp.textContent=minW+'mm'; else if(t===BUILDER.ring_width.max+'mm') sp.textContent=maxW+'mm'; });
+    if(!wc.__v2precutChange){
+      wc.__v2precutChange=true;
+      wc.addEventListener('change',function(){ setTimeout(function(){
+        if(!v2IsPrecut()) return;
+        var w=Number(state.ringWidth), used=(state.strips||[]).reduce(function(a,st){ return a+st.width; },0);
+        var fit=widths.filter(function(x){ return x>=used-(BUILDER.width_epsilon||0.01); });
+        var target=widths.indexOf(w)>=0?w:v2NearestWidth(fit.length?fit:widths,w);
+        var changed=target!==w; if(changed) state.ringWidth=target;
+        var pr=v2PrecutProfiles(state.baseMetal,Number(state.ringWidth));
+        if(pr.length&&pr.indexOf(state.profile)<0){ state.profile=pr[0]; try{ showRuleToast(state.baseMetal+' '+state.ringWidth+'mm blanks come in '+pr.join(' / ')+' — the profile was set to '+pr[0]+'.'); }catch(e){} }
+        if(changed){ try{ showRuleToast(state.baseMetal+' rings are made from precut blanks in '+widths.join('mm / ')+'mm — the width was set to '+target+'mm.'); }catch(e){} }
+        try{ renderComposePanel(col); }catch(e){}
+        if(window.renderRing) try{ renderRing(); }catch(e){}
+        try{ updatePrice(); }catch(e){}
+      },0); });
     }
   }
-  function v2PrecutPresetWidth(w){
-    var inp=document.querySelector('#addStripModalInner input[type="number"]'); if(!inp) return;
-    var max=parseFloat(inp.getAttribute('max')); if(!isNaN(max)&&w>max) w=max;
-    inp.value=String(w);
-    inp.dispatchEvent(new Event('input',{bubbles:true}));
-    inp.dispatchEvent(new Event('change',{bubbles:true}));
-  }
-  // After the strip modal closes (add, save, cancel, outside tap): re-align with the blank.
-  function v2PrecutAfterModal(){
-    if(!_v2PrecutModal) return;
-    _v2PrecutModal=null;
+  // Composer note (same place as the edge-rule note): which blank the layout matches, or the layouts available.
+  function v2RenderPrecutNote(col){
+    var old=col.querySelector('#v2-precut-note'); if(old) old.remove();
     if(!v2IsPrecut()) return;
-    var changed=false;
-    try{ changed=v2PrecutNormalize(); }catch(e){}
-    if(changed){
-      var col=document.getElementById('controlsCol');
-      if(col&&typeof renderComposePanel==='function') renderComposePanel(col);
+    try{ v2ConstrainComposerWidth(col); }catch(e){}
+    var base=state.baseMetal, m=v2MatchBlank(state.strips);
+    var note;
+    if(m){
+      var b=m.blank;
+      var txt=v2BlankIsPlain(b)?('✓ Plain '+b.width+'mm '+b.profile+' '+base+' band — available as a precut blank.')
+        :('✓ Matches '+base+' blank Style '+b.style+' ('+v2BlankLayoutText(b)+(m.flipped?', mirrored':'')+').');
+      note=h('div',{id:'v2-precut-note',class:'v2-precut-note v2-precut-done'},[txt]);
+    } else {
+      var avail=(v2PrecutBlanks()||[]).filter(function(b){ return !v2BlankIsPlain(b)&&Math.abs(Number(b.width)-state.ringWidth)<1e-9&&b.profile===state.profile; });
+      var kids=[h('strong',{},['⚠ '+base+' rings are made from precut blanks — this layout isn’t one of them. ']),
+        'Adjust the strip widths to match a blank (either direction). '+(avail.length?(state.ringWidth+'mm '+state.profile+' blanks:'):('No '+state.ringWidth+'mm '+state.profile+' '+base+' blanks with inlays exist — change the width or profile.'))];
+      if(avail.length){
+        var ul=h('ul',{class:'v2-precut-list'});
+        avail.forEach(function(b){ ul.appendChild(h('li',{},['Style '+b.style+': '+v2BlankLayoutText(b)])); });
+        kids.push(ul);
+      }
+      note=h('div',{id:'v2-precut-note',class:'v2-precut-note v2-precut-open'},kids);
+    }
+    var grid=col.querySelector('.composer-strips');
+    if(grid&&grid.parentNode===col) col.insertBefore(note,grid); else col.appendChild(note);
+  }
+  // Base metal chosen: sizes, width and profile must be ones a blank exists for.
+  function v2AfterBaseChange(){
+    if(!state.baseMetal) return;
+    var precut=v2IsPrecut(), base=state.baseMetal;
+    var range=precut?v2PrecutSizeRange():BUILDER.ring_size;
+    if(state.ringSize!=null&&!v2SizeAllowed(state.ringSize,range)){
+      var old=state.ringSize; state.ringSize=null;
+      if(state._touched) state._touched.size=false;
+      try{ showRuleToast(precut?(base+' blanks come in sizes '+range.min+' to '+range.max+' — size '+old+' is not available. Please choose your ring size again (Section 1).'):('Size '+old+' is only made for Tungsten and Black Ceramic blanks — please choose your ring size again (Section 1).')); }catch(e){}
+    }
+    try{ rerenderSection('size'); }catch(e){}
+    if(precut){
+      var widths=v2PrecutWidths(base);
+      if(widths.length&&widths.indexOf(Number(state.ringWidth))<0){
+        var nw=v2NearestWidth(widths,Number(state.ringWidth));
+        state.ringWidth=nw; state.strips=[]; state.selectedStrip=-1; if(typeof undoStack!=='undefined') undoStack.length=0;
+        try{ showRuleToast(base+' rings are made from precut blanks in '+widths.join('mm / ')+'mm — the width was set to '+nw+'mm.'); }catch(e){}
+      }
+      var profiles=v2PrecutProfiles(base,Number(state.ringWidth));
+      if(profiles.length&&profiles.indexOf(state.profile)<0){ state.profile=profiles[0]; }
+      state.sleeve=base;
       if(window.renderRing) try{ renderRing(); }catch(e){}
-      try{ updatePrice(); }catch(e){}
+    }
+    try{ refreshHeaders(); }catch(e){}
+  }
+  function v2PrecutSizeGrid(col){
+    if(!v2IsPrecut()) return;
+    var grid=col.querySelector('.size-grid'); if(!grid) return;
+    var range=v2PrecutSizeRange();
+    grid.innerHTML='';
+    numberRange(range).forEach(function(size){
+      var isQuarter=Math.abs((size/(range.step*2))-Math.round(size/(range.step*2)))>1e-9;
+      grid.appendChild(h('button',{class:'size-btn'+(state.ringSize===size?' selected':'')+(isQuarter?' quarter':''),onClick:function(){ state.ringSize=size; renderSizePanel(col); if(window.renderRing) try{ renderRing(); }catch(e){} try{ updatePrice(); }catch(e){} }},[String(size)]));
+    });
+    if(!col.querySelector('.v2-precut-size-note')){
+      grid.parentNode.insertBefore(h('p',{class:'v2-precut-size-note'},[state.baseMetal+' rings are made from precut blanks, available in sizes '+range.min+' to '+range.max+' (quarter sizes included).']),grid.nextSibling);
     }
   }
-  // Modal cards for a precut base: the base metal itself is never an inlay; materials that
-  // need metal on both sides only fit an empty, base-bordered channel.
-  function v2PrecutModalCards(){
-    if(!v2IsPrecut()||!_v2PrecutModal) return;
-    var inner=document.getElementById('addStripModalInner'); if(!inner) return;
-    var ch=_v2PrecutModal.channel, base=state.baseMetal;
-    inner.querySelectorAll('.mat-card').forEach(function(card){
-      if(card.__v2precutDone) return;
-      var label=card.querySelector('.name'); var txt=(label&&label.textContent||'').trim();
-      var name=Object.keys(DATA.m).find(function(nm){ return txt===nm||txt.indexOf(nm+' (')===0; });
-      if(!name) return;
-      var reason=null;
-      if(name===base) reason=base+' is the blank itself — choose an inlay material for this channel.';
-      else if(typeof needsMetalEdges==='function'&&needsMetalEdges(name)&&!(ch.leftBase&&ch.rightBase&&ch.filled<=(BUILDER.width_epsilon||0.01))) reason=name+' needs '+base+' on both sides — it can only fill an empty channel that has '+base+' on both sides.';
-      if(!reason) return;
-      card.__v2precutDone=true;
-      card.classList.add('disabled','v2-precut-blocked'); card.title=reason; card.setAttribute('data-v2-reason',reason);
-    });
+  // Width & Profile on a blank: same panel, only the widths/profiles that exist as blanks.
+  function v2ConstrainWidthPanel(col){
+    if(!v2IsPrecut()) return;
+    var base=state.baseMetal, widths=v2PrecutWidths(base); if(!widths.length) return;
+    if(widths.indexOf(Number(state.ringWidth))<0){ state.ringWidth=v2NearestWidth(widths,Number(state.ringWidth)); state.strips=[]; state.selectedStrip=-1; }
+    var minW=widths[0], maxW=widths[widths.length-1];
+    var step=0; for(var i=1;i<widths.length;i++){ var d=widths[i]-widths[i-1]; step=step?gcd(step,d):d; }
+    function gcd(a,b){ a=Math.round(a*4); b=Math.round(b*4); while(b){ var t=a%b; a=b; b=t; } return a/4; }
+    if(!step) step=BUILDER.ring_width.step;
+    var wc=col.querySelector('.width-control');
+    if(wc){
+      wc.querySelectorAll('input').forEach(function(inp){ inp.min=String(minW); inp.max=String(maxW); inp.step=String(step); inp.value=String(state.ringWidth); });
+      var spans=wc.querySelectorAll('span'); spans.forEach(function(sp){ var t=(sp.textContent||'').trim(); if(t===BUILDER.ring_width.min+'mm') sp.textContent=minW+'mm'; else if(t===BUILDER.ring_width.max+'mm') sp.textContent=maxW+'mm'; });
+      if(!wc.__v2precutChange){
+        wc.__v2precutChange=true;
+        wc.addEventListener('change',function(){ setTimeout(function(){ if(!v2IsPrecut()) return; var w=Number(state.ringWidth); if(widths.indexOf(w)<0){ state.ringWidth=v2NearestWidth(widths,w); } var pr=v2PrecutProfiles(base,Number(state.ringWidth)); if(pr.length&&pr.indexOf(state.profile)<0){ state.profile=pr[0]; try{ showRuleToast(base+' '+state.ringWidth+'mm blanks come in '+pr.join(' / ')+' — the profile was set to '+pr[0]+'.'); }catch(e){} } try{ rerenderSection('width'); }catch(e){} if(window.renderRing) try{ renderRing(); }catch(e){} try{ updatePrice(); }catch(e){} },0); });
+      }
+      if(!col.querySelector('.v2-precut-width-note')) wc.parentNode.insertBefore(h('p',{class:'v2-precut-width-note'},[base+' rings are made from precut blanks — available widths: '+widths.join('mm, ')+'mm.']),wc.nextSibling);
+    }
+    // quick presets: only blank widths
+    col.querySelectorAll('button').forEach(function(btn){ var mm=(btn.textContent||'').match(/\((\d+(?:\.\d+)?)mm\)/); if(mm&&widths.indexOf(Number(mm[1]))<0) btn.style.display='none'; });
+    // profile grid: the profiles that exist as blanks at this width (Bevel blanks carry inlays too)
+    var pg=col.querySelector('.profile-grid');
+    var profiles=v2PrecutProfiles(base,Number(state.ringWidth));
+    if(pg&&profiles.length){
+      if(profiles.indexOf(state.profile)<0) state.profile=profiles[0];
+      pg.innerHTML='';
+      profiles.forEach(function(p){ if(typeof addProfileCard==='function') addProfileCard(pg,p,profiles); });
+      col.querySelectorAll('p').forEach(function(pEl){ if(/Showing Flat and Round profiles/.test(pEl.textContent||'')) pEl.textContent='Profiles available for '+state.ringWidth+'mm '+base+' blanks: '+profiles.join(', ')+'.'; });
+    }
   }
   function installPrecutBlanks(){
     if(window.__v2PrecutInstalled) return; window.__v2PrecutInstalled=true;
-    // no auto base-metal edges/pinstripes while composing on a blank (the blank has them already)
+    // auto edges/pinstripes on a blank default to the blank's edge width
     if(typeof getBaseMetalMinWidth==='function'&&!window.__v2NativeBaseMin){
       window.__v2NativeBaseMin=getBaseMetalMinWidth;
-      getBaseMetalMinWidth=function(){ if(v2IsPrecut()) return Number.MAX_SAFE_INTEGER; return window.__v2NativeBaseMin(); };
+      getBaseMetalMinWidth=function(){ if(v2IsPrecut()) return v2PrecutAutoEdge(); return window.__v2NativeBaseMin(); };
     }
-    // size grid follows the base (blanks: precut_ring_size)
     if(typeof renderSizePanel==='function'&&!window.__v2NativeSizePanel){
       window.__v2NativeSizePanel=renderSizePanel;
       renderSizePanel=function(col){ window.__v2NativeSizePanel(col); try{ v2PrecutSizeGrid(col); }catch(e){} };
     }
-    // choosing a base metal: sizes + sleeve follow the blank rules
     if(typeof renderMetalPanel==='function'&&!window.__v2NativeMetalPanel){
       window.__v2NativeMetalPanel=renderMetalPanel;
       renderMetalPanel=function(col){ window.__v2NativeMetalPanel(col); try{ v2AfterBaseChange(); }catch(e){} };
     }
-    // Width & Profile → blank picker
     if(typeof renderWidthPanel==='function'&&!window.__v2NativeWidthPanel){
       window.__v2NativeWidthPanel=renderWidthPanel;
-      renderWidthPanel=function(col){ window.__v2NativeWidthPanel(col); try{ if(v2IsPrecut()) v2RenderBlankPicker(col); }catch(e){} };
+      renderWidthPanel=function(col){ window.__v2NativeWidthPanel(col); try{ v2ConstrainWidthPanel(col); }catch(e){} };
     }
-    // Sleeve → base metal only
     if(typeof renderSleevePanel==='function'&&!window.__v2NativeSleevePanel){
       window.__v2NativeSleevePanel=renderSleevePanel;
       renderSleevePanel=function(col){
@@ -6280,167 +6205,21 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
         }catch(e){}
       };
     }
-    // strip modal: block cards + re-align when it closes
-    var ov=document.getElementById('addStripModal');
-    if(ov&&!ov.__v2precut){
-      ov.__v2precut=true;
-      ov.addEventListener('click',function(e){
-        var card=e.target.closest('.mat-card.v2-precut-blocked'); if(!card) return;
-        e.preventDefault(); e.stopImmediatePropagation();
-        try{ showRuleToast(card.getAttribute('data-v2-reason')||'Not available in this channel.'); }catch(x){}
-      },true);
-      new MutationObserver(function(){ if(!ov.classList.contains('open')) v2PrecutAfterModal(); }).observe(ov,{attributes:true,attributeFilter:['class']});
-      var inner=document.getElementById('addStripModalInner');
-      if(inner) new MutationObserver(function(){ try{ v2PrecutModalCards(); }catch(e){ console.error('v2PrecutModalCards',e); } }).observe(inner,{childList:true,subtree:true});
-    }
-  }
-  function v2AfterBaseChange(){
-    if(!state.baseMetal) return;
-    var precut=v2IsPrecut();
-    var range=precut?v2PrecutSizeRange():BUILDER.ring_size;
-    if(state.ringSize!=null&&!v2SizeAllowed(state.ringSize,range)){
-      var old=state.ringSize; state.ringSize=null;
-      if(state._touched) state._touched.size=false;
-      try{ showRuleToast(precut?(state.baseMetal+' blanks come in sizes '+range.min+' to '+range.max+' — size '+old+' is not available. Please choose your ring size again (Section 1).'):('Size '+old+' is only made for Tungsten and Black Ceramic blanks — please choose your ring size again (Section 1).')); }catch(e){}
-    }
-    try{ rerenderSection('size'); }catch(e){}
-    if(precut) state.sleeve=state.baseMetal;
-    try{ refreshHeaders(); }catch(e){}
-  }
-  function v2PrecutSizeGrid(col){
-    if(!v2IsPrecut()) return;
-    var grid=col.querySelector('.size-grid'); if(!grid) return;
-    var range=v2PrecutSizeRange();
-    grid.innerHTML='';
-    numberRange(range).forEach(function(size){
-      var isQuarter=Math.abs((size/(range.step*2))-Math.round(size/(range.step*2)))>1e-9;
-      grid.appendChild(h('button',{class:'size-btn'+(state.ringSize===size?' selected':'')+(isQuarter?' quarter':''),onClick:function(){ state.ringSize=size; renderSizePanel(col); if(window.renderRing) try{ renderRing(); }catch(e){} try{ updatePrice(); }catch(e){} }},[String(size)]));
-    });
-    if(!col.querySelector('.v2-precut-size-note')){
-      var note=h('p',{class:'v2-precut-size-note'},[state.baseMetal+' rings are made from precut blanks, available in sizes '+range.min+' to '+range.max+' (quarter sizes included).']);
-      grid.parentNode.insertBefore(note,grid.nextSibling);
-    }
-  }
-  function v2BlankDiagram(b,flipped){
-    var list=v2PrecutBlanks()||[], widest=list.reduce(function(m,x){ return Math.max(m,Number(x.width)||0); },0)||Number(b.width)||1;
-    var bar=h('div',{class:'v2-blank-bar',style:{width:Math.round(100*Number(b.width)/widest)+'%',alignSelf:'center'}});
-    v2BlankSegments(b,flipped).forEach(function(sg){
-      bar.appendChild(h('div',{class:'v2-blank-seg '+(sg.t==='base'?'v2-blank-base':'v2-blank-inlay'),style:{flex:String(sg.w)+' 0 0'},title:(sg.t==='base'?state.baseMetal:'Inlay')+' '+sg.w+'mm'},[h('span',{},[sg.w+''])]));
-    });
-    return bar;
-  }
-  function v2RenderBlankPicker(col){
-    var list=v2PrecutBlanks(); if(!list) return;
-    try{ v2PrecutNormalize(); }catch(e){}
-    var cur=v2CurrentBlank();
-    var nav=col.querySelector('.nav-buttons');
-    Array.prototype.slice.call(col.children).forEach(function(ch){ if(ch===nav) return; if(ch.classList&&ch.classList.contains('panel-title')) return; ch.remove(); });
-    var title=col.querySelector('.panel-title'); if(title) title.textContent='Choose Your Blank';
-    var frag=document.createDocumentFragment();
-    frag.appendChild(h('p',{class:'panel-desc'},[state.baseMetal+' rings are made from precut blanks — choose the layout you like, then fill its inlay channels in the next step. The ring width and profile are set by the blank.']));
-    var legend=h('div',{class:'v2-blank-legend'},[h('span',{},[h('i',{class:'v2-blank-base'}),state.baseMetal]),h('span',{},[h('i',{class:'v2-blank-inlay'}),'Inlay channel (numbers = mm)'])]);
-    frag.appendChild(legend);
-    function blankCard(b){
-      var sel=!!(cur&&String(cur.style)===String(b.style));
-      var card=h('div',{class:'mat-card v2-blank-card'+(sel?' selected':'')+(v2BlankIsPlain(b)?' v2-blank-plain':''),role:'button',tabIndex:'0',
-        onClick:function(){ v2PickBlank(b,col); },
-        onKeyDown:function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); v2PickBlank(b,col); } }});
-      card.appendChild(v2BlankDiagram(b,sel&&state.blankFlipped));
-      card.appendChild(h('div',{class:'name'},[v2BlankTitle(b)]));
-      card.appendChild(h('div',{class:'v2-blank-sub'},[v2BlankIsPlain(b)?'No inlays':(b.label||'')]));
-      return card;
-    }
-    var inlayBlanks=list.filter(function(b){ return !v2BlankIsPlain(b); }), plainBlanks=list.filter(v2BlankIsPlain);
-    var grid=h('div',{class:'v2-blank-grid'});
-    inlayBlanks.forEach(function(b){ grid.appendChild(blankCard(b)); });
-    frag.appendChild(grid);
-    if(plainBlanks.length){
-      frag.appendChild(h('h3',{class:'v2-blank-head'},['Plain band — no inlays']));
-      var pgrid=h('div',{class:'v2-blank-grid'});
-      plainBlanks.forEach(function(b){ pgrid.appendChild(blankCard(b)); });
-      frag.appendChild(pgrid);
-    }
-    if(cur&&!v2BlankSymmetric(cur)){
-      frag.appendChild(h('div',{class:'v2-blank-flip'},[h('button',{class:'btn btn-outline btn-sm',type:'button',onClick:function(){ v2FlipBlank(); }},['⇄ Flip layout (mirror image)'])]));
-    }
-    if(nav) col.insertBefore(frag,nav); else col.appendChild(frag);
-  }
-  function v2PickBlank(b,col){
-    var cur=v2CurrentBlank();
-    if(cur&&String(cur.style)===String(b.style)) return;
-    var hadFills=(state.strips||[]).some(function(st){ return st&&st.material!==state.baseMetal&&st.material!=='(choose)'; });
-    v2ApplyBlank(b,false);
-    try{ rerenderSection('width'); }catch(e){}
-    if(window.renderRing) try{ renderRing(); }catch(e){}
-    try{ updatePrice(); }catch(e){}
-    try{ refreshHeaders(); }catch(e){}
-    try{ showOkToast(v2BlankIsPlain(b)?('✓ Plain '+b.width+'mm '+b.profile+' band selected'):(hadFills?'✓ Style '+b.style+' selected — choose your inlays again in the next step':'✓ Style '+b.style+' selected — next, fill its inlay channels')); }catch(e){}
-  }
-  function v2FlipBlank(){
-    var b=v2CurrentBlank(); if(!b) return;
-    state.blankFlipped=!state.blankFlipped;
-    state.strips=(state.strips||[]).slice().reverse(); state.selectedStrip=-1;
-    try{ rerenderSection('width'); }catch(e){}
-    if(state._openSection==='compose'){ var col=document.getElementById('controlsCol'); if(col) renderComposePanel(col); }
-    if(window.renderRing) try{ renderRing(); }catch(e){}
-    try{ updatePrice(); }catch(e){}
-  }
-  // Composer decoration for a precut base (runs after the engine render + v2 enhancements).
-  function v2PrecutDecorate(col){
-    var precut=v2IsPrecut();
-    col.classList.toggle('v2-precut',precut);
-    var oldNote=col.querySelector('#v2-precut-note'); if(oldNote) oldNote.remove();
-    if(!precut) return;
-    var base=state.baseMetal, blank=v2CurrentBlank();
-    var desc=col.querySelector('.panel-desc');
-    if(desc&&blank){ var channels=v2BlankSegments(blank,false).filter(function(sg){ return sg.t==='inlay'; }).length; desc.textContent='Your Style '+blank.style+' blank has '+channels+' inlay channel'+(channels>1?'s':'')+'. Tap a channel to choose its inlay — a channel can also be shared by more than one material when the inlay rules allow. The '+base+' sections are part of the blank and stay as they are.'; }
-    col.querySelectorAll('button').forEach(function(b){ if(/\+\s*Add Inlay/i.test(b.textContent||'')) b.style.display='none'; });
-    var blocks=col.querySelectorAll('.composer-strips .strip-block');
-    blocks.forEach(function(b,i){
-      var st=state.strips[i]; if(!st) return;
-      b.setAttribute('draggable','false');
-      var grip=b.querySelector('.v2-grip'); if(grip) grip.remove();
-      if(st.material===base){ b.classList.add('v2-seg-base'); var x=b.querySelector('.s-remove'); if(x) x.remove(); b.title=base+' — part of the precut blank'; }
-      else if(st.material==='(choose)'){ b.classList.add('v2-seg-empty'); var nm=b.querySelector('.s-name'); if(nm) nm.textContent='Tap to fill'; var x2=b.querySelector('.s-remove'); if(x2) x2.remove(); b.title='Tap to choose the inlay for this channel'; }
-    });
-    var composer=col.querySelector('.composer-strips');
-    if(composer&&!composer.__v2precutTouch){
-      composer.__v2precutTouch=true;
-      composer.addEventListener('touchstart',function(e){ if(v2IsPrecut()) e.stopPropagation(); },{capture:true,passive:true});   // no long-press drag on a blank
-    }
-    col.querySelectorAll('.v2-strip-rows .v2-strip-row').forEach(function(r,i){
-      var st=state.strips[i]; if(!st) return;
-      r.querySelectorAll('.v2-row-group').forEach(function(g){ g.remove(); });
-      var name=r.querySelector('.v2-row-name'); var min=name&&name.querySelector('.v2-row-min'); if(min) min.remove();
-      r.appendChild(h('span',{class:'v2-row-w v2-row-w-fixed'},[parseFloat(st.width)+'mm']));
-      if(st.material===base){ r.classList.add('v2-row-base'); if(name){ name.textContent=(i+1)+'. '+base+' — part of the blank'; name.title='Part of the precut blank'; } }
-      else if(st.material==='(choose)'){ r.classList.add('v2-row-empty'); if(name){ name.textContent=(i+1)+'. Inlay channel — tap to choose a material'; name.title='Tap to choose the inlay for this channel'; } }
-    });
-    col.querySelectorAll('p').forEach(function(p){ if(/Tap a strip to edit/.test(p.textContent||'')) p.textContent='Tap a channel to choose its inlay · tap an inlay to change it · × removes an inlay'; });
-    var empty=(state.strips||[]).filter(function(st){ return st&&st.material==='(choose)'; }).length;
-    var text=blank?(v2BlankIsPlain(blank)?('Plain '+blank.width+'mm '+blank.profile+' band — no inlay channels. Choose an inlay blank in Width & Profile to add inlays.'):('Style '+blank.style+' · '+blank.width+'mm '+blank.profile+(blank.label?' · '+blank.label:'')+(state.blankFlipped?' (mirrored)':''))):(base+' blank');
-    if(blank&&v2BlankIsPlain(blank)){ col.insertBefore(h('div',{id:'v2-precut-note',class:'v2-precut-note v2-precut-done'},[h('span',{},[text])]),col.querySelector('.composer-strips')||null); return; }
-    text+=empty?(' — '+empty+' channel'+(empty>1?'s':'')+' still empty. Tap a channel to choose its inlay.'):' — all channels filled ✓';
-    var note=h('div',{id:'v2-precut-note',class:'v2-precut-note '+(empty?'v2-precut-open':'v2-precut-done')},[h('span',{},[text])]);
-    if(blank&&!v2BlankSymmetric(blank)) note.appendChild(h('button',{class:'btn btn-outline btn-sm',type:'button',onClick:function(){ v2FlipBlank(); }},['⇄ Flip']));
-    if(composer&&composer.parentNode===col) col.insertBefore(note,composer); else col.appendChild(note);
   }
 
   function installComposerUx(){
     if(_v2PrevRenderComposePanel||typeof renderComposePanel!=='function') return;
     _v2PrevRenderComposePanel=renderComposePanel;
     renderComposePanel=function(col){
-      try{ v2PrecutNormalize(); }catch(e){}
       try{ v2FlatOnlySweep(state.profile); }catch(e){}
       try{ v2FinishSweep(); }catch(e){}
       try{ v2BaseRuleSweep(); }catch(e){}
       try{ v2EdgeAutoBump(); }catch(e){}
-      try{ v2PrecutNormalize(); }catch(e){}   // sweeps may have removed an inlay → re-open its channel
       var keepY=(_v2LockY===null&&v2PageScrolls())?(window.scrollY||window.pageYOffset||0):null; // 2026-08-23: page must stay put on mobile edits
       var out=_v2PrevRenderComposePanel(col);
       try{ v2EnhanceComposer(col); }catch(e){}
       try{ v2RenderEdgeNote(col); }catch(e){}
-      try{ v2PrecutDecorate(col); }catch(e){}
+      try{ v2RenderPrecutNote(col); }catch(e){}
       try{ refreshHeaders(); }catch(e){}
       if(keepY!==null&&Math.abs((window.scrollY||window.pageYOffset||0)-keepY)>1) window.scrollTo(0,keepY);
       return out;
