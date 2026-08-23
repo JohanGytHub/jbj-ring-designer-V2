@@ -610,7 +610,7 @@ body.staff-mode{padding-bottom:64px}
    bottom offset clears the site chat bubble that the parent page floats over
    the bottom-right corner (Johan, 2026-08-20 — total was hidden behind Chat). */
 .v2-price{
-  position:fixed;right:20px;bottom:104px;z-index:9000;
+  position:fixed;right:20px;bottom:20px;z-index:9000;
   display:flex;flex-direction:column;align-items:flex-end;gap:2px;
   background:var(--bg2);border:1px solid var(--border);
   border-radius:var(--radius-lg);padding:12px 20px;
@@ -627,7 +627,7 @@ body.staff-mode{padding-bottom:64px}
   font-size:1.9rem;font-weight:500;line-height:1.05;color:var(--gold);
 }
 @media(max-width:767px){
-  .v2-price{right:12px;bottom:88px;padding:9px 15px}
+  .v2-price{right:12px;bottom:16px;padding:9px 15px}
   .v2-price .v2-price-amount{font-size:1.45rem}
 }
 
@@ -732,6 +732,18 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
   transition:transform .2s ease,border-color .2s ease,background .2s ease;
 }
 .v2-theme-btn:hover{transform:translateY(-2px);border-color:rgba(142,155,255,.6);background:rgba(104,118,255,.14)}
+/* 2026-08-23 full-screen embed: "Back to site" pill (shown only when the builder runs inside the Shopify page) */
+.v2-exit-btn{
+  pointer-events:auto;position:absolute;top:26px;right:80px;height:40px;padding:0 14px;
+  display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.14);border-radius:13px;
+  color:#d7dced;background:rgba(255,255,255,.055);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+  font-family:var(--font-body);font-size:.78rem;font-weight:600;letter-spacing:.01em;text-decoration:none;white-space:nowrap;
+  transition:transform .2s ease,border-color .2s ease,background .2s ease;
+}
+.v2-exit-btn[hidden]{display:none}
+.v2-exit-btn:hover{transform:translateY(-2px);border-color:rgba(142,155,255,.6);background:rgba(104,118,255,.14);color:#fff}
+.v2-exit-btn .v2-exit-arrow{font-size:1rem;line-height:1}
+.v2-exit-btn .v2-exit-short{display:none}
 
 .v2-layout{display:grid;grid-template-columns:minmax(420px,55%) minmax(0,1fr);gap:0;min-height:100vh;min-height:100dvh}
 
@@ -867,7 +879,7 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
 
 .v2-price{
   /* bottom clears the site chat bubble floated over the corner by the parent page (Johan, 2026-08-20) */
-  right:22px;bottom:104px;z-index:9000;min-width:154px;padding:13px 16px;align-items:flex-start;
+  right:22px;bottom:22px;z-index:9000;min-width:154px;padding:13px 16px;align-items:flex-start;
   border:1px solid var(--border);border-radius:16px;background:var(--glass);color:var(--gold);
   -webkit-backdrop-filter:blur(20px) saturate(1.2);backdrop-filter:blur(20px) saturate(1.2);
   box-shadow:0 18px 50px rgba(18,24,40,.18);pointer-events:none;
@@ -887,6 +899,9 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
   .v2-header{position:absolute;width:100%;height:82px;padding:17px 18px}
   .studio-brand-mark{width:38px;height:38px;border-radius:12px}
   .v2-theme-btn{top:19px;right:18px;width:38px;height:38px}
+  .v2-exit-btn{top:19px;right:66px;height:38px;padding:0 12px;font-size:.74rem}
+  .v2-exit-btn .v2-exit-long{display:none}
+  .v2-exit-btn .v2-exit-short{display:inline}
   .v2-layout{display:block;min-height:0}
   .v2-preview{position:relative;height:52svh;min-height:370px;padding:92px 18px 72px}
   .v2-preview::after{width:min(78vw,520px);box-shadow:0 0 0 44px rgba(114,128,255,.025),0 0 0 88px rgba(114,128,255,.015)}
@@ -903,7 +918,7 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
   .tool-tab.active::after{bottom:-13px}
   .acc-panel{scroll-margin-top:96px}
   .acc-stack{padding-top:24px;padding-bottom:220px}
-  .v2-price{right:12px;bottom:88px;min-width:132px;padding:10px 13px}
+  .v2-price{right:12px;bottom:16px;min-width:132px;padding:10px 13px}
   .v2-price .v2-price-amount{font-size:1.22rem}
 }
 @media(max-width:480px){
@@ -933,6 +948,8 @@ html.v2-modal-lock body{position:fixed!important;left:0;right:0;width:100%;overf
 .v2-precut-list li{margin:2px 0}
 .v2-precut-size-note,.v2-precut-sleeve-note,.v2-precut-width-note{font-size:.78rem;color:var(--text-muted);margin:10px 0 0;line-height:1.5}
 .v2-precut-width-note{margin:6px 0 10px}
+.tool-tab.v2-locked{opacity:.42;cursor:not-allowed}
+.btn-nav.v2-locked,.btn-nav:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}
 .v2-grip{position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.5rem;letter-spacing:1px;color:var(--strip-text-dim);opacity:.7;pointer-events:none;line-height:1}
 .v2-strip-rows{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
 .v2-strip-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
@@ -973,6 +990,7 @@ html.v2-modal-lock body{position:fixed!important;left:0;right:0;width:100%;overf
   <header class="v2-header">
     <span class="studio-brand-mark" aria-hidden="true">JBJ</span>
     <span class="studio-brand-copy"><span class="studio-eyebrow">Jewelry by Johan</span><h1>Custom Ring Studio</h1></span>
+    <a class="v2-exit-btn" id="v2-exit-btn" href="https://www.jewelrybyjohan.com/" target="_top" rel="noopener" hidden aria-label="Leave the ring builder and go back to the website"><span class="v2-exit-arrow" aria-hidden="true">←</span><span class="v2-exit-long">Back to site</span><span class="v2-exit-short">Back</span></a>
     <button class="v2-theme-btn" id="v2-theme-btn" aria-label="Toggle editor theme">◐</button>
   </header>
   <div id="v2-error-host"></div>
@@ -4975,6 +4993,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
         tool.classList.toggle('filled',p.classList.contains('filled'));
       }
     });
+    if(typeof v2ApplyPrecutLocks==='function') try{ v2ApplyPrecutLocks(); }catch(e){}
   }
 
   // ---- Price (Estimated Total is always visible; amount mirrors the engine's server estimate) ----
@@ -5041,6 +5060,11 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(id && ['width','compose','sleeve','finish'].indexOf(id)>=0 && !state.baseMetal){
       if(window.showRuleToast) try{ showRuleToast('Please choose a Base Metal first (Section 2) before making changes here.'); }catch(e){}
       id='metal';   // send them to Base Metal instead
+    }
+    // Precut blanks (Johan 2026-08-23): steps 5–7 stay closed until the Tungsten / Ceramic layout is a blank.
+    if(id && typeof v2PrecutLocked==='function' && V2_PRECUT_LOCKED_STEPS.indexOf(id)>=0 && v2PrecutLocked()){
+      try{ showRuleToast('Please finish the inlay layout first — '+state.baseMetal+' rings must match one of the precut blanks (see the note in Add/Remove Inlays).'); }catch(e){}
+      id='compose';
     }
     state._openSection=id; syncStep(id);
     ringAudit.record('navigation',id?'section_opened':'section_closed',{from:previousSection,to:id});
@@ -6077,9 +6101,28 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       },0); });
     }
   }
+  // Gate (Johan 2026-08-23): on a blank the layout must be complete before Continue / steps 5–7.
+  var V2_PRECUT_LOCKED_STEPS=['sleeve','finish','summary'];
+  function v2PrecutLocked(){ return v2IsPrecut() && !v2MatchBlank(state.strips); }
+  function v2ApplyPrecutLocks(){
+    var locked=false; try{ locked=v2PrecutLocked(); }catch(e){}
+    V2_PRECUT_LOCKED_STEPS.forEach(function(id){
+      var tab=document.querySelector('.tool-tab[data-sec="'+id+'"]');
+      if(tab){ tab.classList.toggle('v2-locked',locked); if(locked) tab.setAttribute('aria-disabled','true'); else tab.removeAttribute('aria-disabled'); }
+    });
+    var col=document.getElementById('controlsCol');
+    if(col){
+      col.querySelectorAll('.nav-buttons .btn-next').forEach(function(btn){
+        btn.disabled=locked;
+        btn.title=locked?('Finish the inlay layout first — '+state.baseMetal+' rings must match one of the precut blanks.'):'';
+        btn.classList.toggle('v2-locked',locked);
+      });
+    }
+  }
   // Composer note (same place as the edge-rule note): which blank the layout matches, or the layouts available.
   function v2RenderPrecutNote(col){
     var old=col.querySelector('#v2-precut-note'); if(old) old.remove();
+    try{ v2ApplyPrecutLocks(); }catch(e){}
     if(!v2IsPrecut()) return;
     try{ v2ConstrainComposerWidth(col); }catch(e){}
     var base=state.baseMetal, m=v2MatchBlank(state.strips);
@@ -6091,8 +6134,8 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       note=h('div',{id:'v2-precut-note',class:'v2-precut-note v2-precut-done'},[txt]);
     } else {
       var avail=(v2PrecutBlanks()||[]).filter(function(b){ return !v2BlankIsPlain(b)&&Math.abs(Number(b.width)-state.ringWidth)<1e-9&&b.profile===state.profile; });
-      var kids=[h('strong',{},['⚠ '+base+' rings are made from precut blanks — this layout isn’t one of them. ']),
-        'Adjust the strip widths to match a blank (either direction). '+(avail.length?(state.ringWidth+'mm '+state.profile+' blanks:'):('No '+state.ringWidth+'mm '+state.profile+' '+base+' blanks with inlays exist — change the width or profile.'))];
+      var kids=[h('strong',{},['⚠ '+base+' rings are made from precut blanks — this layout isn’t one of them, so you can’t continue yet. ']),
+        'Adjust the strip widths so the band matches a blank (either direction), with no width left over. '+(avail.length?(state.ringWidth+'mm '+state.profile+' blanks:'):('No '+state.ringWidth+'mm '+state.profile+' '+base+' blanks with inlays exist — change the width or profile.'))];
       if(avail.length){
         var ul=h('ul',{class:'v2-precut-list'});
         avail.forEach(function(b){ ul.appendChild(h('li',{},['Style '+b.style+': '+v2BlankLayoutText(b)])); });
@@ -6244,9 +6287,22 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     };
   })();
 
+  // Full-screen embed (2026-08-23, Johan): on the Shopify page the builder covers the whole
+  // screen, so it carries its own way back to the website. Shown only inside an iframe;
+  // the target is the KV business.website_url (fallback = the live site).
+  function installExitLink(){
+    var a=document.getElementById('v2-exit-btn'); if(!a) return;
+    var embedded=false; try{ embedded=(window.self!==window.top); }catch(e){ embedded=true; }
+    if(!embedded) return;
+    try{ if(typeof BUSINESS!=='undefined'&&BUSINESS&&/^https:\/\//.test(BUSINESS.website_url)) a.href=BUSINESS.website_url; }catch(e){}
+    a.hidden=false;
+    if(!a.__v2audit){ a.__v2audit=true; a.addEventListener('click',function(){ try{ ringAudit.record('navigation','exit_to_site',{href:a.href}); }catch(e){} }); }
+  }
+
   window.__V2_ROUTER__={ openSection, toggleSection, render:function(){ renderAll(); refreshHeaders(); updatePriceBar(); }, V2_STEPS, updatePriceBar, applyDependencyRules, rerenderSection };
 
   document.addEventListener('DOMContentLoaded', async function(){
+    installExitLink();   // even when the configuration fails to load, the customer can leave the builder
     const ready=await init();
     if(!ready)return;
     // Move the profile cross-section display from the hidden scaffold into the visible host under the ring
@@ -6292,6 +6348,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     installStripModalObserver();
     installModalScrollLock();
     installPrecutBlanks();
+    installExitLink();
     installJewelerLineObserver();
     installUpdateHook();
     renderAll();
