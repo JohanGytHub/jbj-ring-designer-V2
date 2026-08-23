@@ -920,6 +920,10 @@ body{background:#090b10;background-attachment:scroll;overflow:hidden}
 .v2-toast-x{position:absolute;top:5px;right:7px;background:none;border:none;color:inherit;opacity:.7;font-size:1.05rem;cursor:pointer;line-height:1;padding:2px 5px}
 .v2-toast-x:hover{opacity:1}
 .v2-ok-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10000;background:#14381f;color:#c9f0d2;padding:11px 20px;border-radius:12px;border:1px solid #2e6b3d;font-size:.84rem;line-height:1.4;max-width:420px;text-align:center;box-shadow:var(--shadow-lg);animation:toastIn .3s ease,toastOut .4s ease 2.6s forwards;pointer-events:none;font-family:'DM Sans',sans-serif}
+/* 2026-08-23 mobile page lock while a modal/lightbox is open: on phones the page itself scrolls, and finger/wheel scrolling inside the Add/Edit Inlay modal chained through to the page behind it, so the composer was out of view after Add Strip / Save Changes. Router installModalScrollLock() adds the class + restores the exact scroll position on close. Desktop (≥900px) is untouched. */
+html.v2-modal-lock{overflow:hidden!important;overscroll-behavior:none}
+html.v2-modal-lock body{position:fixed!important;left:0;right:0;width:100%;overflow:hidden!important}
+.modal-overlay,.modal,.modal .mat-grid,.swatch-lightbox{overscroll-behavior:contain}
 .v2-grip{position:absolute;top:2px;left:50%;transform:translateX(-50%);font-size:.5rem;letter-spacing:1px;color:var(--strip-text-dim);opacity:.7;pointer-events:none;line-height:1}
 .v2-strip-rows{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
 .v2-strip-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
@@ -5909,6 +5913,47 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var grid=col.querySelector('.mat-grid,.compose-band');
     if(grid&&grid.parentNode===col) col.insertBefore(note,grid); else col.insertBefore(note,col.firstChild&&col.firstChild.nextSibling?col.firstChild.nextSibling:col.firstChild);
   }
+  // ── MOBILE MODAL SCROLL LOCK (2026-08-23, Johan) ──
+  // On phones the page itself scrolls (body), so a finger/wheel scroll inside the
+  // Add/Edit Inlay modal or the swatch lightbox chained through to the page behind
+  // it and the composer ended up out of view after "Add Strip" / "Save Changes".
+  // While any overlay is open the page is frozen at its current position and put
+  // back to exactly that position when the overlay closes. Desktop (≥900px)
+  // scrolls inside .studio-controls and is left untouched.
+  var _v2LockY=null;
+  function v2PageScrolls(){ return !(window.matchMedia&&window.matchMedia('(min-width:900px)').matches); }
+  function v2AnyOverlayOpen(){ return !!document.querySelector('.modal-overlay.open,.swatch-lightbox.open'); }
+  function v2LockPage(){
+    if(_v2LockY!==null||!v2PageScrolls()) return;
+    _v2LockY=window.scrollY||window.pageYOffset||0;
+    document.body.style.top=(-_v2LockY)+'px';
+    document.documentElement.classList.add('v2-modal-lock');
+  }
+  function v2UnlockPage(){
+    if(_v2LockY===null) return;
+    var y=_v2LockY; _v2LockY=null;
+    document.documentElement.classList.remove('v2-modal-lock');
+    document.body.style.top='';
+    window.scrollTo(0,y);
+  }
+  function v2SyncPageLock(){ if(v2AnyOverlayOpen()) v2LockPage(); else v2UnlockPage(); }
+  function installModalScrollLock(){
+    if(window.__v2ModalLock) return; window.__v2ModalLock=true;
+    var classWatch=new MutationObserver(function(){ v2SyncPageLock(); });
+    function watch(el){ if(el&&!el.__v2lockWatched){ el.__v2lockWatched=true; classWatch.observe(el,{attributes:true,attributeFilter:['class']}); } }
+    document.querySelectorAll('.modal-overlay,.swatch-lightbox').forEach(watch);
+    // overlays created later (the swatch lightbox is built on first use)
+    new MutationObserver(function(muts){
+      muts.forEach(function(m){ Array.prototype.forEach.call(m.addedNodes,function(n){
+        if(n.nodeType!==1) return;
+        if(n.matches&&n.matches('.modal-overlay,.swatch-lightbox')) watch(n);
+        if(n.querySelectorAll) n.querySelectorAll('.modal-overlay,.swatch-lightbox').forEach(watch);
+      }); });
+      v2SyncPageLock();
+    }).observe(document.body,{childList:true});
+    // Crossing the desktop breakpoint while locked (rotation) releases the page cleanly.
+    window.addEventListener('resize',function(){ if(_v2LockY!==null&&!v2PageScrolls()) v2UnlockPage(); });
+  }
   function installComposerUx(){
     if(_v2PrevRenderComposePanel||typeof renderComposePanel!=='function') return;
     _v2PrevRenderComposePanel=renderComposePanel;
@@ -5917,9 +5962,11 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       try{ v2FinishSweep(); }catch(e){}
       try{ v2BaseRuleSweep(); }catch(e){}
       try{ v2EdgeAutoBump(); }catch(e){}
+      var keepY=(_v2LockY===null&&v2PageScrolls())?(window.scrollY||window.pageYOffset||0):null; // 2026-08-23: page must stay put on mobile edits
       var out=_v2PrevRenderComposePanel(col);
       try{ v2EnhanceComposer(col); }catch(e){}
       try{ v2RenderEdgeNote(col); }catch(e){}
+      if(keepY!==null&&Math.abs((window.scrollY||window.pageYOffset||0)-keepY)>1) window.scrollTo(0,keepY);
       return out;
     };
   }
@@ -5970,6 +6017,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     installFlatOnlyProfileGuard();
     installWidthIncrementRule();
     installStripModalObserver();
+    installModalScrollLock();
     installJewelerLineObserver();
     installUpdateHook();
     renderAll();
