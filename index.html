@@ -1823,6 +1823,8 @@ function applyDesignerConfig(config,options={}){
   WIDTHS.splice(0,WIDTHS.length,...numberRange(BUILDER.ring_width));
   POPULAR_WOODS=new Set(BUILDER.popular_woods);
   NEEDS_METAL_EDGES_GROUPS=new Set(BUILDER.rules.needs_metal_edges_groups);
+  PROTECTED_NEIGHBOR_GROUPS=new Set(BUILDER.rules.protected_neighbor_groups||[]);
+  PROTECTED_NEIGHBOR_MATERIALS=new Set(BUILDER.rules.protected_neighbor_materials||[]);
   FLAT_ONLY_INLAYS=new Set(BUILDER.rules.flat_only_inlay_materials||[]);
   FLAT_ONLY_PROFILE=BUILDER.rules.flat_only_profile||'Flat';
   HARD_EDGE_BASES=BUILDER.rules.hard_edge_base_metals||{};
@@ -3863,6 +3865,10 @@ let HAMMERED_FINISH=null;
 let HAMMERED_PROFILES=[];
 let HAMMERED_MIN_EDGE=0;
 let NON_COMFORT_SLEEVES=new Set();
+// Staff rules (2026-08-25): these materials need metal — or meteorite, which acts as
+// metal — directly on both sides (KV rules.protected_neighbor_groups/materials).
+let PROTECTED_NEIGHBOR_GROUPS=new Set();
+let PROTECTED_NEIGHBOR_MATERIALS=new Set();
 // Returns {kind,suffix,toast} when `name` cannot be used as a strip with the current
 // base metal / finish, else null. kind 'finish' is resolved by changing the finish,
 // the others by removing/blocking the material.
@@ -3899,6 +3905,18 @@ function isSwarf(matName){
 function isSolidLapidary(matName){
   const d=DATA.m[matName];
   return d && (d.g===BUILDER.groups.lapidary||d.g===BUILDER.groups.dinosaur_bone) && d.s==='Solid';
+}
+
+// Staff rules (2026-08-25): meteorite acts as metal for adjacency purposes.
+function isMeteoriteGroup(matName){
+  const d=DATA.m[matName];
+  return !!(d && BUILDER.groups.meteorite && d.g===BUILDER.groups.meteorite);
+}
+function isMetalOrMeteorite(matName){ return isMetal(matName)||isMetalGroup(matName)||isMeteoriteGroup(matName); }
+function needsProtectedNeighbors(matName){
+  const d=DATA.m[matName];
+  if(!d)return false;
+  return PROTECTED_NEIGHBOR_GROUPS.has(d.g)||PROTECTED_NEIGHBOR_MATERIALS.has(matName);
 }
 
 // Check if two adjacent non-metal materials violate a rule.
@@ -3950,6 +3968,19 @@ function checkPairAdjacency(matA,matB){
   if(matB===BUILDER.rules.whale_bone_material && dA.g===BUILDER.groups.woods && dA.s==='Solid')
     return `"${matB}" cannot be next to "${matA}" (solid wood). Add a metal pinstripe.`;
 
+  // Staff rules (2026-08-25): Enamel / Vinyl Record / Ash / solid Onyx need metal
+  // (or meteorite, which acts as metal) directly on both sides.
+  if(needsProtectedNeighbors(matA) && !isMetalOrMeteorite(matB))
+    return `"${matA}" must have metal (or meteorite) on each side — cannot be directly next to "${matB}". Add a metal pinstripe.`;
+  if(needsProtectedNeighbors(matB) && !isMetalOrMeteorite(matA))
+    return `"${matB}" must have metal (or meteorite) on each side — cannot be directly next to "${matA}". Add a metal pinstripe.`;
+
+  // Staff rules (2026-08-25): crushed ≠ crushed, and crushed ≠ solid stone
+  if(isSwarf(matA) && isSwarf(matB))
+    return `"${matA}" and "${matB}" are both crushed materials — add a metal pinstripe between them.`;
+  if((isSwarf(matA) && isSolidLapidary(matB)) || (isSwarf(matB) && isSolidLapidary(matA)))
+    return `Crushed material cannot be directly next to solid stone. Add a metal pinstripe.`;
+
   // "Must have metal edges" groups: if two such materials are adjacent (both non-metal), that's a violation
   if(needsMetalEdges(matA) && !isMetal(matB))
     return `"${matA}" must have metal on each side — cannot be directly next to "${matB}".`;
@@ -3978,6 +4009,19 @@ function validateProposedStrips(strips){
     const rightEdgeOk=rightOk||(i===strips.length-1 && usedW<state.ringWidth);
     if(!leftOk) return `"${s.material}" must have metal on its left side.`;
     if(!rightEdgeOk) return `"${s.material}" must have metal on its right side.`;
+  }
+  // Staff rules (2026-08-25): Enamel / Vinyl Record / Ash / solid Onyx need metal
+  // (or meteorite) on both sides — so they can never be an outermost strip either.
+  for(let i=0;i<strips.length;i++){
+    const s=strips[i];
+    if(s.material==='(choose)'||isMetal(s.material))continue;
+    if(!needsProtectedNeighbors(s.material))continue;
+    const leftOk=i>0 && isMetalOrMeteorite(strips[i-1].material);
+    const rightOk=i<strips.length-1 && isMetalOrMeteorite(strips[i+1].material);
+    const usedW=strips.reduce((sum,st)=>sum+st.width,0);
+    const rightEdgeOk=rightOk||(i===strips.length-1 && usedW<state.ringWidth);
+    if(!leftOk) return `"${s.material}" must have metal (or meteorite) on its left side.`;
+    if(!rightEdgeOk) return `"${s.material}" must have metal (or meteorite) on its right side.`;
   }
   // Material/base-metal combinations prohibited by KV.
   for(const s of strips){
@@ -4081,9 +4125,10 @@ function openAddStripModal(){
         [`A ${bmMinW}mm ${state.baseMetal} pinstripe will be auto-inserted before this strip.`]));
     }
 
-    // WIDTH FIRST
+    // WIDTH BLOCK (built here, appended AFTER the material section — Johan 2026-08-25:
+    // "Move Strip Width below Materials")
     const displayAvail=roomForAuto?remaining-bmMinW:remaining;
-    modal.appendChild(h('div',{style:{marginBottom:'14px'}},[
+    const widthBlock=h('div',{style:{margin:'14px 0'}},[
       h('label',{style:{display:'block',fontSize:'.75rem',fontWeight:'500',color:'var(--text-dim)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'.05em'}},['Strip Width']),
       h('div',{class:'width-picker',style:{margin:'0'}},[
         h('input',{type:'number',min:String(BUILDER.strip_width.min),max:String(Math.max(BUILDER.strip_width.min,availableForInlay)),step:String(BUILDER.strip_width.step),value:String(stripWidth),
@@ -4099,9 +4144,9 @@ function openAddStripModal(){
         h('span',{style:{fontSize:'.68rem',color:'var(--text-muted)',marginLeft:'8px'}},
           ['Available: '+displayAvail.toFixed(2)+'mm'+(roomForAuto&&needsAutoBefore?' (after auto '+state.baseMetal+')':'')])
       ])
-    ]));
+    ]);
 
-    // THEN MATERIAL
+    // MATERIAL FIRST
     modal.appendChild(h('label',{style:{display:'block',fontSize:'.75rem',fontWeight:'500',color:'var(--text-dim)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'.05em'}},['Material']));
 
     // Group filter
@@ -4155,6 +4200,9 @@ function openAddStripModal(){
       h('a',{href:BUSINESS.contact_url,target:'_blank',rel:'noopener',style:{color:'var(--gold)',textDecoration:'underline'}},['Contact us']),
       ' — we may be able to source it for you.'
     ]));
+
+    // STRIP WIDTH below the material section (Johan 2026-08-25)
+    modal.appendChild(widthBlock);
 
     // Confirm button
     modal.appendChild(h('div',{style:{marginTop:'16px',display:'flex',gap:'8px',justifyContent:'flex-end'}},[
@@ -4222,8 +4270,9 @@ function openEditStripModal(idx){
     modal.appendChild(h('div',{style:{fontSize:'.72rem',color:'var(--text-muted)',marginBottom:'12px'}},
       ['Currently: '+strip.material+' at '+strip.width+'mm']));
 
-    // WIDTH FIRST
-    modal.appendChild(h('div',{style:{marginBottom:'14px'}},[
+    // WIDTH BLOCK (built here, appended AFTER the material section — Johan 2026-08-25:
+    // "Move Strip Width below Materials")
+    const widthBlock=h('div',{style:{margin:'14px 0'}},[
       h('label',{style:{display:'block',fontSize:'.75rem',fontWeight:'500',color:'var(--text-dim)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'.05em'}},['Width']),
       h('div',{class:'width-picker',style:{margin:'0'}},[
         h('input',{type:'number',min:String(BUILDER.strip_width.min),max:String(Math.max(BUILDER.strip_width.min,maxW)),step:String(BUILDER.strip_width.step),value:String(stripWidth),
@@ -4238,9 +4287,9 @@ function openEditStripModal(idx){
         h('span',{style:{fontSize:'.68rem',color:'var(--text-muted)',marginLeft:'8px'}},
           ['Max: '+maxW.toFixed(2)+'mm'])
       ])
-    ]));
+    ]);
 
-    // MATERIAL
+    // MATERIAL FIRST
     modal.appendChild(h('label',{style:{display:'block',fontSize:'.75rem',fontWeight:'500',color:'var(--text-dim)',marginBottom:'6px',textTransform:'uppercase',letterSpacing:'.05em'}},['Material']));
 
     // Group filter
@@ -4292,6 +4341,9 @@ function openEditStripModal(idx){
       h('a',{href:BUSINESS.contact_url,target:'_blank',rel:'noopener',style:{color:'var(--gold)',textDecoration:'underline'}},['Contact us']),
       ' — we may be able to source it for you.'
     ]));
+
+    // STRIP WIDTH below the material section (Johan 2026-08-25)
+    modal.appendChild(widthBlock);
 
     // Confirm
     modal.appendChild(h('div',{style:{marginTop:'16px',display:'flex',gap:'8px',justifyContent:'flex-end'}},[
@@ -4378,7 +4430,7 @@ function renderSleevePanel(col){
       materials=SLEEVE_MATERIALS.filter(n=>DATA.m[n]&&n!==state.baseMetal);
     }
     if(gName==='other'){
-      materials=Object.keys(SLEEVE_OTHER_MATERIALS).filter(n=>n!==state.baseMetal);
+      materials=Object.keys(SLEEVE_OTHER_MATERIALS).filter(n=>DATA.m[n]&&n!==state.baseMetal);
     }
     if(gName==='woods'){
       // Show woods that have sleeve capability
@@ -4399,6 +4451,9 @@ function renderSleevePanel(col){
         class:'mat-card'+(state.sleeve===name?' selected':''),
         onClick:()=>{
           state.sleeve=name;
+          // Staff rule (2026-08-25): base-metal edges that now differ from the sleeve
+          // may need bumping to mi.edge_diff_sleeve — self-heal like the hard-edge rule.
+          if(window.v2EdgeAutoBump){ try{ v2EdgeAutoBump(); }catch(e){} }
           renderSleevePanel(col);
           renderRing();
           updatePrice();
@@ -5475,11 +5530,21 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var prev=document.querySelector('.summary-section .engraving-preview');
     if(prev){ prev.style.fontFamily=engFontStack(font); prev.style.fontStyle='normal'; }
   }
-  // ---- Wood sleeve: laser engraving not available ----
-  function isWoodSleeve(){
-    var sl=state.sleeve;
-    return !!(sl && typeof DATA!=='undefined' && DATA && DATA.m && DATA.m[sl] && DATA.m[sl].g===BUILDER.engraving.unavailable_sleeve_group);
+  // ---- Blocked inner sleeves: laser engraving not available ----
+  // Staff rules (2026-08-25): no engraving on Ring-Armor-coated or Damascus sleeves.
+  // KV builder_config.engraving.unavailable_sleeve_groups/materials (Woods, Crushed Wood,
+  // Enamel + Damascus); the old singular unavailable_sleeve_group key is the fallback.
+  // The base metal is the inner surface when no separate sleeve is chosen.
+  function engravingBlockedSleeve(){
+    if(typeof DATA==='undefined'||!DATA||!DATA.m) return null;
+    var sl=state.sleeve||state.baseMetal;
+    if(!sl||!DATA.m[sl]) return null;
+    var eng=BUILDER.engraving||{};
+    var blockedGroups=eng.unavailable_sleeve_groups||(eng.unavailable_sleeve_group?[eng.unavailable_sleeve_group]:[]);
+    var blockedMaterials=eng.unavailable_sleeve_materials||[];
+    return (blockedGroups.indexOf(DATA.m[sl].g)>=0||blockedMaterials.indexOf(sl)>=0)?sl:null;
   }
+  function isWoodSleeve(){ return !!engravingBlockedSleeve(); }
   function applyWoodSleeveEngravingRule(host){
     if(!host) return;
     // locate the engraving .summary-section (the one whose h4 mentions "Engraving")
@@ -5500,7 +5565,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
         var note=document.createElement('p');
         note.className='eng-wood-note';
         note.style.fontSize='.8rem'; note.style.color='var(--text-muted)'; note.style.lineHeight='1.5'; note.style.margin='6px 0 0';
-        note.textContent='Laser engraving isn\u2019t available on a wood inner sleeve.';
+        note.textContent='Laser engraving isn\u2019t available on a '+(engravingBlockedSleeve()||'wood')+' inner sleeve.';
         engSection.appendChild(note);
       }
     }
@@ -5910,6 +5975,21 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       var he=edgesAtLeast(HAMMERED_MIN_EDGE);
       if(!he.leftOk||!he.rightOk) issues.push('The '+HAMMERED_FINISH+' finish needs at least '+HAMMERED_MIN_EDGE+'mm '+base+' edges on both sides of the inlays.');
     }
+    // Staff rule (2026-08-25): a metal or Mokume EDGE strip that differs from the inner
+    // sleeve needs mi.edge_diff_sleeve (typically 1.5mm). An open band still closes with a
+    // base-metal remainder, so only a closed band checks its last strip. Precut blanks are
+    // exempt (their edges are the blank's fixed base-metal segments).
+    if(!(typeof v2IsPrecut==='function'&&v2IsPrecut())){
+      var effSleeve=state.sleeve||base;
+      var edgeIdx=(remainder>eps||strips.length===1)?[0]:[0,strips.length-1];
+      edgeIdx.forEach(function(i){
+        var s=strips[i]; if(!s) return;
+        var em=DATA.m[s.material]; if(!em||!em.mi) return;
+        if(!isMetalGroup(s.material)&&em.g!==BUILDER.groups.mokume_composite) return;
+        var min=(s.material===effSleeve)?(Number(em.mi.edge_same_sleeve)||0):(Number(em.mi.edge_diff_sleeve)||0);
+        if(min>0&&s.width<min-eps) issues.push('A '+s.material+' edge that differs from the '+effSleeve+' sleeve must be at least '+min+'mm wide.');
+      });
+    }
     return issues;
   }
   // Self-heal (2026-08-20, Johan): edge strips of a hard base metal that sit below the
@@ -5917,7 +5997,17 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   // minimum automatically when free width allows, instead of stranding the design.
   function v2EdgeAutoBump(){
     var base=state.baseMetal; if(!base) return;
-    var hardMin=Number(HARD_EDGE_BASES[base])||0; if(!hardMin) return;
+    var hardMin=Number(HARD_EDGE_BASES[base])||0;
+    // Staff rule (2026-08-25): base-metal edges on a ring whose inner sleeve is a
+    // different material need mi.edge_diff_sleeve (typically 1.5mm) — bump them too.
+    // Precut blanks keep their fixed blank edges (base = sleeve there anyway).
+    var edgeMin=hardMin;
+    if(!(typeof v2IsPrecut==='function'&&v2IsPrecut())){
+      var effSleeve=state.sleeve||base;
+      var bm=DATA.m&&DATA.m[base];
+      if(base!==effSleeve&&bm&&bm.mi) edgeMin=Math.max(edgeMin,Number(bm.mi.edge_diff_sleeve)||0);
+    }
+    if(!edgeMin) return;
     var strips=state.strips||[]; if(strips.length<2) return;
     if(!strips.some(function(s){ return s&&s.material!==base; })) return;
     var used=strips.reduce(function(a,s){ return a+((s&&s.width)||0); },0);
@@ -5926,12 +6016,12 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     [0,strips.length-1].forEach(function(i){
       var s=strips[i];
       if(!s||s.material!==base) return;
-      if(s.width>=hardMin-0.001) return;
-      var need=hardMin-s.width;
-      if(free>=need-0.001){ s.width=hardMin; free-=need; bumped=true; }
+      if(s.width>=edgeMin-0.001) return;
+      var need=edgeMin-s.width;
+      if(free>=need-0.001){ s.width=edgeMin; free-=need; bumped=true; }
     });
     if(!bumped) return;
-    try{ showRuleToast(base+' edges were increased to the '+hardMin+'mm manufacturing minimum for '+base+' rings.'); }catch(e){}
+    try{ showRuleToast(base+' edges were increased to the '+edgeMin+'mm manufacturing minimum.'); }catch(e){}
     try{ renderRing(); }catch(e){}
     try{ if(typeof requestEstimate==='function') requestEstimate(); }catch(e){}
   }
@@ -6129,8 +6219,9 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var note;
     if(m){
       var b=m.blank;
+      var corner=(b.corner==='beveled')?', beveled corners':'';
       var txt=v2BlankIsPlain(b)?('✓ Plain '+b.width+'mm '+b.profile+' '+base+' band — available as a precut blank.')
-        :('✓ Matches '+base+' blank Style '+b.style+' ('+v2BlankLayoutText(b)+(m.flipped?', mirrored':'')+').');
+        :('✓ Matches '+base+' blank Style '+b.style+' ('+v2BlankLayoutText(b)+corner+(m.flipped?', mirrored':'')+').');
       note=h('div',{id:'v2-precut-note',class:'v2-precut-note v2-precut-done'},[txt]);
     } else {
       var avail=(v2PrecutBlanks()||[]).filter(function(b){ return !v2BlankIsPlain(b)&&Math.abs(Number(b.width)-state.ringWidth)<1e-9&&b.profile===state.profile; });
@@ -6138,7 +6229,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
         'Adjust the strip widths so the band matches a blank (either direction), with no width left over. '+(avail.length?(state.ringWidth+'mm '+state.profile+' blanks:'):('No '+state.ringWidth+'mm '+state.profile+' '+base+' blanks with inlays exist — change the width or profile.'))];
       if(avail.length){
         var ul=h('ul',{class:'v2-precut-list'});
-        avail.forEach(function(b){ ul.appendChild(h('li',{},['Style '+b.style+': '+v2BlankLayoutText(b)])); });
+        avail.forEach(function(b){ ul.appendChild(h('li',{},['Style '+b.style+': '+v2BlankLayoutText(b)+(b.corner==='beveled'?' — beveled corners':'')])); });
         kids.push(ul);
       }
       note=h('div',{id:'v2-precut-note',class:'v2-precut-note v2-precut-open'},kids);
@@ -6299,6 +6390,9 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     if(!a.__v2audit){ a.__v2audit=true; a.addEventListener('click',function(){ try{ ringAudit.record('navigation','exit_to_site',{href:a.href}); }catch(e){} }); }
   }
 
+  // Staff rule (2026-08-25): the engine's sleeve panel calls the edge auto-bump when a
+  // different-material sleeve is chosen, so expose it from the router closure.
+  window.v2EdgeAutoBump=v2EdgeAutoBump;
   window.__V2_ROUTER__={ openSection, toggleSection, render:function(){ renderAll(); refreshHeaders(); updatePriceBar(); }, V2_STEPS, updatePriceBar, applyDependencyRules, rerenderSection };
 
   document.addEventListener('DOMContentLoaded', async function(){
