@@ -1597,6 +1597,87 @@ function debounceSlider(fn){return function(){clearTimeout(_dbTimer);_dbTimer=se
 const _staffMode = new URLSearchParams(window.location.search).has('staff');
 if(_staffMode) document.body.classList.add('staff-mode');
 
+// ── STAFF KEY (2026-08-25, Johan): ?staff now requires the staff pricing key ──
+// POST /staff/session exchanges the key for a signed Bearer token (worker TTL, default 8h);
+// the token rides on /estimate and /staff/components. Without it the worker treats the
+// request as a normal customer request (no breakdown; no totals while prices are hidden).
+let _staffToken=null;
+const STAFF_TOKEN_STORAGE_KEY='jbj_staff_session';
+function staffStoredToken(){
+  try{
+    const raw=localStorage.getItem(STAFF_TOKEN_STORAGE_KEY);
+    if(!raw)return null;
+    const rec=JSON.parse(raw);
+    if(!rec||typeof rec.t!=='string'||!(rec.exp>Date.now()+60000))return null;
+    return rec.t;
+  }catch(e){return null;}
+}
+function staffStoreToken(token,expiresIn){
+  _staffToken=token;
+  try{localStorage.setItem(STAFF_TOKEN_STORAGE_KEY,JSON.stringify({t:token,exp:Date.now()+Math.max(60,Number(expiresIn)||0)*1000}));}catch(e){}
+}
+function staffExitStaffMode(){
+  const url=new URL(window.location.href);
+  url.searchParams.delete('staff');
+  window.location.replace(url.toString());
+}
+function staffAuthExpired(){
+  _staffToken=null;
+  try{localStorage.removeItem(STAFF_TOKEN_STORAGE_KEY);}catch(e){}
+  showStaffKeyOverlay('Your staff session expired — please enter the key again.');
+}
+function showStaffKeyOverlay(message){
+  if(document.getElementById('staffKeyOverlay'))return;
+  const overlay=document.createElement('div');
+  overlay.id='staffKeyOverlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,12,16,.82);display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML=
+    '<div style="background:#161a22;border:1px solid #2a3242;border-radius:12px;padding:26px 24px;max-width:360px;width:100%;color:#e8ecf3;font-family:inherit">'+
+    '<div style="font-size:1rem;font-weight:600;margin-bottom:6px">Staff pricing</div>'+
+    '<div id="staffKeyMsg" style="font-size:.8rem;color:#9aa4b5;margin-bottom:14px"></div>'+
+    '<input id="staffKeyInput" type="password" autocomplete="current-password" placeholder="Staff pricing key" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid #2a3242;background:#0d1017;color:#e8ecf3;font-size:.85rem;margin-bottom:8px">'+
+    '<div id="staffKeyErr" style="display:none;color:#e05d5d;font-size:.75rem;margin-bottom:8px"></div>'+
+    '<button id="staffKeyBtn" class="btn btn-gold" style="width:100%;padding:10px">Sign in</button>'+
+    '<button id="staffKeyCancel" style="width:100%;margin-top:8px;padding:8px;background:none;border:none;color:#9aa4b5;font-size:.75rem;cursor:pointer;text-decoration:underline">Continue as a customer instead</button>'+
+    '</div>';
+  document.body.appendChild(overlay);
+  document.getElementById('staffKeyMsg').textContent=message||'Enter the staff pricing key to see staff prices.';
+  const input=document.getElementById('staffKeyInput');
+  const err=document.getElementById('staffKeyErr');
+  const btn=document.getElementById('staffKeyBtn');
+  async function submit(){
+    const key=input.value.trim();
+    if(!key){input.focus();return;}
+    btn.disabled=true;btn.textContent='Signing in…';err.style.display='none';
+    try{
+      const response=await fetch(SERVICES.staff_session_url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
+      const json=await response.json().catch(()=>({}));
+      if(!response.ok||!json.ok||typeof json.token!=='string')throw new Error(json.error||('HTTP '+response.status));
+      staffStoreToken(json.token,json.expiresIn);
+      overlay.remove();
+      try{ringAudit.record('lifecycle','staff_signed_in');}catch(e){}
+      try{staffPriceCache.clear();}catch(e){}
+      _lastEstimateKey=null;
+      try{requestEstimate();}catch(e){}
+      try{if(window.__V2_ROUTER__)__V2_ROUTER__.render();}catch(e){}
+    }catch(error){
+      err.textContent=error.message==='Invalid staff pricing key'?'That key is not correct — please try again.':String(error.message||'Sign-in failed');
+      err.style.display='block';
+      btn.disabled=false;btn.textContent='Sign in';
+      input.focus();input.select();
+    }
+  }
+  btn.addEventListener('click',submit);
+  input.addEventListener('keydown',function(e){if(e.key==='Enter')submit();});
+  document.getElementById('staffKeyCancel').addEventListener('click',staffExitStaffMode);
+  setTimeout(function(){input.focus();},50);
+}
+function initStaffAuth(){
+  if(!_staffMode)return;
+  _staffToken=staffStoredToken();
+  if(!_staffToken)showStaffKeyOverlay();
+}
+
 // ── UNDO STACK ──
 const undoStack=[];
 let UNDO_MAX=0;
@@ -1927,12 +2008,24 @@ async function sendEstimateRequest(){
   const seq=++_estimateSeq;
   try{
     const headers={'Content-Type':'application/json'};
+    if(_staffMode&&_staffToken)headers['Authorization']='Bearer '+_staffToken; // staff key (2026-08-25)
     const body=_staffMode?Object.assign({staff:true},design):design;
     const response=await fetch(SERVICES.estimate_url,{method:'POST',headers,body:JSON.stringify(body)});
     const json=await response.json().catch(()=>({}));
     if(seq!==_estimateSeq)return; // a newer request superseded this one
-    if(response.ok&&json.ok&&Number.isFinite(json.total)&&json.estimateToken){
-      state.serverTotal=json.total;
+    if(response.status===401&&_staffMode){
+      // staff token expired — re-prompt for the key; '—' without the outage banner
+      clearEstimate();
+      _lastEstimateKey=null;
+      _estimatePending=false;
+      refreshPriceDisplays();
+      staffAuthExpired();
+      return;
+    }
+    // Price hiding (2026-08-25): with SHOW_PRICES=n the public response carries a signed
+    // token but NO total — that still counts as a complete estimate for the quote flow.
+    if(response.ok&&json.ok&&json.estimateToken&&(Number.isFinite(json.total)||json.total==null)){
+      state.serverTotal=Number.isFinite(json.total)?json.total:null;
       state.estimateToken=json.estimateToken;
       state.staffBreakdown=Array.isArray(json.breakdown)?json.breakdown:null;
       _lastEstimateKey=key;
@@ -2045,12 +2138,15 @@ async function flushStaffPriceQueue(){
   const items=[..._staffPriceQueue.values()].slice(0,250);
   _staffPriceQueue.clear();
   try{
+    const componentHeaders={'Content-Type':'application/json'};
+    if(_staffToken)componentHeaders['Authorization']='Bearer '+_staffToken; // staff key (2026-08-25)
     const response=await fetch(SERVICES.staff_components_url,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:componentHeaders,
       body:JSON.stringify({design:designPayload(),items:items.map(item=>({key:item.key,kind:item.kind,material:item.material,width:item.width}))})
     });
     const json=await response.json().catch(()=>({}));
+    if(response.status===401){staffAuthExpired();return;}
     if(!response.ok||!json.ok||!Array.isArray(json.prices))return;
     if(staffPriceCache.size>1500)staffPriceCache.clear();
     json.prices.forEach(entry=>{
@@ -2727,6 +2823,12 @@ function updateLegend(){
 }
 
 // ── UPDATE PRICE DISPLAY ──
+// Estimate readiness (2026-08-25): with prices hidden (SHOW_PRICES=n) the public
+// /estimate response carries no total — the signed token alone is the complete estimate.
+function estimateComplete(){
+  return Boolean(state.estimateToken)&&(Number.isFinite(state.serverTotal)||!PUBLIC_SHOW_PRICES);
+}
+
 function priceDisplayText(){
   if(!PUBLIC_SHOW_PRICES)return '';
   if(!designReady())return '—';
@@ -2752,7 +2854,7 @@ function fillStaffBreakdown(){
 function refreshSubmitGate(){
   const btn=document.getElementById('quoteSubmitBtn');
   if(!btn||state._quoteSubmitted||btn.dataset.busy==='1')return;
-  const ready=Boolean(state.estimateToken)&&Number.isFinite(state.serverTotal);
+  const ready=estimateComplete();
   btn.disabled=!ready;
   btn.style.opacity=ready?'1':'0.6';
   btn.style.cursor=ready?'pointer':'not-allowed';
@@ -2902,7 +3004,7 @@ function showExitEmailModal(onDone){
     overlay.querySelector('.btn-exit-submit').textContent='Sending...';
     overlay.querySelector('.btn-exit-submit').disabled=true;
     // Fire the quote to the worker
-    if(!state.estimateToken||!Number.isFinite(state.serverTotal)){
+    if(!estimateComplete()){
       ringAudit.record('validation','exit_quote_blocked_pricing_incomplete');
       overlay.querySelector('.btn-exit-submit').disabled=false;
       overlay.querySelector('.btn-exit-submit').textContent='Send my quote';
@@ -4695,7 +4797,7 @@ function renderSummaryPanel(col){
       cursor:state.estimateToken?'pointer':'not-allowed'
     },
     onClick:async()=>{
-      if(!state.estimateToken||!Number.isFinite(state.serverTotal)){
+      if(!estimateComplete()){
         ringAudit.record('validation','quote_blocked_estimate_unavailable');
         submitStatus.style.display='block';
         submitStatus.style.color='#c0392b';
@@ -4891,6 +4993,7 @@ async function init(){
     applyDesignerConfig(config);
     loadDesignFromURL();
     updatePrice();
+    initStaffAuth();
     const overlay=$('#addStripModal');
     if(overlay&&!overlay.__auditCloseInstalled){
       overlay.__auditCloseInstalled=true;
