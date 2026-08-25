@@ -2027,6 +2027,7 @@ async function sendEstimateRequest(){
     if(response.ok&&json.ok&&json.estimateToken&&(Number.isFinite(json.total)||json.total==null)){
       state.serverTotal=Number.isFinite(json.total)?json.total:null;
       state.estimateToken=json.estimateToken;
+      _estimateIssuedAt=Date.now(); // token freshness (2026-08-25)
       state.staffBreakdown=Array.isArray(json.breakdown)?json.breakdown:null;
       _lastEstimateKey=key;
       _estimatePending=false;
@@ -2052,6 +2053,24 @@ async function sendEstimateRequest(){
     refreshPriceDisplays();
   }
 }
+
+// ── TOKEN FRESHNESS (2026-08-25, Johan) ──
+// The signed estimate token expires 15 minutes after the customer's last design change,
+// but customers often take longer than that to fill in their details before submitting.
+// Re-run the estimate on a timer (and when the tab regains focus) once the held token is
+// older than 8 minutes, so /quote never receives a stale token. The token is replaced in
+// place on success (sendEstimateRequest bypasses the unchanged-design skip), so the
+// Submit button never flickers off during a refresh.
+let _estimateIssuedAt=0;
+function refreshEstimateToken(){
+  try{
+    if(state.estimateToken&&!_estimatePending&&designReady()&&(Date.now()-_estimateIssuedAt>8*60*1000)){
+      sendEstimateRequest();
+    }
+  }catch(e){}
+}
+setInterval(refreshEstimateToken,5*60*1000);
+document.addEventListener('visibilitychange',function(){ if(!document.hidden)refreshEstimateToken(); });
 
 // ── STAFF MODE: per-item price labels (?staff — no key required) ──
 
