@@ -197,6 +197,8 @@ input,select{font-family:inherit;color:inherit}
 .mat-group-btn{padding:8px 16px;border-radius:999px;border:1px solid var(--border);font-size:.74rem;font-weight:500;color:var(--text-dim);transition:var(--transition);white-space:nowrap;background:var(--bg2)}
 .mat-group-btn:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
 .mat-group-btn.active{border-color:transparent;color:var(--done-dot-text);background:var(--gold-grad);box-shadow:var(--shadow-sm)}
+.mat-group-btn .mat-group-sub{display:block;font-size:.58rem;font-weight:400;color:inherit;opacity:.68;margin-top:2px;letter-spacing:.02em;pointer-events:none}
+.mat-group-btn.active .mat-group-sub{display:none}
 
 .mat-search{width:100%;padding:13px 18px;background:var(--input-bg);border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;color:var(--text);margin-bottom:16px;outline:none;transition:var(--transition);box-shadow:var(--shadow-sm)}
 .mat-search:focus{border-color:var(--gold);box-shadow:0 0 0 4px var(--gold-wash)}
@@ -1811,6 +1813,12 @@ function metalGroupLabel(g){
   return g;
 }
 
+function metalGroupSub(g){
+  if(g===BUILDER.precious_group)return 'Gold · Platinum · Silver';
+  if(BUILDER.metal_groups&&g===BUILDER.metal_groups[0])return 'Titanium · Tungsten · Zirconium · Damascus…';
+  return '';
+}
+
 function getMinWidth(materialName, usage='solid_inlay'){
   if(!DATA||!DATA.m[materialName])throw new Error('Unknown material: '+materialName);
   const mins=DATA.m[materialName].mi;
@@ -3194,7 +3202,10 @@ function renderMetalPanel(col){
   }
 
   metalGroups.forEach(g=>{
-    const btn=h('button',{class:'mat-group-btn'+(g===activeGroup?' active':''),'data-g':g,onClick:()=>renderGroup(g)},[metalGroupLabel(g)]);
+    const btnKids=[h('span',{class:'mat-group-name'},[metalGroupLabel(g)])];
+    const gSub=metalGroupSub(g);
+    if(gSub) btnKids.push(h('span',{class:'mat-group-sub'},[gSub]));
+    const btn=h('button',{class:'mat-group-btn'+(g===activeGroup?' active':''),'data-g':g,onClick:()=>renderGroup(g)},btnKids);
     groups.appendChild(btn);
   });
   col.appendChild(groups);
