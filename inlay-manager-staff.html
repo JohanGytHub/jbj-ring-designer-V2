@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>JBJ Inlay Price Manager — Staff</title>
+<style>
+:root { --ink:#1c2430; --mut:#5b6572; --line:#d9dee5; --bg:#f2f4f7; --card:#ffffff; --teal:#0d7d8c; --teal-dk:#0a606c; --red:#b3261e; --green:#1c7c3c; --amber:#8a5a00; --amber-bg:#fff4dc; }
+* { box-sizing:border-box; }
+body { margin:0; font:14px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+header { background:#12333a; color:#fff; padding:10px 16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+header h1 { font-size:17px; margin:0; font-weight:600; }
+.badge { background:#1d4b54; border-radius:20px; padding:3px 12px; font-size:12.5px; }
+.badge.warn { background:#7a4a00; }
+main { display:flex; gap:12px; padding:12px 16px; align-items:flex-start; flex-wrap:wrap; }
+.col { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; }
+#listCol { flex:0 0 295px; max-width:295px; }
+#detailCol { flex:1 1 420px; min-width:320px; }
+#cartCol { flex:0 0 330px; max-width:330px; }
+h2 { font-size:14px; margin:0 0 8px; }
+input, select, button { font:inherit; }
+input[type=text], input[type=number], input[type=password], select { border:1px solid var(--line); border-radius:7px; padding:6px 9px; background:#fff; color:var(--ink); }
+input:focus, select:focus { outline:2px solid #9fc9d0; }
+#search { width:100%; margin-bottom:7px; }
+.filters { display:flex; gap:8px; align-items:center; margin-bottom:8px; font-size:12.5px; color:var(--mut); }
+.filters select { flex:1; min-width:0; padding:4px 6px; font-size:12.5px; }
+#count { font-size:12px; color:var(--mut); margin-bottom:6px; }
+#list { max-height:64vh; overflow:auto; border-top:1px solid var(--line); }
+.mrow { padding:7px 8px; border-bottom:1px solid #eef1f4; cursor:pointer; display:flex; gap:8px; align-items:center; }
+.mrow:hover { background:#f2f8f9; }
+.mrow.sel { background:#e2f1f3; }
+.mrow .nm { flex:1; }
+.tag { font-size:10.5px; border-radius:9px; padding:1px 7px; background:#eceff3; color:var(--mut); white-space:nowrap; }
+.tag.hid { background:#fbe4e2; color:var(--red); }
+button.act { background:var(--teal); color:#fff; border:none; border-radius:7px; padding:7px 14px; cursor:pointer; }
+button.act:hover { background:var(--teal-dk); }
+button.act:disabled { background:#9fb2b6; cursor:default; }
+button.lite { background:#fff; border:1px solid var(--line); border-radius:7px; padding:5px 11px; cursor:pointer; color:var(--ink); }
+button.danger { background:var(--red); color:#fff; border:none; border-radius:7px; padding:6px 12px; cursor:pointer; }
+.sec { border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:10px; }
+.sec h3 { margin:0 0 7px; font-size:13px; }
+.frow { display:flex; align-items:center; gap:8px; padding:3px 0; }
+.frow label { flex:0 0 150px; color:var(--mut); font-size:12.5px; }
+.frow .cur { flex:0 0 90px; text-align:right; font-variant-numeric:tabular-nums; }
+.frow input { width:100px; }
+.wtable { display:grid; grid-template-columns:70px 90px 100px; gap:3px 10px; align-items:center; max-height:330px; overflow:auto; padding-right:4px; }
+.wtable .hd { font-size:11.5px; color:var(--mut); position:sticky; top:0; background:var(--card); padding-bottom:2px; }
+.wtable .cur { text-align:right; font-variant-numeric:tabular-nums; }
+.wtable input { width:95px; padding:3px 7px; }
+.pct { display:flex; gap:7px; align-items:center; margin:6px 0 8px; font-size:12.5px; color:var(--mut); }
+.pct input { width:75px; }
+.note { background:var(--amber-bg); border:1px solid #ead9a8; border-radius:7px; padding:8px 10px; font-size:12.5px; color:var(--amber); margin-top:8px; }
+.hint { font-size:12.5px; color:var(--mut); }
+.crow { border-bottom:1px solid #eef1f4; padding:6px 2px; display:flex; gap:7px; align-items:flex-start; font-size:12.8px; }
+.crow .tx { flex:1; }
+.crow .rm { background:none; border:none; color:var(--red); font-size:15px; cursor:pointer; line-height:1; padding:2px 4px; }
+.prow { border-bottom:1px solid #eef1f4; padding:6px 2px; font-size:12.6px; }
+.prow .meta { color:var(--mut); font-size:11.5px; }
+.prow select { padding:2px 5px; font-size:12px; margin-top:3px; }
+.stale { color:var(--amber); font-size:11.5px; }
+#msg { position:fixed; left:16px; right:16px; bottom:12px; z-index:50; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+.toast { border-radius:8px; padding:9px 14px; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.18); background:#20323d; color:#fff; max-width:640px; }
+.toast.ok { background:var(--green); }
+.toast.err { background:var(--red); }
+.big { font-size:15px; font-weight:600; }
+.okline { color:var(--green); font-size:12.5px; }
+#staffName { width:100%; margin:4px 0 8px; }
+.help { font-size:12.5px; color:var(--mut); background:#eef4f5; border-radius:8px; padding:8px 10px; margin-bottom:8px; }
+hr.thin { border:0; border-top:1px solid var(--line); margin:12px 0 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>JBJ Inlay Price Manager — Staff</h1>
+  <span class="badge" id="verBadge">Loading…</span>
+  <span class="badge warn" id="pendBadge" hidden></span>
+</header>
+
+
+<main>
+  <section class="col" id="listCol">
+    <input type="text" id="search" placeholder="Search materials — try koa, dino, agate…" oninput="renderList()">
+    <button class="lite" style="width:100%; margin-bottom:7px" onclick="showAddForm()">+ Add a new material</button>
+    <button class="lite" style="width:100%; margin-bottom:7px" onclick="showAddMetalForm()">+ Add a new metal</button>
+    <div class="filters">
+      <select id="groupFilter" onchange="renderList()"><option value="">All groups</option></select>
+      <label><input type="checkbox" id="hiddenOnly" onchange="renderList()"> hidden</label>
+    </div>
+    <div id="count"></div>
+    <div id="list"></div>
+  </section>
+
+  <section class="col" id="detailCol">
+    <div class="help" id="helpBox">
+      <b>How it works:</b> scroll or search the list on the left, click a material, type new prices (only the lines you want to change) or use Hide / Restore, press <b>Stage these changes</b>. "+ Add a new material" creates one as a copy of an existing material. "+ Add a new metal" adds a metal to the Alternative or Precious tab (you type its prices; precious golds price themselves by the live formula). Metals also get <b>Hide as Base Metal</b> / <b>Hide as Inlay</b> buttons to hide them from just one place. Repeat as needed, then <b>Submit for approval</b> on the right. Johan reviews and publishes — nothing goes live until he approves.
+    </div>
+    <div id="detail"><span class="hint">Select a material from the list.</span></div>
+  </section>
+
+  <aside class="col" id="cartCol">
+    <h2 id="cartTitle">Changes to submit (0)</h2>
+    <div id="cartList"><span class="hint">Nothing staged yet.</span></div>
+    <div id="staffSubmitBox">
+      <hr class="thin">
+      <label class="hint" for="staffName">Your name (required)</label>
+      <input type="text" id="staffName" maxlength="60" placeholder="e.g. Jackie">
+      <button class="act" style="width:100%" onclick="staffSubmit()">Submit for approval</button>
+    </div>
+    <hr class="thin">
+    <h2 id="pendTitle">Awaiting Johan's review (0)</h2>
+    <div id="pendList"><span class="hint">No pending requests.</span></div>
+  </aside>
+</main>
+
+<div id="msg"></div>
+
+<script>
+'use strict';
+var API = 'https://jbj-spot-prices.johan-475.workers.dev';
+var VIEW_URL = API + '/staff/pricing-view';
+var PENDING_URL = API + '/staff/pending';
+var CLEAR_URL = API + '/staff/pending/clear';
+var PRICING_URL = API + '/pricing';
+
+var view = null;        // trimmed tables (staff + owner browsing)
+var fullData = null;    // owner only: complete pricing JSON
+var pending = [];       // server-side queue
+var cart = [];          // locally staged changes
+var selected = null;
+var ownerMode = false;
+var panelFields = [];   // editable descriptors for the open detail panel
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(n) { return '$' + (Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+function round2(n) { return Math.round(n * 100) / 100; }
+function toast(text, cls) {
+  var box = document.getElementById('msg');
+  var el = document.createElement('div');
+  el.className = 'toast ' + (cls || '');
+  el.textContent = text;
+  box.appendChild(el);
+  setTimeout(function () { el.remove(); }, cls === 'err' ? 8000 : 4500);
+}
+function suggestedVersion(v) {
+  var parts = String(v || '0.0').split('.');
+  var last = Number(parts[parts.length - 1]);
+  if (isFinite(last)) { parts[parts.length - 1] = String(last + 1); return parts.join('.'); }
+  return String(v) + '.1';
+}
+
+// ---------- boot ----------
+boot();
+async function boot() {
+  try { var saved = localStorage.getItem('jbj_staff_name'); if (saved) document.getElementById('staffName').value = saved; } catch (e) {}
+  await loadView();
+  await loadPending();
+}
+
+async function loadView() {
+  try {
+    var r = await fetch(VIEW_URL, { cache: 'no-store' });
+    if (r.status === 404) throw new Error('the pricing server does not have the staff routes yet. Johan must run: npx wrangler deploy --config wrangler.spot.jsonc — then press F5 here.');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    view = await r.json();
+    document.getElementById('verBadge').textContent = 'Live pricing v' + view._version;
+    fillGroupFilter();
+    renderList();
+  } catch (e) {
+    document.getElementById('verBadge').textContent = 'Load failed';
+    toast('Could not load pricing: ' + e.message + ' — check your internet connection and try again (F5).', 'err');
+  }
+}
+
+async function loadPending() {
+  try {
+    var r = await fetch(PENDING_URL, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    pending = (await r.json()).pending || [];
+  } catch (e) { pending = []; }
+  renderPending();
+}
+
+function fillGroupFilter() {
+  var groups = {};
+  Object.keys(view.materials).forEach(function (n) { groups[view.materials[n].g] = 1; });
+  var sel = document.getElementById('groupFilter');
+  sel.innerHTML = '<option value="">All groups</option>' + Object.keys(groups).sort().map(function (g) {
+    return '<option value="' + esc(g) + '">' + esc(g) + '</option>';
+  }).join('');
+}
+
+// ---------- material list ----------
+var listNames = [];
+function renderList() {
+  if (!view) return;
+  var q = document.getElementById('search').value.trim().toLowerCase();
+  var g = document.getElementById('groupFilter').value;
+  var hidOnly = document.getElementById('hiddenOnly').checked;
+  var hidden = view.disabled_materials || [];
+  listNames = Object.keys(view.materials).sort().filter(function (n) {
+    if (q && n.toLowerCase().indexOf(q) === -1) return false;
+    if (g && view.materials[n].g !== g) return false;
+    if (hidOnly && hidden.indexOf(n) === -1) return false;
+    return true;
+  });
+  document.getElementById('count').textContent = listNames.length + ' of ' + Object.keys(view.materials).length + ' materials';
+  var html = '';
+  for (var i = 0; i < listNames.length; i++) {
+    var n = listNames[i];
+    var isHid = hidden.indexOf(n) !== -1;
+    html += '<div class="mrow' + (n === selected ? ' sel' : '') + '" data-i="' + i + '">' +
+      '<span class="nm">' + esc(n) + '</span>' +
+      (isHid ? '<span class="tag hid">Hidden</span>' : '') +
+      '<span class="tag">' + esc(view.materials[n].g) + '</span></div>';
+  }
+  document.getElementById('list').innerHTML = html || '<div class="hint" style="padding:8px">No matches.</div>';
+}
+document.getElementById('list').addEventListener('click', function (event) {
+  var row = event.target.closest('.mrow');
+  if (!row) return;
+  selected = listNames[Number(row.dataset.i)];
+  renderList();
+  renderDetail();
+});
+
+// ---------- detail panel ----------
+var MOKUME_GROUP = 'Mokume Composite';
+var FORMULA_GROUPS = { 'Metals': 1, 'Metals Precious': 1 };
+
+function widthTableHtml(title, table, op, material, extra) {
+  var startIndex = panelFields.length;
+  var rows = '';
+  for (var i = 0; i < table.length; i++) {
+    var point = table[i];
+    panelFields.push({ op: op, material: material, width: point[0], current: point[1] });
+    rows += '<div>' + point[0] + ' mm</div><div class="cur">' + fmt(point[1]) + '</div>' +
+      '<div><input type="number" step="any" min="0" data-f="' + (panelFields.length - 1) + '" placeholder="new $"></div>';
+  }
+  return '<div class="sec"><h3>' + esc(title) + '</h3>' + (extra || '') +
+    '<div class="pct">Adjust whole table: <input type="number" step="any" id="pct_' + startIndex + '" placeholder="%"> ' +
+    '<button class="lite" onclick="applyPct(' + startIndex + ',' + table.length + ')">Fill new prices</button>' +
+    '<button class="lite" onclick="clearPct(' + startIndex + ',' + table.length + ')">Clear</button></div>' +
+    '<div class="wtable"><div class="hd">Width</div><div class="hd cur">Current</div><div class="hd">New</div>' + rows + '</div></div>';
+}
+
+function applyPct(start, count) {
+  var pct = Number(document.getElementById('pct_' + start).value);
+  if (!isFinite(pct) || pct === 0) { toast('Enter a % first, e.g. 5 or -10.', 'err'); return; }
+  for (var i = start; i < start + count; i++) {
+    var input = document.querySelector('input[data-f="' + i + '"]');
+    if (input) input.value = round2(panelFields[i].current * (1 + pct / 100));
+  }
+}
+function clearPct(start, count) {
+  for (var i = start; i < start + count; i++) {
+    var input = document.querySelector('input[data-f="' + i + '"]');
+    if (input) input.value = '';
+  }
+}
+
+function renderDetail() {
+  var box = document.getElementById('detail');
+  if (!selected || !view) { box.innerHTML = '<span class="hint">Select a material from the list.</span>'; return; }
+  panelFields = [];
+  var name = selected;
+  var info = view.materials[name];
+  var hidden = (view.disabled_materials || []).indexOf(name) !== -1;
+  var html = '<div class="big">' + esc(name) + '</div>' +
+    '<div class="hint" style="margin:2px 0 8px">' + esc(info.g) + (info.s ? ' · ' + esc(info.s) : '') +
+    (hidden ? ' · <b style="color:var(--red)">Hidden from customers</b>' : ' · visible to customers') + '</div>' +
+    (hidden
+      ? '<button class="act" onclick="stageHideRestore(\'restore\')">Restore (show to customers again)</button>'
+      : '<button class="danger" onclick="stageHideRestore(\'hide\')">Hide from customers</button>') +
+    '<span class="hint" style="margin-left:8px">Hiding is safe and reversible — this is how inlays are deleted.</span>';
+
+  if (FORMULA_GROUPS[info.g]) {
+    var baseHidden = (view.disabled_base_metals || []).indexOf(name) !== -1;
+    var inlayHidden = (view.disabled_metal_inlays || []).indexOf(name) !== -1;
+    html += '<div class="sec"><h3>Metal visibility (scoped)</h3>' +
+      '<div class="hint" style="margin:0 0 6px">Metals only: hide it as a Base Metal choice but keep it as an inlay, or the other way round. "Hide from customers" above hides it everywhere.</div>' +
+      (baseHidden
+        ? '<button class="act" onclick="stageHideRestore(\'restore_base\')">Restore as Base Metal</button>'
+        : '<button class="danger" onclick="stageHideRestore(\'hide_base\')">Hide as Base Metal</button>') + ' ' +
+      (inlayHidden
+        ? '<button class="act" onclick="stageHideRestore(\'restore_inlay\')">Restore as Inlay</button>'
+        : '<button class="danger" onclick="stageHideRestore(\'hide_inlay\')">Hide as Inlay</button>') +
+      '<div class="hint" style="margin-top:4px">' +
+      (baseHidden ? 'Now hidden from the Base Metal step. ' : 'Now offered as a Base Metal. ') +
+      (inlayHidden ? 'Now hidden from the Add Inlay list (its own ring edges still work).' : 'Now offered as an inlay.') +
+      '</div></div>';
+  }
+
+  var priced = false;
+
+  var base = view.base_prices[name];
+  if (base) {
+    var fields = Object.keys(base).filter(function (k) { return typeof base[k] === 'number'; }).sort();
+    if (fields.length) {
+      priced = true;
+      html += '<div class="sec"><h3>Prices</h3>';
+      fields.forEach(function (field) {
+        panelFields.push({ op: 'set_base', material: name, field: field, current: base[field] });
+        html += '<div class="frow"><label>' + esc(field.replace(/_/g, ' ')) + '</label>' +
+          '<span class="cur">' + fmt(base[field]) + '</span>' +
+          '<input type="number" step="any" min="0" data-f="' + (panelFields.length - 1) + '" placeholder="new $"></div>';
+      });
+      html += '</div>';
+    }
+    if (Array.isArray(base.inlay_by_width) && base.inlay_by_width.length) {
+      priced = true;
+      html += widthTableHtml('Inlay price by width', base.inlay_by_width, 'set_base_width', name);
+    }
+  }
+
+  var wt = view.width_prices[name];
+  if (Array.isArray(wt) && wt.length) {
+    priced = true;
+    html += widthTableHtml('Price by width', wt, 'set_width', name);
+  }
+
+  var met = view.meteorite_prices.filter(function (r) { return r && r.m === name; });
+  if (met.length) {
+    priced = true;
+    var startIndex = panelFields.length;
+    var rows = '';
+    met.forEach(function (r) {
+      panelFields.push({ op: 'set_meteorite', material: name, width: r.w, current: r.mm });
+      rows += '<div>' + r.w + ' mm</div><div class="cur">' + fmt(r.mm) + '</div>' +
+        '<div><input type="number" step="any" min="0" data-f="' + (panelFields.length - 1) + '" placeholder="new $"></div>';
+    });
+    html += '<div class="sec"><h3>Meteorite price grid</h3>' +
+      '<div class="pct">Adjust whole table: <input type="number" step="any" id="pct_' + startIndex + '" placeholder="%"> ' +
+      '<button class="lite" onclick="applyPct(' + startIndex + ',' + met.length + ')">Fill new prices</button>' +
+      '<button class="lite" onclick="clearPct(' + startIndex + ',' + met.length + ')">Clear</button></div>' +
+      '<div class="wtable"><div class="hd">Width</div><div class="hd cur">Current</div><div class="hd">New</div>' + rows + '</div></div>';
+  }
+
+  if (info.g === MOKUME_GROUP && Array.isArray(view.mokume_prices) && view.mokume_prices.length) {
+    priced = true;
+    var shared = Object.keys(view.materials).filter(function (n) { return view.materials[n].g === MOKUME_GROUP; });
+    html += widthTableHtml('Mokume table — SHARED', view.mokume_prices, 'set_mokume', name,
+      '<div class="note">One table is shared by all ' + shared.length + ' Mokume materials — changing it changes every one of them.</div>');
+  }
+
+  if (!priced) {
+    html += FORMULA_GROUPS[info.g]
+      ? '<div class="note">This metal is priced live by the metal formula (spot price × weight). There are no fixed prices to edit here.</div>'
+      : '<div class="note">No editable price rows were found for this material.</div>';
+  }
+
+  if (panelFields.length) {
+    html += '<div style="margin-top:12px"><button class="act" onclick="stagePanel()">Stage these changes</button> ' +
+      '<span class="hint">Only boxes you filled in are staged.</span></div>';
+  }
+  box.innerHTML = html;
+}
+
+function showAddForm() {
+  if (!view) return;
+  selected = null;
+  renderList();
+  var templates = Object.keys(view.materials).sort().filter(function (n) {
+    var g = view.materials[n].g;
+    return g !== 'Metals' && g !== 'Metals Precious';
+  });
+  document.getElementById('detail').innerHTML =
+    '<div class="big">Add a new material</div>' +
+    '<div class="hint" style="margin:4px 0 10px">The new material starts as an exact copy of an existing one — same group, rules, and prices. After it is published you can find it in the list and change its prices like any other. It will show without a photo until Johan adds a swatch.</div>' +
+    '<div class="frow"><label>New material name</label><input type="text" id="addName" maxlength="60" style="width:240px" placeholder="e.g. Pine (Blue)"></div>' +
+    '<div class="frow"><label>Copy everything from</label><select id="addTemplate" style="max-width:240px">' +
+    templates.map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="hint" style="margin:4px 0 10px">Tip: pick the material it is most like — a new wood from a wood, a new crushed stone from a crushed stone. (To add a metal, use "+ Add a new metal" instead.)</div>' +
+    '<button class="act" onclick="stageAdd()">Stage the new material</button>';
+}
+
+function stageAdd() {
+  var name = document.getElementById('addName').value.trim();
+  var template = document.getElementById('addTemplate').value;
+  if (name.length < 2) { toast('Type the new material name first.', 'err'); return; }
+  if (!/^[A-Za-z0-9][A-Za-z0-9 '()/.&-]{1,59}$/.test(name)) { toast('Name can use letters, numbers, spaces and basic punctuation only.', 'err'); return; }
+  var lower = name.toLowerCase();
+  var exists = Object.keys(view.materials).some(function (n) { return n.toLowerCase() === lower; });
+  if (exists) { toast('"' + name + '" already exists.', 'err'); return; }
+  cartAdd({ op: 'add_material', material: name, template: template });
+  toast('New material "' + name + '" staged (copy of ' + template + ') — submit on the right.', 'ok');
+}
+
+function stageHideRestore(op) {
+  cartAdd({ op: op, material: selected });
+  toast(describeChange({ op: op, material: selected }) + ' — staged, submit it on the right.', 'ok');
+}
+
+// ---------- add a new metal (2026-08-27) ----------
+function showAddMetalForm() {
+  if (!view) return;
+  selected = null;
+  renderList();
+  renderAddMetalForm('Metals');
+}
+
+function metalTemplatesFor(group) {
+  var precious = view.precious_materials || [];
+  return Object.keys(view.materials).sort().filter(function (n) {
+    if (view.materials[n].g !== group) return false;
+    if (group === 'Metals' && precious.indexOf(n) !== -1) return false; // Platinum sits in Metals but is formula-priced
+    if (group === 'Metals' && !view.base_prices[n]) return false;
+    return true;
+  });
+}
+
+function renderAddMetalForm(group) {
+  var isPreciousTab = group === 'Metals Precious';
+  var templates = metalTemplatesFor(group);
+  var pp = view.precious_pricing || { name_tokens: [], gold_karats: [] };
+  var html = '<div class="big">Add a new metal</div>' +
+    '<div class="hint" style="margin:4px 0 10px">The tab also decides HOW it is priced: Alternative Metals use the prices you type below; Precious Metals are priced live by the spot formula (no prices to type). The new metal appears in the Base Metal tab AND as an inlay option. It shows without a photo until Johan adds a swatch.</div>' +
+    '<div class="frow"><label>Tab / pricing type</label><select id="amGroup" onchange="renderAddMetalForm(this.value)">' +
+    '<option value="Metals"' + (isPreciousTab ? '' : ' selected') + '>Alternative Metals — I will type the prices</option>' +
+    '<option value="Metals Precious"' + (isPreciousTab ? ' selected' : '') + '>Precious Metals — priced by the live formula</option>' +
+    '</select></div>' +
+    '<div class="frow"><label>New metal name</label><input type="text" id="amName" maxlength="60" style="width:240px" placeholder="' + (isPreciousTab ? 'e.g. Rose 10K' : 'e.g. Cobalt Chrome') + '"></div>' +
+    '<div class="frow"><label>Copy rules/profiles/finishes from</label><select id="amTemplate" style="max-width:240px" onchange="renderAddMetalPrices()">' +
+    templates.map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '</select></div>';
+  if (isPreciousTab) {
+    html += '<div class="note">The name must contain ' + esc((pp.gold_karats || []).join(', ')) + ' (a gold karat, its own word) or ' + esc((pp.name_tokens || []).join(', ')) + ' — that is how the live formula knows what to charge. Example: "Rose 10K". A brand-new precious metal (e.g. Palladium) needs Johan and Claude first — the spot feed does not carry it.</div>';
+  } else {
+    html += '<div class="hint" style="margin:4px 0 6px">Only the SHAPE is copied (rules, profiles, finishes, minimum widths). Every price below must be typed — no prices are copied.</div><div id="amPrices"></div>';
+  }
+  html += '<div style="margin-top:12px"><button class="act" onclick="stageAddMetal()">Stage the new metal</button></div>';
+  document.getElementById('detail').innerHTML = html;
+  if (!isPreciousTab) renderAddMetalPrices();
+}
+
+function renderAddMetalPrices() {
+  var box = document.getElementById('amPrices');
+  if (!box) return;
+  var template = document.getElementById('amTemplate').value;
+  var base = (template && view.base_prices[template]) || {};
+  var fields = Object.keys(base).filter(function (k) { return typeof base[k] === 'number'; }).sort();
+  var html = '<div class="sec"><h3>Prices — all required (current ' + esc(template) + ' value shown for reference)</h3>';
+  fields.forEach(function (field) {
+    html += '<div class="frow"><label>' + esc(field.replace(/_/g, ' ')) + '</label>' +
+      '<span class="cur">' + fmt(base[field]) + '</span>' +
+      '<input type="number" step="any" min="0" data-amf="' + esc(field) + '" placeholder="new $"></div>';
+  });
+  html += '</div>';
+  if (Array.isArray(base.inlay_by_width) && base.inlay_by_width.length) {
+    html += '<div class="sec"><h3>Inlay price by width — all required</h3>' +
+      '<div class="wtable"><div class="hd">Width</div><div class="hd cur">' + esc(template) + '</div><div class="hd">New</div>';
+    base.inlay_by_width.forEach(function (point) {
+      html += '<div>' + point[0] + ' mm</div><div class="cur">' + fmt(point[1]) + '</div>' +
+        '<div><input type="number" step="any" min="0" data-amw="' + point[0] + '" placeholder="new $"></div>';
+    });
+    html += '</div></div>';
+  }
+  box.innerHTML = html;
+}
+
+function stageAddMetal() {
+  var group = document.getElementById('amGroup').value;
+  var name = document.getElementById('amName').value.trim();
+  var template = document.getElementById('amTemplate').value;
+  if (name.length < 2) { toast('Type the new metal name first.', 'err'); return; }
+  if (!/^[A-Za-z0-9][A-Za-z0-9 '()/.&-]{1,59}$/.test(name)) { toast('Name can use letters, numbers, spaces and basic punctuation only.', 'err'); return; }
+  var lower = name.toLowerCase();
+  if (Object.keys(view.materials).some(function (n) { return n.toLowerCase() === lower; })) { toast('"' + name + '" already exists.', 'err'); return; }
+  if (!template) { toast('No template metal is available for that tab.', 'err'); return; }
+  var entry = { op: 'add_metal', material: name, template: template, group: group };
+  if (group === 'Metals Precious') {
+    var pp = view.precious_pricing || { name_tokens: [], gold_karats: [] };
+    var priceable = (pp.name_tokens || []).some(function (t) { return t && name.indexOf(t) !== -1; }) ||
+      (pp.gold_karats || []).some(function (k) { return new RegExp('(^|\\s)' + k + '(\\s|$)').test(name); });
+    if (!priceable) { toast('A precious metal name must contain ' + (pp.gold_karats || []).join(', ') + ' (or ' + (pp.name_tokens || []).join(', ') + ') — e.g. "Rose 10K".', 'err'); return; }
+  } else {
+    var base = view.base_prices[template] || {};
+    var prices = {}, missing = 0, bad = 0;
+    Object.keys(base).filter(function (k) { return typeof base[k] === 'number'; }).forEach(function (field) {
+      var input = document.querySelector('input[data-amf="' + field + '"]');
+      if (!input || input.value === '') { missing++; return; }
+      var value = Number(input.value);
+      if (!isFinite(value) || value <= 0 || value > 50000) { bad++; return; }
+      prices[field] = round2(value);
+    });
+    var table = null;
+    if (Array.isArray(base.inlay_by_width) && base.inlay_by_width.length) {
+      table = [];
+      base.inlay_by_width.forEach(function (point) {
+        var input = document.querySelector('input[data-amw="' + point[0] + '"]');
+        if (!input || input.value === '') { missing++; return; }
+        var value = Number(input.value);
+        if (!isFinite(value) || value <= 0 || value > 50000) { bad++; return; }
+        table.push([point[0], round2(value)]);
+      });
+    }
+    if (missing || bad) { toast('Every price box must be filled with a price above $0' + (missing ? ' — ' + missing + ' empty' : '') + (bad ? ', ' + bad + ' invalid' : '') + '.', 'err'); return; }
+    entry.prices = prices;
+    if (table) entry.inlay_by_width = table;
+  }
+  cartAdd(entry);
+  toast('New metal "' + name + '" staged for the ' + (group === 'Metals Precious' ? 'Precious' : 'Alternative') + ' Metals tab — submit on the right.', 'ok');
+}
+
+function stagePanel() {
+  var staged = 0, bad = 0;
+  document.querySelectorAll('#detail input[data-f]').forEach(function (input) {
+    if (input.value === '') return;
+    var descriptor = panelFields[Number(input.dataset.f)];
+    var value = Number(input.value);
+    if (!isFinite(value) || value <= 0 || value > 50000) { bad++; return; }
+    if (round2(value) === round2(descriptor.current)) { input.value = ''; return; }
+    var entry = { op: descriptor.op, material: descriptor.material, value: round2(value), before: descriptor.current };
+    if (descriptor.field !== undefined) entry.field = descriptor.field;
+    if (descriptor.width !== undefined) entry.width = descriptor.width;
+    cartAdd(entry);
+    input.value = '';
+    staged++;
+  });
+  if (bad) toast(bad + ' value(s) were invalid (must be a price above $0) and were skipped.', 'err');
+  if (staged) toast(staged + ' change(s) staged — submit on the right when done.', 'ok');
+  else if (!bad) toast('Nothing to stage — type a new price in at least one box first.', 'err');
+}
+
+function cartKey(entry) { return [entry.op, entry.material, entry.field || '', entry.width != null ? entry.width : ''].join('|'); }
+function cartAdd(entry) {
+  var key = cartKey(entry);
+  cart = cart.filter(function (existing) { return cartKey(existing) !== key; });
+  cart.push(entry);
+  renderCart();
+}
+
+function describeChange(entry) {
+  if (entry.op === 'add_material') return 'Add new material "' + entry.material + '" (copy of "' + entry.template + '")';
+  if (entry.op === 'add_metal') return 'Add new metal "' + entry.material + '" to ' + (entry.group === 'Metals Precious' ? 'Precious Metals (formula-priced)' : 'Alternative Metals') + ' — shape of "' + entry.template + '"' + (entry.prices ? ', prices typed' : '');
+  if (entry.op === 'hide_base') return 'Hide "' + entry.material + '" as a Base Metal (still an inlay)';
+  if (entry.op === 'restore_base') return 'Restore "' + entry.material + '" as a Base Metal';
+  if (entry.op === 'hide_inlay') return 'Hide "' + entry.material + '" as an Inlay (still a base metal)';
+  if (entry.op === 'restore_inlay') return 'Restore "' + entry.material + '" as an Inlay';
+  if (entry.op === 'hide') return 'Hide "' + entry.material + '" from customers';
+  if (entry.op === 'restore') return 'Restore "' + entry.material + '"';
+  var target = entry.material;
+  if (entry.op === 'set_base') target += ' — ' + entry.field.replace(/_/g, ' ');
+  else if (entry.op === 'set_mokume') target = 'Mokume shared table — ' + entry.width + ' mm';
+  else target += ' — ' + entry.width + ' mm';
+  var before = entry.before != null ? fmt(entry.before) : '?';
+  return target + ': ' + before + ' → ' + fmt(entry.value);
+}
+
+function renderCart() {
+  document.getElementById('cartTitle').textContent = (ownerMode ? 'My direct changes (' : 'Changes to submit (') + cart.length + ')';
+  var box = document.getElementById('cartList');
+  if (!cart.length) { box.innerHTML = '<span class="hint">Nothing staged yet.</span>'; return; }
+  box.innerHTML = cart.map(function (entry, index) {
+    return '<div class="crow"><span class="tx">' + esc(describeChange(entry)) + '</span>' +
+      '<button class="rm" title="Remove" onclick="cartRemove(' + index + ')">×</button></div>';
+  }).join('');
+}
+function cartRemove(index) { cart.splice(index, 1); renderCart(); }
+
+// ---------- staff submit ----------
+async function staffSubmit() {
+  var name = document.getElementById('staffName').value.trim();
+  if (!name) { toast('Enter your name first.', 'err'); return; }
+  if (!cart.length) { toast('Stage at least one change first.', 'err'); return; }
+  try { localStorage.setItem('jbj_staff_name', name); } catch (e) {}
+  var changes = cart.map(function (entry) {
+    var out = { op: entry.op, material: entry.material };
+    if (entry.field !== undefined) out.field = entry.field;
+    if (entry.width !== undefined) out.width = entry.width;
+    if (entry.value !== undefined) out.value = entry.value;
+    if (entry.template !== undefined) out.template = entry.template;
+    if (entry.group !== undefined) out.group = entry.group;
+    if (entry.prices !== undefined) out.prices = entry.prices;
+    if (entry.inlay_by_width !== undefined) out.inlay_by_width = entry.inlay_by_width;
+    return out;
+  });
+  try {
+    var r = await fetch(PENDING_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staffName: name, changes: changes }) });
+    var result = await r.json();
+    if (!r.ok) throw new Error(result.error + (result.validationErrors ? ' — ' + result.validationErrors.join('; ') : ''));
+    cart = [];
+    renderCart();
+    await loadPending();
+    toast('Submitted ' + result.submitted + ' change(s) for approval. Let Johan know — nothing goes live until he publishes.', 'ok');
+  } catch (e) {
+    toast('Submit failed: ' + e.message, 'err');
+  }
+}
+
+// ---------- pending queue ----------
+function pendingStale(entry) {
+  if (!view || entry.before == null) return null;
+  var current = null;
+  if (entry.op === 'set_base') { var row = view.base_prices[entry.material]; current = row ? row[entry.field] : null; }
+  else if (entry.op === 'set_width') { current = pointValue(view.width_prices[entry.material], entry.width); }
+  else if (entry.op === 'set_base_width') { var r2 = view.base_prices[entry.material]; current = r2 ? pointValue(r2.inlay_by_width, entry.width) : null; }
+  else if (entry.op === 'set_meteorite') { var met = view.meteorite_prices.find(function (r) { return r && r.m === entry.material && r.w === entry.width; }); current = met ? met.mm : null; }
+  else if (entry.op === 'set_mokume') { current = pointValue(view.mokume_prices, entry.width); }
+  if (current != null && round2(current) !== round2(entry.before)) return current;
+  return null;
+}
+function pointValue(table, width) {
+  if (!Array.isArray(table)) return null;
+  for (var i = 0; i < table.length; i++) if (Math.abs(table[i][0] - width) < 1e-9) return table[i][1];
+  return null;
+}
+
+function renderPending() {
+  document.getElementById('pendTitle').textContent = "Awaiting Johan's review (" + pending.length + ')';
+  var badge = document.getElementById('pendBadge');
+  badge.hidden = !pending.length;
+  badge.textContent = pending.length + ' pending approval';
+  var box = document.getElementById('pendList');
+  if (!pending.length) { box.innerHTML = '<span class="hint">No pending requests.</span>'; return; }
+  box.innerHTML = pending.map(function (entry, index) {
+    var stale = pendingStale(entry);
+    return '<div class="prow"><div>' + esc(describeChange(entry)) + '</div>' +
+      (stale != null ? '<div class="stale">Note: current live value is ' + fmt(stale) + '</div>' : '') +
+      '<div class="meta">' + esc(entry.staffName || '?') + ' · ' + esc(String(entry.ts || '').slice(0, 16).replace('T', ' ')) + '</div>' +
+      (ownerMode ? '<select data-p="' + index + '"><option value="approve">Approve — publish</option><option value="reject">Reject — discard</option><option value="leave">Leave in queue</option></select>' : '') +
+      '</div>';
+  }).join('');
+}
+
+// Owner mode (key entry, approve, publish) lives ONLY in Johan's LOCAL
+// inlay-manager.html. This hosted staff copy has no key field and cannot publish.
+</script>
+</body>
+</html>
