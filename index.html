@@ -3173,6 +3173,7 @@ function renderMetalPanel(col){
     // Get materials for this group, moving Platinum to Precious
     let mats=getMaterialsByGroup(gName);
     if(gName===BUILDER.metal_groups[0]) mats=mats.filter(n=>!BUILDER.precious_materials.includes(n));
+    mats=mats.filter(n=>!(BUILDER.disabled_base_metals||[]).includes(n)); // scoped hide (2026-08-27): hidden as base, still an inlay/sleeve
     mats.forEach(name=>{
       const card=h('div',{
         class:'mat-card'+(state.baseMetal===name?' selected':''),
@@ -4305,6 +4306,7 @@ function openAddStripModal(){
     else if(groupFilter==='other '+BUILDER.groups.woods) materials=materials.filter(n=>DATA.m[n].g===BUILDER.groups.woods&&!POPULAR_WOODS.has(n));
     else if(groupFilter!=='All') materials=materials.filter(n=>DATA.m[n].g===groupFilter);
     else materials=materials.filter(n=>!isMetal(n));
+    materials=materials.filter(n=>!(BUILDER.disabled_metal_inlays||[]).includes(n)||n===state.baseMetal); // scoped hide (2026-08-27): hidden as inlay; own base metal stays (edges)
     if(searchFilter) materials=materials.filter(n=>n.toLowerCase().includes(searchFilter.toLowerCase()));
     materials.sort();
 
@@ -4446,6 +4448,7 @@ function openEditStripModal(idx){
     if(groupFilter==='most popular '+BUILDER.groups.woods) materials=materials.filter(n=>DATA.m[n].g===BUILDER.groups.woods&&POPULAR_WOODS.has(n));
     else if(groupFilter==='other '+BUILDER.groups.woods) materials=materials.filter(n=>DATA.m[n].g===BUILDER.groups.woods&&!POPULAR_WOODS.has(n));
     else if(groupFilter!=='All') materials=materials.filter(n=>DATA.m[n].g===groupFilter);
+    materials=materials.filter(n=>!(BUILDER.disabled_metal_inlays||[]).includes(n)||n===state.baseMetal); // scoped hide (2026-08-27): hidden as inlay; own base metal stays (edges)
     if(searchFilter) materials=materials.filter(n=>n.toLowerCase().includes(searchFilter.toLowerCase()));
     materials.sort();
 
