@@ -77,12 +77,12 @@ hr.thin { border:0; border-top:1px solid var(--line); margin:12px 0 10px; }
   <span class="badge warn" id="pendBadge" hidden></span>
 </header>
 
-
 <main>
   <section class="col" id="listCol">
     <input type="text" id="search" placeholder="Search materials — try koa, dino, agate…" oninput="renderList()">
     <button class="lite" style="width:100%; margin-bottom:7px" onclick="showAddForm()">+ Add a new material</button>
     <button class="lite" style="width:100%; margin-bottom:7px" onclick="showAddMetalForm()">+ Add a new metal</button>
+    <button class="lite" style="width:100%; margin-bottom:7px" onclick="showSpotFloorForm()">$ Fixed metal prices</button>
     <div class="filters">
       <select id="groupFilter" onchange="renderList()"><option value="">All groups</option></select>
       <label><input type="checkbox" id="hiddenOnly" onchange="renderList()"> hidden</label>
@@ -93,7 +93,7 @@ hr.thin { border:0; border-top:1px solid var(--line); margin:12px 0 10px; }
 
   <section class="col" id="detailCol">
     <div class="help" id="helpBox">
-      <b>How it works:</b> scroll or search the list on the left, click a material, type new prices (only the lines you want to change) or use Hide / Restore, press <b>Stage these changes</b>. "+ Add a new material" creates one as a copy of an existing material. "+ Add a new metal" adds a metal to the Alternative or Precious tab (you type its prices; precious golds price themselves by the live formula). Metals also get <b>Hide as Base Metal</b> / <b>Hide as Inlay</b> buttons to hide them from just one place. Repeat as needed, then <b>Submit for approval</b> on the right. Johan reviews and publishes — nothing goes live until he approves.
+      <b>How it works:</b> scroll or search the list on the left, click a material, type new prices (only the lines you want to change) or use Hide / Restore, press <b>Stage these changes</b>. "+ Add a new material" creates one as a copy of an existing material. "+ Add a new metal" adds a metal to the Alternative or Precious tab (you type its prices; precious golds price themselves by the live formula). Metals also get <b>Hide as Base Metal</b> / <b>Hide as Inlay</b> buttons to hide them from just one place. "$ Fixed metal prices" sets a fixed market price per precious metal — ring pricing always uses the HIGHER of the live spot price and the fixed price. Repeat as needed, then <b>Submit for approval</b> on the right. Johan reviews and publishes — nothing goes live until he approves.
     </div>
     <div id="detail"><span class="hint">Select a material from the list.</span></div>
   </section>
@@ -391,6 +391,50 @@ function stageHideRestore(op) {
   toast(describeChange({ op: op, material: selected }) + ' — staged, submit it on the right.', 'ok');
 }
 
+// ---------- fixed metal prices / spot floors (2026-08-28) ----------
+// Ring pricing uses max(live spot, fixed price) per metal — a fixed price
+// below the live spot never lowers anything.
+function showSpotFloorForm() {
+  if (!view) return;
+  selected = null;
+  renderList();
+  var floors = view.spot_floors || {};
+  var live = view.live_spot || null;
+  var html = '<div class="big">Fixed metal prices</div>' +
+    '<div class="hint" style="margin:4px 0 10px">Sets a fixed market price ($ per troy oz) for Platinum, Gold or Silver, individually. Ring pricing always uses the <b>higher</b> of the live market spot price and the fixed price — a fixed price below live spot changes nothing. Clear a fixed price to go back to live spot only.</div>';
+  ['Gold', 'Platinum', 'Silver'].forEach(function (metal) {
+    var cur = (typeof floors[metal] === 'number') ? floors[metal] : null;
+    var liveTxt = (live && typeof live[metal] === 'number') ? fmt(live[metal]) + '/toz' : 'unavailable';
+    html += '<div class="frow"><label>' + metal + '</label>' +
+      '<span class="hint">live spot ' + liveTxt + ' · fixed ' + (cur != null ? fmt(cur) + '/toz' : 'none') + '</span>' +
+      '<input type="number" step="any" min="0" id="sf_' + metal + '" placeholder="new fixed $/toz" style="width:140px">' +
+      '<button class="lite" onclick="stageSpotFloor(\'' + metal + '\')">Stage</button>' +
+      (cur != null ? '<button class="lite" onclick="stageClearSpotFloor(\'' + metal + '\')">Clear</button>' : '') +
+      '</div>';
+  });
+  if (live && live.updated) html += '<div class="hint" style="margin-top:6px">Live spot last refreshed: ' + esc(String(live.updated).slice(0, 16).replace('T', ' ')) + ' UTC (updates daily)</div>';
+  document.getElementById('detail').innerHTML = html;
+}
+
+function stageSpotFloor(metal) {
+  var input = document.getElementById('sf_' + metal);
+  var value = parseFloat(input.value);
+  if (!isFinite(value) || value <= 0) { toast('Type the fixed price for ' + metal + ' first ($ per troy oz).', 'err'); return; }
+  var floors = view.spot_floors || {};
+  var before = (typeof floors[metal] === 'number') ? floors[metal] : null;
+  cartAdd({ op: 'set_spot_floor', material: metal, value: round2(value), before: before });
+  input.value = '';
+  toast(metal + ' fixed price staged — ' + (ownerMode ? 'publish on the right.' : 'submit it on the right.'), 'ok');
+}
+
+function stageClearSpotFloor(metal) {
+  var floors = view.spot_floors || {};
+  var before = (typeof floors[metal] === 'number') ? floors[metal] : null;
+  if (before == null) { toast(metal + ' has no fixed price to clear.', 'err'); return; }
+  cartAdd({ op: 'clear_spot_floor', material: metal, before: before });
+  toast(metal + ' back-to-live-spot staged — ' + (ownerMode ? 'publish on the right.' : 'submit it on the right.'), 'ok');
+}
+
 // ---------- add a new metal (2026-08-27) ----------
 function showAddMetalForm() {
   if (!view) return;
@@ -538,6 +582,8 @@ function describeChange(entry) {
   if (entry.op === 'restore_inlay') return 'Restore "' + entry.material + '" as an Inlay';
   if (entry.op === 'hide') return 'Hide "' + entry.material + '" from customers';
   if (entry.op === 'restore') return 'Restore "' + entry.material + '"';
+  if (entry.op === 'set_spot_floor') return 'Fixed market price — ' + entry.material + ': ' + (entry.before != null ? fmt(entry.before) : 'none') + ' → ' + fmt(entry.value) + '/toz (used only when above live spot)';
+  if (entry.op === 'clear_spot_floor') return 'Clear fixed market price — ' + entry.material + ' (back to live spot only)';
   var target = entry.material;
   if (entry.op === 'set_base') target += ' — ' + entry.field.replace(/_/g, ' ');
   else if (entry.op === 'set_mokume') target = 'Mokume shared table — ' + entry.width + ' mm';
@@ -596,6 +642,7 @@ function pendingStale(entry) {
   else if (entry.op === 'set_base_width') { var r2 = view.base_prices[entry.material]; current = r2 ? pointValue(r2.inlay_by_width, entry.width) : null; }
   else if (entry.op === 'set_meteorite') { var met = view.meteorite_prices.find(function (r) { return r && r.m === entry.material && r.w === entry.width; }); current = met ? met.mm : null; }
   else if (entry.op === 'set_mokume') { current = pointValue(view.mokume_prices, entry.width); }
+  else if (entry.op === 'set_spot_floor' || entry.op === 'clear_spot_floor') { var fl = view.spot_floors || {}; current = (typeof fl[entry.material] === 'number') ? fl[entry.material] : null; }
   if (current != null && round2(current) !== round2(entry.before)) return current;
   return null;
 }
