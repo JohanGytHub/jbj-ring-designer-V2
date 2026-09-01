@@ -2973,6 +2973,195 @@ function _getCanvasImage(){
   try{ return c.toDataURL('image/png').split(',')[1]; }catch(e){ return null; }
 }
 
+// ── AUTO PHOTO-MOCKUP (2026-08-31, Johan) ─────────────────────────────────
+// At quote submit, composites the customer's exact design onto a real ring
+// photo (mockup-assets/mockup-meshes.json describes each base photo's band-face
+// warp mesh) and attaches it to the /quote payload as mockupImage (base64
+// JPEG). The worker routes it per the MOCKUP_SEND_TO env var. Fail-soft:
+// any error or timeout resolves to null — a quote is never blocked.
+const MOCKUP_MESHES_URL='mockup-assets/mockup-meshes.json';
+const MOCKUP_BASE_MAP={'Titanium':'titanium','Tungsten':'tungsten','Silver':'silver','Platinum':'platinum','Stainless':'stainless','Yellow 10K':'yellow-10k','Yellow 14K':'yellow-14k','Yellow 18K':'yellow-18k','White 10K':'white-10k','White 14K':'white-14k','White 18K':'white-18k','Rose 14K':'rose-14k','Rose 18K':'rose-18k','Zirconium':'zirconium','Black Ceramic':'black-ceramic','Damascus':'titanium','Metal Mokume':'titanium'};
+const MOCKUP_TILE_GAIN=[['opal-',1.45],['koa',1.15]];
+let _mockupMeshCache=null;
+function _mockupLoadImg(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('img '+src));im.src=src;});}
+async function _mockupMeshes(){
+  if(!_mockupMeshCache){
+    const r=await fetch(MOCKUP_MESHES_URL);
+    if(!r.ok)throw new Error('meshes '+r.status);
+    _mockupMeshCache=await r.json();
+  }
+  return _mockupMeshCache;
+}
+function _mockupHexRgb(hex){
+  const c=String(hex||'#8a8a8a').replace('#','');
+  const full=c.length===3?c.split('').map(x=>x+x).join(''):c;
+  const n=parseInt(full,16)||0x8a8a8a;
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function _mockupTileGain(src){
+  const f=src.split('/').pop();
+  for(const [p,g] of MOCKUP_TILE_GAIN){ if(f.indexOf(p)===0) return g; }
+  return 1.0;
+}
+function _mockupTileSrc(mat){
+  // textured metals: Damascus tile is embedded b64; Mokume base uses a stock tile
+  if(mat==='Damascus'&&typeof METAL_TEXTURES!=='undefined'&&METAL_TEXTURES.Damascus)return 'data:image/jpeg;base64,'+METAL_TEXTURES.Damascus;
+  if(mat==='Metal Mokume')return 'swatches-tex/mokume-black-white.jpg';
+  if(typeof TEXTURE_MATERIALS!=='undefined'&&TEXTURE_MATERIALS.has(mat))return 'swatches-tex/'+swatchSlug(mat)+'.jpg';
+  return null;
+}
+function _mockupDesign(){
+  // strip layout -> paint spec; base-metal strips stay untouched photo except textured bases
+  const slices=buildStripLayout();
+  return slices.map(sl=>{
+    const mat=sl.mat;
+    const tex=_mockupTileSrc(mat);
+    if(mat===state.baseMetal){
+      if(tex&&(mat==='Damascus'||mat==='Metal Mokume'))return {s:sl.s,e:sl.e,kind:'tile',src:tex};
+      return {s:sl.s,e:sl.e,kind:'base'};
+    }
+    if(tex)return {s:sl.s,e:sl.e,kind:'tile',src:tex};
+    if(isMetalGroup(mat))return {s:sl.s,e:sl.e,kind:'metal',rgb:_mockupHexRgb(getColor(mat))};
+    return {s:sl.s,e:sl.e,kind:'color',rgb:_mockupHexRgb(getColor(mat))};
+  });
+}
+async function generateMockupImage(){
+  const meshes=await _mockupMeshes();
+  const slug=MOCKUP_BASE_MAP[state.baseMetal]||'titanium';
+  const entry=meshes.bases[slug]||meshes.bases['titanium'];
+  const design=_mockupDesign();
+  if(!design.some(d=>d.kind!=='base'))return null; // plain band: the photo itself IS the mockup
+  const baseImg=await _mockupLoadImg(entry.img);
+  const W=entry.w,H=entry.h;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(baseImg,0,0,W,H);
+  const basePx=ctx.getImageData(0,0,W,H);
+  // blurred luminance (downscale/upscale approximates the gaussian)
+  const sw=Math.max(8,W>>3),sh=Math.max(8,H>>3);
+  const s1=document.createElement('canvas');s1.width=sw;s1.height=sh;
+  s1.getContext('2d').drawImage(baseImg,0,0,sw,sh);
+  const s2=document.createElement('canvas');s2.width=W;s2.height=H;
+  const s2x=s2.getContext('2d',{willReadFrequently:true});
+  s2x.imageSmoothingEnabled=true;s2x.drawImage(s1,0,0,W,H);
+  const blurPx=s2x.getImageData(0,0,W,H);
+  // UV columns: x = design position (0=left edge), one tile period tall
+  const UVW=512,PH=1024;
+  const uvCv=document.createElement('canvas');uvCv.width=UVW;uvCv.height=PH;
+  const uvx=uvCv.getContext('2d',{willReadFrequently:true});
+  const kindCol=new Int8Array(UVW),rgbCol=new Float32Array(UVW*3),gainCol=new Float32Array(UVW).fill(1),seamCol=new Float32Array(UVW);
+  for(const d of design){
+    const x0=Math.max(0,Math.round(d.s*UVW)),x1=Math.min(UVW,Math.round(d.e*UVW));
+    if(x1<=x0)continue;
+    if(d.kind==='tile'){
+      const t=await _mockupLoadImg(d.src);
+      uvx.drawImage(t,x0/UVW*t.width,0,(x1-x0)/UVW*t.width,t.height,x0,0,x1-x0,PH);
+      const g=_mockupTileGain(d.src);
+      for(let x=x0;x<x1;x++){kindCol[x]=1;gainCol[x]=g;}
+    }else if(d.kind==='metal'||d.kind==='color'){
+      for(let x=x0;x<x1;x++){kindCol[x]=d.kind==='metal'?2:3;rgbCol[x*3]=d.rgb[0];rgbCol[x*3+1]=d.rgb[1];rgbCol[x*3+2]=d.rgb[2];}
+    }
+    for(const xb of [x0,x1]){
+      for(const [o,wgt] of [[-2,0.25],[-1,0.55],[0,0.8],[1,0.55],[2,0.25]]){
+        const xi=xb+o; if(xi>=0&&xi<UVW)seamCol[xi]=Math.max(seamCol[xi],wgt);
+      }
+    }
+  }
+  const uvPx=uvx.getImageData(0,0,UVW,PH);
+  const near=entry.near,far=entry.far,NS=near.length;
+  const grain=meshes.params.grain,designW=state.ringWidth||6;
+  const periodMm=2*designW*grain,arcPerTheta=meshes.params.arcMmPerTheta;
+  const th0=entry.theta0,th1=entry.theta1;
+  const SS=2,WS=W*SS,HS=H*SS;
+  const accC=new Float32Array(WS*HS*3),accW=new Float32Array(WS*HS);
+  const _msc=Math.max(1,W/750);const NTH=Math.round(2800*_msc),NT=Math.round(220*_msc);
+  // shading median over a sample subset first
+  const lsSamples=[];
+  for(let i=0;i<NTH;i+=7){
+    const si=i*(NS-1)/(NTH-1),i0=Math.floor(si),fr=si-i0,i1=Math.min(i0+1,NS-1);
+    const nx=near[i0][0]*(1-fr)+near[i1][0]*fr,ny=near[i0][1]*(1-fr)+near[i1][1]*fr;
+    const fx2=far[i0][0]*(1-fr)+far[i1][0]*fr,fy2=far[i0][1]*(1-fr)+far[i1][1]*fr;
+    const x=Math.round((nx+fx2)/2),y=Math.round((ny+fy2)/2);
+    if(x>=0&&x<W&&y>=0&&y<H){const p=(y*W+x)*4;lsSamples.push((blurPx.data[p]+blurPx.data[p+1]+blurPx.data[p+2])/765);}
+  }
+  lsSamples.sort((a,b)=>a-b);
+  const med=Math.max(lsSamples[Math.floor(lsSamples.length/2)]||0.6,0.001);
+  const shadeLo=meshes.params.shadeLo,specAmt=meshes.params.specAmt;
+  for(let i=0;i<NTH;i++){
+    const si=i*(NS-1)/(NTH-1),i0=Math.floor(si),fr=si-i0,i1=Math.min(i0+1,NS-1);
+    const nx=near[i0][0]*(1-fr)+near[i1][0]*fr,ny=near[i0][1]*(1-fr)+near[i1][1]*fr;
+    const fx2=far[i0][0]*(1-fr)+far[i1][0]*fr,fy2=far[i0][1]*(1-fr)+far[i1][1]*fr;
+    const th=th0+(th1-th0)*si/(NS-1);
+    const vyBase=((th-th0)*arcPerTheta/periodMm)*PH;
+    for(let j=0;j<NT;j++){
+      const t=j/(NT-1);
+      const X=fx2*(1-t)+nx*t,Y=fy2*(1-t)+ny*t;
+      const dx=entry.leftIsNear?(1-t):t;
+      const ux=Math.min(UVW-1,Math.max(0,Math.round(dx*(UVW-1))));
+      const kind=kindCol[ux];
+      if(kind===0)continue;
+      const xi=Math.round(X),yi=Math.round(Y);
+      if(xi<0||xi>=W||yi<0||yi>=H)continue;
+      const p=(yi*W+xi)*4;
+      const lr=(basePx.data[p]+basePx.data[p+1]+basePx.data[p+2])/765;
+      const ls=(blurPx.data[p]+blurPx.data[p+1]+blurPx.data[p+2])/765;
+      let shade=Math.pow(Math.min(1.42,Math.max(shadeLo,ls/med)),0.75);
+      shade=0.22+0.78*shade;
+      const spec=Math.min(1,Math.max(0,(lr-0.88)/0.105))*specAmt;
+      let r,g,b;
+      if(kind===2){
+        const lum=Math.pow(lr,0.9)*1.15;
+        r=rgbCol[ux*3]*lum;g=rgbCol[ux*3+1]*lum;b=rgbCol[ux*3+2]*lum;
+      }else{
+        if(kind===1){
+          const vy=((Math.floor(vyBase)%PH)+PH)%PH;
+          const q=(vy*UVW+ux)*4,gn=gainCol[ux];
+          r=uvPx.data[q]*gn;g=uvPx.data[q+1]*gn;b=uvPx.data[q+2]*gn;
+        }else{
+          r=rgbCol[ux*3];g=rgbCol[ux*3+1];b=rgbCol[ux*3+2];
+        }
+        r*=shade;g*=shade;b*=shade;
+        r=r*(1-spec)+235*spec;g=g*(1-spec)+235*spec;b=b*(1-spec)+235*spec;
+      }
+      const sm=1-0.55*seamCol[ux];
+      r*=sm;g*=sm;b*=sm;
+      const xs=Math.min(WS-1,Math.max(0,Math.round(X*SS))),ys=Math.min(HS-1,Math.max(0,Math.round(Y*SS)));
+      for(let oy=0;oy<2;oy++)for(let ox2=0;ox2<2;ox2++){
+        const idx=Math.min(HS-1,ys+oy)*WS+Math.min(WS-1,xs+ox2);
+        accW[idx]+=1;accC[idx*3]+=r;accC[idx*3+1]+=g;accC[idx*3+2]+=b;
+      }
+    }
+  }
+  let wSum=0,wCnt=0;
+  for(let i=0;i<accW.length;i++){if(accW[i]>0){wSum+=accW[i];wCnt++;}}
+  if(!wCnt)return null;
+  const wMean=wSum/wCnt;
+  // composite at SS then downsample via canvas
+  const ssCv=document.createElement('canvas');ssCv.width=WS;ssCv.height=HS;
+  const ssx=ssCv.getContext('2d',{willReadFrequently:true});
+  ssx.imageSmoothingEnabled=true;ssx.drawImage(baseImg,0,0,WS,HS);
+  const ssPx=ssx.getImageData(0,0,WS,HS);
+  for(let i=0;i<accW.length;i++){
+    const w2=accW[i];if(!w2)continue;
+    const a=Math.min(1,w2/(wMean*0.35)),p=i*4;
+    ssPx.data[p]=ssPx.data[p]*(1-a)+(accC[i*3]/w2)*a;
+    ssPx.data[p+1]=ssPx.data[p+1]*(1-a)+(accC[i*3+1]/w2)*a;
+    ssPx.data[p+2]=ssPx.data[p+2]*(1-a)+(accC[i*3+2]/w2)*a;
+  }
+  ssx.putImageData(ssPx,0,0);
+  const outCv=document.createElement('canvas');outCv.width=W;outCv.height=H;
+  const ox=outCv.getContext('2d');ox.imageSmoothingEnabled=true;ox.imageSmoothingQuality='high';
+  ox.drawImage(ssCv,0,0,W,H);
+  const dataUrl=outCv.toDataURL('image/jpeg',0.82);
+  return dataUrl.split(',')[1]||null;
+}
+function getMockupImage(timeoutMs){
+  return Promise.race([
+    generateMockupImage().catch(e=>{try{ringAudit.record('quote','mockup_generation_failed',{message:String(e&&e.message||e)});}catch(_){ } return null;}),
+    new Promise(resolve=>setTimeout(()=>resolve(null),timeoutMs||4000))
+  ]);
+}
+
 function _exitGuard(e){ if(!state._quoteSubmitted){ e.preventDefault(); e.returnValue=''; } }
 
 let _exitIntentShown=false;
@@ -3041,11 +3230,13 @@ function showExitEmailModal(onDone){
     const shareUrl=window.location.origin+window.location.pathname+'?design='+utoa(JSON.stringify(config));
     ringAudit.record('quote','exit_quote_submit_attempt',{shareUrl});
     try{
+      const mockupImage=await getMockupImage(4000);
       const response=await fetch(SERVICES.quote_url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         firstName:state.firstName,lastName:state.lastName,email:state.email,notes:state.notes,auditVisitorId:ringAudit.visitorId,auditSessionId:ringAudit.sessionId,baseMetal:state.baseMetal,ringSize:state.ringSize,ringWidth:state.ringWidth,
         profile:state.profile,sleeve:state.sleeve,finish:state.finish,engraving:state.engraving,font:state.engravingFont||'',
         strips:state.strips,total:state.serverTotal,estimateToken:state.estimateToken,pricingVersion:DATA._version,shareUrl,
-        ringImage:_getCanvasImage()
+        ringImage:_getCanvasImage(),
+        mockupImage:mockupImage
       })});
       const responseBody=await response.json().catch(()=>({}));
       if(!response.ok||!responseBody.ok)throw new Error(responseBody.error||('HTTP '+response.status));
@@ -4883,7 +5074,8 @@ function renderSummaryPanel(col){
         estimateToken:state.estimateToken,
         pricingVersion:DATA._version,
         shareUrl:shareUrl,
-        ringImage:_getCanvasImage()
+        ringImage:_getCanvasImage(),
+        mockupImage:await getMockupImage(4000)
       };
       ringAudit.record('quote','quote_submit_attempt',{shareUrl:shareUrl});
 
