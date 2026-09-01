@@ -1187,6 +1187,7 @@ const ringAudit = (() => {
   let flushTimer = null;
   let retryTimer = null;
   let flushing = false;
+  let retryDelay = 0;
   let lastConfiguration = null;
   let maxStepReached = 0;
   const memory = new Map();
@@ -1460,10 +1461,14 @@ const ringAudit = (() => {
       return navigator.sendBeacon(endpoint, new Blob([data], { type: 'text/plain;charset=UTF-8' }));
     }
     if (flushing || !navigator.onLine) return false;
-    const events = await pendingBatch();
-    if (!events.length) return true;
-    const batch = wireBatch(events);
+    // Audit-flood fix (2026-09-01): claim the flag BEFORE the first await — concurrent
+    // flush() calls used to race past the check while pendingBatch() was awaited,
+    // flooding the audit endpoint whenever it errored (2026-08-31 incident).
     flushing = true;
+    let events;
+    try { events = await pendingBatch(); } catch (error) { flushing = false; return false; }
+    if (!events.length) { flushing = false; return true; }
+    const batch = wireBatch(events);
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1479,11 +1484,14 @@ const ringAudit = (() => {
       if (!ids.length) throw new Error('Audit endpoint did not acknowledge event ids');
       await acknowledge(ids);
       flushing = false;
+      retryDelay = 0;
       if ((await pendingBatch()).length) flush(false);
       return true;
     } catch (error) {
       flushing = false;
-      retryTimer = setTimeout(() => flush(false), config.retry_base_delay_ms);
+      // Audit-flood fix (2026-09-01): exponential backoff, capped at 60 seconds.
+      retryDelay = Math.min(retryDelay ? retryDelay * 2 : config.retry_base_delay_ms, 60000);
+      retryTimer = setTimeout(() => flush(false), retryDelay);
       return false;
     }
   }
@@ -1917,6 +1925,12 @@ function applyDesignerConfig(config,options={}){
   FLAT_ONLY_INLAYS=new Set(BUILDER.rules.flat_only_inlay_materials||[]);
   FLAT_ONLY_PROFILE=BUILDER.rules.flat_only_profile||'Flat';
   HARD_EDGE_BASES=BUILDER.rules.hard_edge_base_metals||{};
+  // CS rules (2026-09-01): KV-driven coated definition, width-conditional finishes,
+  // crushed-only stone sleeves. Tolerant reads — old KV keeps the old behavior.
+  COATED_GROUPS=new Set(BUILDER.rules.coated_groups||[BUILDER.groups.enamel]);
+  COATED_MATERIALS=new Set(BUILDER.rules.coated_materials||[]);
+  FINISH_MIN_METAL=BUILDER.rules.finish_min_metal_strip_mm||{};
+  CRUSHED_ONLY_SLEEVE_GROUPS=new Set(BUILDER.rules.crushed_only_sleeve_groups||[]);
   BASE_ALLOWED_GROUPS=BUILDER.rules.base_inlay_allowed_groups||{};
   BASE_BLOCKED_SOLID=BUILDER.rules.base_blocked_solid_groups||{};
   HAMMERED_FINISH=BUILDER.rules.hammered_finish||null;
@@ -4002,6 +4016,10 @@ let NON_COMFORT_SLEEVES=new Set();
 // metal — directly on both sides (KV rules.protected_neighbor_groups/materials).
 let PROTECTED_NEIGHBOR_GROUPS=new Set();
 let PROTECTED_NEIGHBOR_MATERIALS=new Set();
+let COATED_GROUPS=new Set();
+let COATED_MATERIALS=new Set();
+let FINISH_MIN_METAL={};
+let CRUSHED_ONLY_SLEEVE_GROUPS=new Set();
 // Returns {kind,suffix,toast} when `name` cannot be used as a strip with the current
 // base metal / finish, else null. kind 'finish' is resolved by changing the finish,
 // the others by removing/blocking the material.
@@ -4027,7 +4045,35 @@ function needsMetalEdges(matName){
 
 function isCoatedGroup(matName){
   const d=DATA.m[matName];
-  return d && d.g===BUILDER.groups.enamel;
+  if(!d)return false;
+  // CS rules (2026-09-01): KV-driven coated definition (rules.coated_groups/coated_materials);
+  // boot defaults the set to the historical Enamel group when the KV keys are absent.
+  if(COATED_GROUPS&&COATED_GROUPS.size)return COATED_GROUPS.has(d.g)||COATED_MATERIALS.has(matName);
+  return d.g===BUILDER.groups.enamel;
+}
+
+function crushedOnlySleeveBlocked(name){
+  // CS rule (2026-09-01): stones (KV rules.crushed_only_sleeve_groups) must be crushed
+  // to be used as a sleeve — the solid version stays available as an inlay only.
+  const d=DATA.m[name];
+  return Boolean(d&&CRUSHED_ONLY_SLEEVE_GROUPS&&CRUSHED_ONLY_SLEEVE_GROUPS.has(d.g)&&d.s==='Solid'&&!/crushed/i.test(name));
+}
+
+function finishMinMetalViolation(finishName){
+  // CS rule (2026-09-01): KV rules.finish_min_metal_strip_mm — the finish needs every
+  // metal strip (metal edges, metal pinstripes and the automatic trailing base-metal
+  // edge) at the configured width, e.g. Sandblasted needs 1mm of metal.
+  const fMin=Number((FINISH_MIN_METAL||{})[finishName])||0;
+  if(fMin<=0||!state.strips||!state.strips.length)return null;
+  let used=0;
+  for(const s of state.strips){
+    if(!s)continue;
+    used+=s.width;
+    if(isMetalGroup(s.material)&&s.width<fMin-BUILDER.width_epsilon)return s.material+' strip at '+s.width+'mm';
+  }
+  const remainder=state.ringWidth-used;
+  if(remainder>BUILDER.width_epsilon&&remainder<fMin-BUILDER.width_epsilon)return state.baseMetal+' edge at '+(Math.round(remainder*100)/100)+'mm';
+  return null;
 }
 
 function isSwarf(matName){
@@ -4565,7 +4611,7 @@ function renderSleevePanel(col){
       materials=SLEEVE_MATERIALS.filter(n=>DATA.m[n]&&n!==state.baseMetal);
     }
     if(gName==='other'){
-      materials=Object.keys(SLEEVE_OTHER_MATERIALS).filter(n=>DATA.m[n]&&n!==state.baseMetal);
+      materials=Object.keys(SLEEVE_OTHER_MATERIALS).filter(n=>DATA.m[n]&&n!==state.baseMetal&&!crushedOnlySleeveBlocked(n));
     }
     if(gName==='woods'){
       // Show woods that have sleeve capability
@@ -4648,6 +4694,14 @@ function renderFinishPanel(col){
     allowedFinishes=allowedFinishes.filter(f=>f!==HAMMERED_FINISH);
     finishBlockers[HAMMERED_FINISH]='the '+state.profile+' profile (needs '+HAMMERED_PROFILES.join(' or ')+')';
   }
+  // CS rule (2026-09-01): width-conditional finishes (KV rules.finish_min_metal_strip_mm) —
+  // e.g. Sandblasted needs every metal strip at 1mm or wider.
+  allowedFinishes=allowedFinishes.filter(f=>{
+    const widthBlock=finishMinMetalViolation(f);
+    if(!widthBlock)return true;
+    if(!finishBlockers[f])finishBlockers[f]='your '+widthBlock+' (every metal strip needs at least '+(Number(FINISH_MIN_METAL[f])||0)+'mm for '+f+')';
+    return false;
+  });
 
   const grid=h('div',{class:'finish-grid'});
   FINISHES.forEach(f=>{
@@ -6055,7 +6109,18 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       var m=s&&DATA.m[s.material];
       if(m&&Array.isArray(m.f)&&m.f.indexOf(state.finish)===-1) blocker=s.material;
     });
-    if(!blocker) return;
+    if(!blocker){
+      // CS rule (2026-09-01): width-conditional finishes — a metal strip that shrank
+      // below the finish's minimum resets the finish rather than blocking the edit.
+      var widthBlock=null;
+      try{ widthBlock=(typeof finishMinMetalViolation==='function')?finishMinMetalViolation(state.finish):null; }catch(e){}
+      if(widthBlock){
+        var oldFinish=state.finish;
+        state.finish='Polished';
+        try{ showRuleToast('The '+oldFinish+' finish needs every metal strip to be at least '+(Number(FINISH_MIN_METAL[oldFinish])||0)+'mm wide — your '+widthBlock+' is thinner, so the finish was changed to Polished.'); }catch(e){}
+      }
+      return;
+    }
     var old=state.finish;
     state.finish='Polished';
     try{ showRuleToast('The '+old+' finish is not available with "'+blocker+'", so the finish was changed to Polished.'); }catch(e){}
@@ -6131,6 +6196,17 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   // Self-heal (2026-08-20, Johan): edge strips of a hard base metal that sit below the
   // rule minimum (e.g. an old auto-inserted 0.5mm Tungsten edge) are bumped up to the
   // minimum automatically when free width allows, instead of stranding the design.
+  // CS rule (2026-09-01): a restored/older design carrying a solid-stone sleeve
+  // (crushed-only rule) self-heals back to the base-metal sleeve with an explanation.
+  function v2SleeveRuleSweep(){
+    if(!state.sleeve||state.sleeve===state.baseMetal) return;
+    var blocked=false;
+    try{ blocked=(typeof crushedOnlySleeveBlocked==='function')&&crushedOnlySleeveBlocked(state.sleeve); }catch(e){}
+    if(!blocked) return;
+    var oldSleeve=state.sleeve;
+    state.sleeve=state.baseMetal;
+    try{ showRuleToast('Only the crushed version of a stone can be used as a sleeve, so the "'+oldSleeve+'" sleeve was removed from your design.'); }catch(e){}
+  }
   function v2EdgeAutoBump(){
     var base=state.baseMetal; if(!base) return;
     var hardMin=Number(HARD_EDGE_BASES[base])||0;
@@ -6484,6 +6560,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       try{ v2FlatOnlySweep(state.profile); }catch(e){}
       try{ v2FinishSweep(); }catch(e){}
       try{ v2BaseRuleSweep(); }catch(e){}
+      try{ v2SleeveRuleSweep(); }catch(e){}
       try{ v2EdgeAutoBump(); }catch(e){}
       var keepY=(_v2LockY===null&&v2PageScrolls())?(window.scrollY||window.pageYOffset||0):null; // 2026-08-23: page must stay put on mobile edits
       var out=_v2PrevRenderComposePanel(col);
