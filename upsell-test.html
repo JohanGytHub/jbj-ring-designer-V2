@@ -6619,13 +6619,14 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   function v2UpsellEnsureStyle(){
     if(v2UpsellStyleDone)return; v2UpsellStyleDone=true;
     var st=document.createElement('style');
-    st.textContent='@keyframes v2UpsellPulse{0%,100%{box-shadow:0 4px 14px rgba(184,134,11,.35)}50%{box-shadow:0 4px 26px rgba(184,134,11,.75)}}'
-      +'.v2-upsell-banner{display:flex;align-items:center;gap:12px;margin:0 0 16px;padding:14px 16px;border-radius:10px;border:1px solid #8a6508;background:linear-gradient(135deg,#8a6508,#c9971c);color:#fff;font-weight:600;font-size:1.05rem;line-height:1.4;box-shadow:0 4px 14px rgba(184,134,11,.35);animation:v2UpsellPulse 1.6s ease-in-out 3}'
+    st.textContent='@keyframes v2UpsellPulse{0%,100%{transform:scale(1);box-shadow:0 4px 14px rgba(184,134,11,.35)}50%{transform:scale(1.03);box-shadow:0 6px 30px rgba(184,134,11,.8)}}'
+      +'@keyframes v2UpsellTextPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}'
+      +'.v2-upsell-banner{display:flex;align-items:center;gap:12px;margin:0 0 16px;padding:14px 16px;border-radius:10px;border:1px solid #8a6508;background:linear-gradient(135deg,#8a6508,#c9971c);color:#fff;font-weight:600;font-size:1.05rem;line-height:1.4;box-shadow:0 4px 14px rgba(184,134,11,.35);animation:v2UpsellPulse 2.5s ease-in-out 3}'
       +'.v2-upsell-banner .v2-upsell-star{font-size:1.4rem;line-height:1;flex:0 0 auto}'
       +'.v2-upsell-overlay{position:fixed;inset:0;z-index:100002;background:rgba(8,8,10,.72);display:flex;align-items:center;justify-content:center;padding:24px}'
       +'.v2-upsell-card{position:relative;max-width:460px;width:100%;background:#fff;color:#1b1b1b;border-radius:14px;border-top:5px solid #c9971c;padding:30px 26px 26px;text-align:center;box-shadow:0 18px 60px rgba(0,0,0,.55)}'
       +'.v2-upsell-card h3{margin:0 0 10px;font-size:1.3rem;color:#1b1b1b}'
-      +'.v2-upsell-card .v2-upsell-msg{margin:0 0 20px;font-size:1.2rem;font-weight:700;line-height:1.45;color:#8a6508}'
+      +'.v2-upsell-card .v2-upsell-msg{margin:0 0 20px;font-size:1.2rem;font-weight:700;line-height:1.45;color:#8a6508;animation:v2UpsellTextPulse 2.5s ease-in-out 3}'
       +'.v2-upsell-stay{display:inline-block;padding:12px 26px;border:0;border-radius:999px;background:linear-gradient(135deg,#8a6508,#c9971c);color:#fff;font-size:1rem;font-weight:600;cursor:pointer}'
       +'.v2-upsell-leave{display:block;margin:14px auto 0;background:none;border:0;color:#777;font-size:.85rem;text-decoration:underline;cursor:pointer}'
       +'.v2-upsell-x{position:absolute;top:10px;right:14px;background:none;border:0;font-size:1.3rem;line-height:1;color:#999;cursor:pointer}';

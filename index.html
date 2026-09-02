@@ -1904,6 +1904,7 @@ function applyDesignerConfig(config,options={}){
   BUSINESS=config.business;
   PUBLIC_SHOW_PRICES=_staffMode?true:(config.show_prices!==false);
   try{ document.body.classList.toggle('v2-hide-prices',!PUBLIC_SHOW_PRICES); }catch(e){}
+  PUBLIC_UPSELL_MESSAGE=(typeof config.upsell_message==='string')?config.upsell_message.trim():'';
   DATA={
     m:config.catalog.materials,c:config.catalog.colors,
     quote_config:config.quote_config,audit_config:config.audit_config,
@@ -4005,6 +4006,10 @@ let FLAT_ONLY_PROFILE='Flat';
 // SHOW_PRICES (2026-08-20, Johan): worker env var via designer-config `show_prices`.
 // false = customers see no prices anywhere; staff mode (?staff) always sees prices.
 let PUBLIC_SHOW_PRICES=true;
+// UPSELL MESSAGE (2026-09-02, Johan): Cloudflare KV key `upsell_message` arrives via
+// designer-config `upsell_message`. Blank/missing = feature off. Rendered by the router
+// (Summary banner + exit overlay) only when the design has at least one inlay.
+let PUBLIC_UPSELL_MESSAGE='';
 let HARD_EDGE_BASES={};
 let BASE_ALLOWED_GROUPS={};
 let BASE_BLOCKED_SOLID={};
@@ -5190,7 +5195,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       case 'compose': if(window.renderComposePanel) renderComposePanel(document.getElementById('controlsCol')); break;
       case 'sleeve':  renderSleevePanel(host);  break;
       case 'finish':  host.innerHTML=''; renderFinishPanel(host);  break;
-      case 'summary': host.innerHTML=''; renderSummaryPanel(host); injectFontSelect(host); applyWoodSleeveEngravingRule(host); break;
+      case 'summary': host.innerHTML=''; renderSummaryPanel(host); injectFontSelect(host); applyWoodSleeveEngravingRule(host); v2UpsellSummaryBanner(host); break;
     }
   }
 
@@ -6594,6 +6599,105 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   // Full-screen embed (2026-08-23, Johan): on the Shopify page the builder covers the whole
   // screen, so it carries its own way back to the website. Shown only inside an iframe;
   // the target is the KV business.website_url (fallback = the live site).
+  /* ===== UPSELL MESSAGE (2026-09-02, Johan) =====
+     Server-driven: Cloudflare KV key `upsell_message` -> /designer-config `upsell_message`
+     -> PUBLIC_UPSELL_MESSAGE (engine). Blank or missing message = feature entirely off.
+     Shows ONLY when the design has at least one inlay (same count as the tool-rail
+     "Inlays" header). Three surfaces, one message:
+       - a gold attention banner at the top of the Summary panel,
+       - an overlay when the customer clicks the Exit button (once per session),
+       - a desktop exit-intent overlay when the mouse leaves through the top edge
+         (same once-per-session flag). */
+  function v2UpsellMessage(){
+    try{ return (typeof PUBLIC_UPSELL_MESSAGE==='string'?PUBLIC_UPSELL_MESSAGE:'').trim(); }catch(e){ return ''; }
+  }
+  function v2UpsellInlayCount(){
+    try{ return (state.strips||[]).filter(function(s){ return window.isMetal?!isMetal(s.material):true; }).length; }catch(e){ return 0; }
+  }
+  function v2UpsellActive(){ return !!v2UpsellMessage()&&v2UpsellInlayCount()>0; }
+  var v2UpsellStyleDone=false;
+  function v2UpsellEnsureStyle(){
+    if(v2UpsellStyleDone)return; v2UpsellStyleDone=true;
+    var st=document.createElement('style');
+    st.textContent='@keyframes v2UpsellPulse{0%,100%{transform:scale(1);box-shadow:0 4px 14px rgba(184,134,11,.35)}50%{transform:scale(1.03);box-shadow:0 6px 30px rgba(184,134,11,.8)}}'
+      +'@keyframes v2UpsellTextPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}'
+      +'.v2-upsell-banner{display:flex;align-items:center;gap:12px;margin:0 0 16px;padding:14px 16px;border-radius:10px;border:1px solid #8a6508;background:linear-gradient(135deg,#8a6508,#c9971c);color:#fff;font-weight:600;font-size:1.05rem;line-height:1.4;box-shadow:0 4px 14px rgba(184,134,11,.35);animation:v2UpsellPulse 2.5s ease-in-out 3}'
+      +'.v2-upsell-banner .v2-upsell-star{font-size:1.4rem;line-height:1;flex:0 0 auto}'
+      +'.v2-upsell-overlay{position:fixed;inset:0;z-index:100002;background:rgba(8,8,10,.72);display:flex;align-items:center;justify-content:center;padding:24px}'
+      +'.v2-upsell-card{position:relative;max-width:460px;width:100%;background:#fff;color:#1b1b1b;border-radius:14px;border-top:5px solid #c9971c;padding:30px 26px 26px;text-align:center;box-shadow:0 18px 60px rgba(0,0,0,.55)}'
+      +'.v2-upsell-card h3{margin:0 0 10px;font-size:1.3rem;color:#1b1b1b}'
+      +'.v2-upsell-card .v2-upsell-msg{margin:0 0 20px;font-size:1.2rem;font-weight:700;line-height:1.45;color:#8a6508;animation:v2UpsellTextPulse 2.5s ease-in-out 3}'
+      +'.v2-upsell-stay{display:inline-block;padding:12px 26px;border:0;border-radius:999px;background:linear-gradient(135deg,#8a6508,#c9971c);color:#fff;font-size:1rem;font-weight:600;cursor:pointer}'
+      +'.v2-upsell-leave{display:block;margin:14px auto 0;background:none;border:0;color:#777;font-size:.85rem;text-decoration:underline;cursor:pointer}'
+      +'.v2-upsell-x{position:absolute;top:10px;right:14px;background:none;border:0;font-size:1.3rem;line-height:1;color:#999;cursor:pointer}';
+    document.head.appendChild(st);
+  }
+  function v2UpsellSummaryBanner(host){
+    try{
+      if(!v2UpsellActive())return;
+      v2UpsellEnsureStyle();
+      var b=document.createElement('div'); b.className='v2-upsell-banner'; b.setAttribute('role','status');
+      var star=document.createElement('span'); star.className='v2-upsell-star'; star.textContent='✦';
+      var txt=document.createElement('span'); txt.textContent=v2UpsellMessage();
+      b.appendChild(star); b.appendChild(txt);
+      host.insertBefore(b,host.firstChild);
+    }catch(e){}
+  }
+  var v2UpsellOverlayShown=false;
+  function v2UpsellAlreadyShown(){
+    if(v2UpsellOverlayShown)return true;
+    try{ return sessionStorage.getItem('jbj_upsell_shown')==='1'; }catch(e){ return false; }
+  }
+  function v2UpsellMarkShown(){
+    v2UpsellOverlayShown=true;
+    try{ sessionStorage.setItem('jbj_upsell_shown','1'); }catch(e){}
+  }
+  function v2UpsellShowOverlay(exitHref){
+    if(document.querySelector('.v2-upsell-overlay'))return;
+    v2UpsellEnsureStyle();
+    var overlay=document.createElement('div'); overlay.className='v2-upsell-overlay';
+    var card=document.createElement('div'); card.className='v2-upsell-card';
+    var x=document.createElement('button'); x.type='button'; x.className='v2-upsell-x'; x.setAttribute('aria-label','Close'); x.textContent='×';
+    var h3=document.createElement('h3'); h3.textContent='Before you go…';
+    var msg=document.createElement('p'); msg.className='v2-upsell-msg'; msg.textContent=v2UpsellMessage();
+    var stay=document.createElement('button'); stay.type='button'; stay.className='v2-upsell-stay'; stay.textContent='Keep Designing';
+    card.appendChild(x); card.appendChild(h3); card.appendChild(msg); card.appendChild(stay);
+    if(exitHref){
+      var leave=document.createElement('button'); leave.type='button'; leave.className='v2-upsell-leave'; leave.textContent='No thanks, exit the designer';
+      leave.onclick=function(){ try{ ringAudit.record('navigation','exit_to_site',{href:exitHref}); }catch(e){} location.href=exitHref; };
+      card.appendChild(leave);
+    }
+    var close=function(){ try{ overlay.remove(); }catch(e){} };
+    x.onclick=close; stay.onclick=close;
+    overlay.addEventListener('click',function(e){ if(e.target===overlay)close(); });
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+  }
+  function installUpsell(){
+    // Exit button: the first exit attempt with an active message shows the overlay instead
+    // (capture phase, so the engine's audit/navigation listeners do not fire on that click).
+    document.addEventListener('click',function(e){
+      try{
+        var a=e.target&&e.target.closest?e.target.closest('#v2-exit-btn'):null;
+        if(!a)return;
+        if(v2UpsellAlreadyShown()||!v2UpsellActive())return;
+        e.preventDefault(); e.stopPropagation();
+        v2UpsellMarkShown();
+        v2UpsellShowOverlay(a.href);
+      }catch(err){}
+    },true);
+    // Desktop exit intent: the pointer leaves the page through the top edge.
+    document.addEventListener('mouseout',function(e){
+      try{
+        if(e.relatedTarget||e.toElement)return;
+        if(typeof e.clientY!=='number'||e.clientY>0)return;
+        if(v2UpsellAlreadyShown()||!v2UpsellActive())return;
+        v2UpsellMarkShown();
+        v2UpsellShowOverlay(null);
+      }catch(err){}
+    });
+  }
+
   function installExitLink(){
     var a=document.getElementById('v2-exit-btn'); if(!a) return;
     var embedded=false; try{ embedded=(window.self!==window.top); }catch(e){ embedded=true; }
@@ -6656,6 +6760,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     installModalScrollLock();
     installPrecutBlanks();
     installExitLink();
+    installUpsell();
     installJewelerLineObserver();
     installUpdateHook();
     renderAll();
