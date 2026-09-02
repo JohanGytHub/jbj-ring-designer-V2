@@ -7018,5 +7018,67 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   };
 })();
 </script>
+<script>
+// ══ TEMP (2026-09-02): TOOLS 05 SLEEVE · 06 FINISH · 07 SUMMARY DISABLED ═
+// Johan: these sections are not ready for CS testing yet. This block grays
+// them out and blocks every way into them (rail clicks, panel headers,
+// Continue buttons, keyboard arrows). CS tests the mockup with tools 1-4
+// and the "Preview Mockup" button.
+// TO RE-ENABLE ONE TOOL: delete its line from NA below.
+// TO REMOVE THE WHOLE FEATURE: delete this entire <script> block
+// (it is an extra delta on top of the 5-delta mockup-test recipe).
+(function(){
+  var NA = {
+    'sleeve': 1,
+    'finish': 1,
+    'summary': 1
+  };
+  var MSG = 'This section isn’t available yet on this test page — please test with tools 1–4 and the Preview Mockup button.';
+  function toast(){ try{ if (window.showRuleToast) showRuleToast(MSG); }catch(e){} }
+  // 1. Gray out the rail tabs + their accordion panels (matches the v2-locked look).
+  var css = document.createElement('style');
+  css.textContent = '.tool-tab.v2-na{opacity:.38;cursor:not-allowed}.acc-panel.v2-na{opacity:.45}.acc-panel.v2-na .acc-head{cursor:not-allowed}';
+  document.head.appendChild(css);
+  function applyMarks(){
+    Object.keys(NA).forEach(function(id){
+      var tab = document.querySelector('.tool-tab[data-sec="' + id + '"]');
+      if (tab){
+        tab.classList.add('v2-na'); tab.title = 'Not available yet';
+        if (tab.getAttribute('aria-disabled') !== 'true') tab.setAttribute('aria-disabled','true');
+      }
+      var panel = document.getElementById('acc-panel-' + id);
+      if (panel){ panel.classList.add('v2-na'); var hb = panel.querySelector('.acc-head'); if (hb){ hb.setAttribute('aria-disabled','true'); hb.title = 'Not available yet'; } }
+    });
+  }
+  applyMarks();
+  // v2ApplyPrecutLocks() strips aria-disabled from these same tabs on every
+  // composer render — re-apply whenever that happens.
+  Object.keys(NA).forEach(function(id){
+    var tab = document.querySelector('.tool-tab[data-sec="' + id + '"]');
+    if (tab) new MutationObserver(applyMarks).observe(tab, { attributes:true, attributeFilter:['aria-disabled'] });
+  });
+  // 2. Swallow clicks on those tabs/headers BEFORE the router's handlers run (capture phase).
+  document.addEventListener('click', function(e){
+    var el = e.target && e.target.closest ? e.target.closest('.tool-tab[data-sec],.acc-head[data-sec]') : null;
+    if (el && NA[el.getAttribute('data-sec')]){ e.preventDefault(); e.stopPropagation(); toast(); }
+  }, true);
+  // 3. Block Continue / step-dot / keyboard navigation into them. The router's
+  // goToStep maps index -> section (0 size .. 6 summary) and skips compose (3)
+  // forward to sleeve (4) when the customer chose "no inlays" — replicate that
+  // skip here so the base-metal-only path is blocked too.
+  if (typeof window.goToStep === 'function'){
+    var _realGoToStep = window.goToStep;
+    window.goToStep = function(idx){
+      var eff = idx;
+      try{
+        if (eff === 3 && typeof state !== 'undefined' && state.wantsInlays === false && eff > (state.step || 0)) eff = 4;
+      }catch(e){}
+      var ids = ['size','metal','width','compose','sleeve','finish','summary'];
+      if (NA[ids[Math.min(Math.max(eff,0),6)]]){ toast(); return; }
+      return _realGoToStep.apply(this, arguments);
+    };
+  }
+})();
+</script>
 </body>
 </html>
