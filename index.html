@@ -1905,6 +1905,8 @@ function applyDesignerConfig(config,options={}){
   PUBLIC_SHOW_PRICES=_staffMode?true:(config.show_prices!==false);
   try{ document.body.classList.toggle('v2-hide-prices',!PUBLIC_SHOW_PRICES); }catch(e){}
   PUBLIC_UPSELL_MESSAGE=(typeof config.upsell_message==='string')?config.upsell_message.trim():'';
+  PUBLIC_UPSELL_DAYS=(function(){var v=parseFloat(config.upsell_days);return (isFinite(v)&&v>0)?v:null;})();
+  PUBLIC_UPSELL_PERCENT=(function(){var v=parseFloat(config.upsell_percent);return (isFinite(v)&&v>0&&v<=100)?v:null;})();
   DATA={
     m:config.catalog.materials,c:config.catalog.colors,
     quote_config:config.quote_config,audit_config:config.audit_config,
@@ -4009,7 +4011,13 @@ let PUBLIC_SHOW_PRICES=true;
 // UPSELL MESSAGE (2026-09-02, Johan): Cloudflare KV key `upsell_message` arrives via
 // designer-config `upsell_message`. Blank/missing = feature off. Rendered by the router
 // (Summary banner + exit overlay) only when the design has at least one inlay.
+// UPSELL DAYS/PERCENT (2026-09-03, Johan): KV keys `upsell_days`/`upsell_percent` fill the
+// (days)/(%) placeholders in the message; (code) renders as 'sent with your quote' in the
+// builder (the real RDQ- code only exists once the quote is submitted and emailed).
+// A template with a placeholder that cannot be resolved = feature off (never show raw '(days)').
 let PUBLIC_UPSELL_MESSAGE='';
+let PUBLIC_UPSELL_DAYS=null;
+let PUBLIC_UPSELL_PERCENT=null;
 let HARD_EDGE_BASES={};
 let BASE_ALLOWED_GROUPS={};
 let BASE_BLOCKED_SOLID={};
@@ -6609,7 +6617,14 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
        - a desktop exit-intent overlay when the mouse leaves through the top edge
          (same once-per-session flag). */
   function v2UpsellMessage(){
-    try{ return (typeof PUBLIC_UPSELL_MESSAGE==='string'?PUBLIC_UPSELL_MESSAGE:'').trim(); }catch(e){ return ''; }
+    try{
+      var m=(typeof PUBLIC_UPSELL_MESSAGE==='string'?PUBLIC_UPSELL_MESSAGE:'').trim();
+      if(!m)return '';
+      if(m.indexOf('(days)')!==-1){ if(typeof PUBLIC_UPSELL_DAYS!=='number')return ''; m=m.split('(days)').join(String(PUBLIC_UPSELL_DAYS)); }
+      if(m.indexOf('(%)')!==-1){ if(typeof PUBLIC_UPSELL_PERCENT!=='number')return ''; m=m.split('(%)').join(String(PUBLIC_UPSELL_PERCENT)); }
+      m=m.split('(code)').join('sent with your quote');
+      return m;
+    }catch(e){ return ''; }
   }
   function v2UpsellInlayCount(){
     try{ return (state.strips||[]).filter(function(s){ return window.isMetal?!isMetal(s.material):true; }).length; }catch(e){ return 0; }
