@@ -2999,6 +2999,20 @@ function _getCanvasImage(){
 // any error or timeout resolves to null — a quote is never blocked.
 const MOCKUP_MESHES_URL='mockup-assets/mockup-meshes.json';
 const MOCKUP_BASE_MAP={'Titanium':'titanium','Tungsten':'tungsten','Silver':'silver','Platinum':'platinum','Stainless':'stainless','Yellow 10K':'yellow-10k','Yellow 14K':'yellow-14k','Yellow 18K':'yellow-18k','White 10K':'white-10k','White 14K':'white-14k','White 18K':'white-18k','Rose 14K':'rose-14k','Rose 18K':'rose-18k','Zirconium':'zirconium','Black Ceramic':'black-ceramic','Damascus':'titanium','Metal Mokume':'titanium'};
+// Round (domed) profile bases — style-111 product photos (2026-09-04). Width-keyed per metal;
+// the nearest width is used (ties go wider, same convention as the precut width snap).
+// Metals absent here have no Round photo yet and keep the flat base (preview notes it).
+const MOCKUP_ROUND_BASES={'Titanium':{'4':'round-titanium-4','6':'round-titanium-6','8':'round-titanium-8','10':'round-titanium-10'},'Tungsten':{'4':'round-tungsten-4','6':'round-tungsten-6','8':'round-tungsten-8'},'Zirconium':{'8':'round-zirconium-8'},'Black Ceramic':{'6':'round-black-ceramic-6'}};
+function _mockupRoundSlug(metal,widthMm){
+  const t=MOCKUP_ROUND_BASES[metal];if(!t)return null;
+  const w0=Number(widthMm)||6;let bestW=null;
+  for(const k in t){const w=parseFloat(k);
+    if(bestW===null){bestW=w;continue;}
+    const d=Math.abs(w-w0),bd=Math.abs(bestW-w0);
+    if(d<bd-1e-9||(Math.abs(d-bd)<=1e-9&&w>bestW))bestW=w;
+  }
+  return t[String(bestW)]||null;
+}
 const MOCKUP_TILE_GAIN=[['opal-',1.45],['koa',1.15]];
 let _mockupMeshCache=null;
 function _mockupLoadImg(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('img '+src));im.src=src;});}
@@ -3045,8 +3059,9 @@ function _mockupDesign(){
 }
 async function generateMockupImage(){
   const meshes=await _mockupMeshes();
-  const slug=MOCKUP_BASE_MAP[state.baseMetal]||'titanium';
-  const entry=meshes.bases[slug]||meshes.bases['titanium'];
+  let slug=MOCKUP_BASE_MAP[state.baseMetal]||'titanium';
+  if(state.profile==='Round'){const rs=_mockupRoundSlug(state.baseMetal,state.ringWidth);if(rs&&meshes.bases[rs])slug=rs;}
+  const entry=meshes.bases[slug]||meshes.bases[MOCKUP_BASE_MAP[state.baseMetal]||'titanium']||meshes.bases['titanium'];
   const design=_mockupDesign();
   if(!design.some(d=>d.kind!=='base'))return null; // plain band: the photo itself IS the mockup
   const baseImg=await _mockupLoadImg(entry.img);
@@ -7017,6 +7032,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
     var summary = state.baseMetal + ' · size ' + state.ringSize + ' · ' + state.ringWidth + 'mm · ' + state.profile + ' · ' + state.finish +
       (state.strips.length ? ' — ' + state.strips.map(function(s){return s.material + ' ' + s.width + 'mm';}).join(' | ') : ' — plain band');
+    if (state.profile === 'Round' && !(typeof _mockupRoundSlug === 'function' && _mockupRoundSlug(state.baseMetal, state.ringWidth))) summary += ' — ⚠ no Round photo for this metal yet: FLAT base shown';
     if (b64) {
       ov.innerHTML = '<div style="color:#fff;font:13px sans-serif;margin-bottom:10px;max-width:860px;text-align:center;">' + summary.replace(/</g,'&lt;') + '</div>' +
         '<img style="max-width:min(90vw,760px);max-height:72vh;border-radius:8px;background:#fff;" src="data:image/jpeg;base64,' + b64 + '">' +
