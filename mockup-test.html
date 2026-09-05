@@ -7144,7 +7144,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   // and the page reloads itself as mockup-test.html?design=... — the
   // AUTO-PREVIEW block above then loads the design and opens the mockup jpg.
   var pasteWrap = document.createElement('div');
-  pasteWrap.style.cssText = 'position:fixed;left:14px;bottom:64px;z-index:99998;display:flex;flex-direction:column;gap:4px;width:min(92vw,430px);';
+  pasteWrap.style.cssText = 'position:fixed;left:14px;bottom:64px;z-index:99998;display:flex;flex-direction:column;gap:4px;width:min(92vw,430px);background:rgba(28,93,153,.28);border:1px solid #1c5d99;border-radius:12px;padding:8px;box-shadow:0 2px 10px rgba(0,0,0,.45);';
   var pasteErr = document.createElement('div');
   pasteErr.style.cssText = 'display:none;color:#ff9d9d;font:12px sans-serif;background:rgba(0,0,0,.6);border-radius:6px;padding:4px 8px;';
   var pasteRow = document.createElement('div');
@@ -7153,7 +7153,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   pasteInp.type = 'text';
   pasteInp.setAttribute('aria-label', 'Quote email design link');
   pasteInp.placeholder = "Paste the 'Open in Ring Designer' link from a quote email";
-  pasteInp.style.cssText = 'flex:1;min-width:0;background:#10151c;color:#dfe7f0;border:1px solid #3a4656;border-radius:8px;padding:9px 10px;font:13px sans-serif;';
+  pasteInp.style.cssText = 'flex:1;min-width:0;background:#ffffff;color:#16202b;border:2px solid #1c5d99;border-radius:8px;padding:9px 10px;font:13px sans-serif;';
   var pasteBtn = document.createElement('button');
   pasteBtn.type = 'button';
   pasteBtn.textContent = 'Load design';
