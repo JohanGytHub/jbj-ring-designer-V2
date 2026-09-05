@@ -957,6 +957,7 @@ html.v2-modal-lock body{position:fixed!important;left:0;right:0;width:100%;overf
 .v2-strip-rows{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
 .v2-strip-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
 .v2-strip-row.v2-row-selected{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.v2-strip-row.v2-row-ghost{border-style:dashed}
 .v2-row-dot{width:14px;height:14px;border-radius:4px;flex:0 0 auto;border:1px solid rgba(0,0,0,.25)}
 .v2-row-name{flex:1 1 auto;min-width:0;font-size:.78rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-align:left;background:none;border:none;padding:0;font-family:inherit}
 .v2-row-name:hover{color:var(--gold)}
@@ -6152,10 +6153,12 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       var left=document.createElement('button');
       left.type='button'; left.className='v2-row-btn'; left.textContent='«'; left.title='Move left';
       left.disabled=(i===0);
+      if(left.disabled) left.title='Already the left-most strip';
       left.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2MoveStrip(i,-1,col); };
       var right=document.createElement('button');
       right.type='button'; right.className='v2-row-btn'; right.textContent='»'; right.title='Move right';
       right.disabled=(i===state.strips.length-1);
+      if(right.disabled) right.title='Already the right-most strip — the '+state.baseMetal+' edge beyond it always stays on the outside';
       right.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2MoveStrip(i,1,col); };
       moveGrp.appendChild(left); moveGrp.appendChild(right);
       var wGrp=document.createElement('span'); wGrp.className='v2-row-group';
@@ -6178,7 +6181,80 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       row.appendChild(dot); row.appendChild(name); row.appendChild(moveGrp); row.appendChild(wGrp);
       rows.appendChild(row);
     });
+    // Trailing base-metal edge (2026-09-04, Johan): the dashed "remaining" block gets its
+    // own bar. Its width IS the ring's free width, so its +/− widen or narrow the whole
+    // ring by one ring-width step — the same operation as the Ring Width control above.
+    if(remaining>BUILDER.width_epsilon){
+      var gi=state.strips.length;
+      var gRow=document.createElement('div');
+      gRow.className='v2-strip-row v2-row-ghost';
+      var gDot=document.createElement('span'); gDot.className='v2-row-dot';
+      gDot.style.background=(typeof getColor==='function')?getColor(state.baseMetal):'#444';
+      var gName=document.createElement('button');
+      gName.type='button'; gName.className='v2-row-name';
+      gName.title='Remaining width — filled with a '+state.baseMetal+' edge when you continue. Tap to add an inlay here.';
+      gName.textContent=(gi+1)+'. '+state.baseMetal;
+      var gMinW=Math.max(v2MaterialMin(state.baseMetal),BUILDER.strip_width.min);
+      if(gMinW>BUILDER.strip_width.min){
+        var gMinSpan=document.createElement('span'); gMinSpan.className='v2-row-min';
+        gMinSpan.textContent='min '+gMinW+'mm';
+        gName.appendChild(gMinSpan);
+      }
+      gName.onclick=function(e){ e.preventDefault(); e.stopPropagation(); state.selectedStrip=-1; if(typeof openAddStripModal==='function') openAddStripModal(); };
+      var gMoveGrp=document.createElement('span'); gMoveGrp.className='v2-row-group';
+      var gLeft=document.createElement('button');
+      gLeft.type='button'; gLeft.className='v2-row-btn'; gLeft.textContent='«'; gLeft.title='The '+state.baseMetal+' edge stays on the outside';
+      gLeft.disabled=true;
+      var gRight=document.createElement('button');
+      gRight.type='button'; gRight.className='v2-row-btn'; gRight.textContent='»'; gRight.title='The '+state.baseMetal+' edge stays on the outside';
+      gRight.disabled=true;
+      gMoveGrp.appendChild(gLeft); gMoveGrp.appendChild(gRight);
+      var gWGrp=document.createElement('span'); gWGrp.className='v2-row-group';
+      var rwStep=BUILDER.ring_width.step;
+      var rwMin=Math.max(BUILDER.ring_width.min,snapToStep(used,BUILDER.ring_width,'ceil'));
+      var gPrecut=(typeof v2IsPrecut==='function')&&v2IsPrecut();
+      var gMinus=document.createElement('button');
+      gMinus.type='button'; gMinus.className='v2-row-btn'; gMinus.textContent='−';
+      var gAtMin=state.ringWidth-rwStep<rwMin-BUILDER.width_epsilon;
+      gMinus.disabled=gPrecut||gAtMin;
+      gMinus.title=gPrecut?(state.baseMetal+' rings come in fixed precut widths — use the Ring Width control above'):(gAtMin?'The ring is already at the minimum width for this layout':('Narrower (−'+rwStep+'mm) — reduces the ring width'));
+      gMinus.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2StepRemaining(-1,col); };
+      var gWLbl=document.createElement('span'); gWLbl.className='v2-row-w';
+      gWLbl.textContent=remaining+'mm';
+      var gPlus=document.createElement('button');
+      gPlus.type='button'; gPlus.className='v2-row-btn'; gPlus.textContent='+';
+      var gAtMax=state.ringWidth+rwStep>BUILDER.ring_width.max+BUILDER.width_epsilon;
+      gPlus.disabled=gPrecut||gAtMax;
+      gPlus.title=gPrecut?(state.baseMetal+' rings come in fixed precut widths — use the Ring Width control above'):(gAtMax?('At the '+BUILDER.ring_width.max+'mm maximum ring width'):('Wider (+'+rwStep+'mm) — increases the ring width'));
+      gPlus.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2StepRemaining(1,col); };
+      gWGrp.appendChild(gMinus); gWGrp.appendChild(gWLbl); gWGrp.appendChild(gPlus);
+      gRow.appendChild(gDot); gRow.appendChild(gName); gRow.appendChild(gMoveGrp); gRow.appendChild(gWGrp);
+      rows.appendChild(gRow);
+    }
     composer.parentNode.insertBefore(rows,composer.nextSibling);
+  }
+
+  // Step the trailing base-metal edge (= the ring's free width): +/− widen or narrow the
+  // WHOLE RING by one ring-width step, exactly like the Ring Width control above the strip
+  // chips (the strips keep their widths; only the auto edge grows or shrinks).
+  function v2StepRemaining(dir,col){
+    var strips=state.strips||[];
+    var used=strips.reduce(function(a,st){return a+st.width;},0);
+    var step=BUILDER.ring_width.step;
+    var v=parseFloat((state.ringWidth+dir*step).toFixed(2));
+    var minW=Math.max(BUILDER.ring_width.min,snapToStep(used,BUILDER.ring_width,'ceil'));
+    if(v>BUILDER.ring_width.max+BUILDER.width_epsilon){
+      showRuleToast('The ring is already at its '+BUILDER.ring_width.max+'mm maximum width.');
+      return;
+    }
+    if(v<minW-BUILDER.width_epsilon){
+      showRuleToast('The ring can’t go below '+minW+'mm with the current strips.');
+      return;
+    }
+    state.ringWidth=v;
+    renderComposePanel(col);
+    if(typeof renderRing==='function'){ try{ renderRing(); }catch(e){} }
+    if(typeof updatePrice==='function'){ try{ updatePrice(); }catch(e){} }
   }
 
   function v2WireComposer(col){
