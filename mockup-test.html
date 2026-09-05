@@ -7123,6 +7123,21 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     ov.addEventListener('click', function(e){ if (e.target === ov || e.target.tagName === 'BUTTON') ov.remove(); });
     document.body.appendChild(ov);
   };
+  // ── AUTO-PREVIEW ON ?design= (2026-09-05, Johan) ──────────────────────────
+  // Staff paste an "Open in Ring Designer" link with the path switched to
+  // mockup-test.html (or click the "Open in Mockup Test" link in the quote
+  // email): once the encoded design loads successfully, the Preview Mockup
+  // overlay opens by itself. Wraps loadDesignFromURL like the precut share-link
+  // shim above; a missing/invalid design payload never auto-opens anything.
+  if (new URLSearchParams(window.location.search).get('design') && typeof loadDesignFromURL === 'function') {
+    var _autoPrevLoad = loadDesignFromURL;
+    var _autoPrevDone = false;
+    loadDesignFromURL = function(){
+      var ok = _autoPrevLoad.apply(this, arguments);
+      if (ok && !_autoPrevDone) { _autoPrevDone = true; setTimeout(function(){ try { btn.click(); } catch(e){} }, 800); }
+      return ok;
+    };
+  }
 })();
 </script>
 <script>
