@@ -6140,7 +6140,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       dot.style.background=color;
       var name=document.createElement('button');
       name.type='button'; name.className='v2-row-name';
-      name.title='Edit this strip';
+      name.title='Select this strip — slide & edit controls appear below the list';
       name.textContent=(i+1)+'. '+s.material;
       var minW=Math.max(v2MaterialMin(s.material),BUILDER.strip_width.min);
       if(minW>BUILDER.strip_width.min){
@@ -6148,7 +6148,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
         minSpan.textContent='min '+minW+'mm';
         name.appendChild(minSpan);
       }
-      name.onclick=function(e){ e.preventDefault(); e.stopPropagation(); v2OpenEdit(i,col); };
+      name.onclick=function(e){ e.preventDefault(); e.stopPropagation(); state.selectedStrip=(state.selectedStrip===i)?-1:i; renderComposePanel(col); };
       var moveGrp=document.createElement('span'); moveGrp.className='v2-row-group';
       var left=document.createElement('button');
       left.type='button'; left.className='v2-row-btn'; left.textContent='«'; left.title='Move left';
