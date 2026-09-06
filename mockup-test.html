@@ -4504,7 +4504,9 @@ function openAddStripModal(){
   const remaining=state.ringWidth-usedWidth;
   const availableForInlay=remaining;
 
+  let _matRendered=false; /* MAT-GRID SCROLL KEEP (2026-09-06): remember the materials window scroll across re-renders */
   function render(){
+    const _pg=_matRendered?modal.querySelector('.mat-grid'):null;const _gridScroll=_pg?_pg.scrollTop:null;
     modal.innerHTML='';
     modal.appendChild(h('h3',{},['Add an Inlay Strip']));
     modal.appendChild(h('button',{style:{position:'absolute',top:'12px',right:'16px',fontSize:'1.2rem',color:'var(--text-muted)'},onClick:()=>overlay.classList.remove('open')},['×']));
@@ -4594,6 +4596,10 @@ function openAddStripModal(){
       grid.appendChild(card);
     });
     modal.appendChild(grid);
+    /* MAT-GRID SCROLL KEEP (2026-09-06): keep the selected material in view */
+    if(_gridScroll!==null){grid.scrollTop=_gridScroll;}
+    else{const _sel=grid.querySelector('.mat-card.selected');if(_sel){const _d=_sel.getBoundingClientRect().top-grid.getBoundingClientRect().top;grid.scrollTop=Math.max(0,_d-(grid.clientHeight-_sel.getBoundingClientRect().height)/2);}}
+    _matRendered=true;
 
     // "Not seeing it?" CTA
     modal.appendChild(h('div',{style:{marginTop:'12px',fontSize:'.72rem',color:'var(--text-muted)',textAlign:'center'}},[
@@ -4662,7 +4668,9 @@ function openEditStripModal(idx){
   const otherWidth=state.strips.reduce((s,st,i)=>i===idx?s:s+st.width,0);
   const maxW=state.ringWidth-otherWidth;
 
+  let _matRendered=false; /* MAT-GRID SCROLL KEEP (2026-09-06): remember the materials window scroll across re-renders */
   function render(){
+    const _pg=_matRendered?modal.querySelector('.mat-grid'):null;const _gridScroll=_pg?_pg.scrollTop:null;
     modal.innerHTML='';
     modal.appendChild(h('h3',{},['Edit Strip '+(idx+1)]));
     modal.appendChild(h('button',{style:{position:'absolute',top:'12px',right:'16px',fontSize:'1.2rem',color:'var(--text-muted)'},onClick:()=>overlay.classList.remove('open')},['×']));
@@ -4736,6 +4744,10 @@ function openEditStripModal(idx){
       grid.appendChild(card);
     });
     modal.appendChild(grid);
+    /* MAT-GRID SCROLL KEEP (2026-09-06): keep the selected material in view */
+    if(_gridScroll!==null){grid.scrollTop=_gridScroll;}
+    else{const _sel=grid.querySelector('.mat-card.selected');if(_sel){const _d=_sel.getBoundingClientRect().top-grid.getBoundingClientRect().top;grid.scrollTop=Math.max(0,_d-(grid.clientHeight-_sel.getBoundingClientRect().height)/2);}}
+    _matRendered=true;
 
     // "Not seeing it?" CTA
     modal.appendChild(h('div',{style:{marginTop:'12px',fontSize:'.72rem',color:'var(--text-muted)',textAlign:'center'}},[
