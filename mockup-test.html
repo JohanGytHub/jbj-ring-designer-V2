@@ -3102,8 +3102,11 @@ function _v5Geometry(entry,W,H,dome){
   }
   const uAt=ph=>{const x=ph/Math.PI*KA,k=Math.min(KA-1,Math.floor(x)),f=x-k;return arcU[k]*(1-f)+arcU[k+1]*f;};
   const K=64,tabT=dome?new Float32Array(NS*(K+1)):null,tabU=dome?new Float32Array(NS*(K+1)):null,tabF=dome?new Float32Array(NS*(K+1)):null,uFar=new Float32Array(NS).fill(1);
+  // view angle β around the ring: the band faces the camera at the middle of the photographed arc (θmid) and turns
+  // edge-on toward both ends — cosβ = CMAX·cos(θ-θmid), smooth in v, so the strip edges stay smooth ribbons.
+  const th0=Number(entry.theta0)||0,th1=Number(entry.theta1)||Math.PI,thMid=Number(entry.apexTheta)||(th0+th1)/2,CMAX=Number(entry.faceCos)||0.85;
   if(dome)for(let i=0;i<NS;i++){
-    const cb=Math.pow(Math.max(0,Math.min(1,(wArr[i]-wmin)/Math.max(1e-6,wmax-wmin))),0.5),beta=Math.acos(cb),sb=Math.sin(beta);
+    const th=th0+(th1-th0)*i/(NS-1),cb=Math.max(0,Math.min(1,CMAX*Math.cos(th-thMid))),beta=Math.acos(cb),sb=Math.sin(beta);
     const phiS=Math.PI-Math.atan(DH*Math.tan(Math.min(beta,1.5707)));uFar[i]=uAt(phiS);
     const P=ph=>-Math.cos(ph)*cb+DH*Math.sin(ph)*sb,p0=P(0),p1=P(phiS);
     for(let k=0;k<=K;k++){
