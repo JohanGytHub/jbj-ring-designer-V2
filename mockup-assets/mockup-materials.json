@@ -1,0 +1,877 @@
+{
+"_version": "5.0",
+"materials": {
+"Afzelia": {
+"tex": "mockup-assets/tex/wood-afzelia.jpg",
+"kind": "natural"
+},
+"Agate": {
+"tex": "mockup-assets/tex/lapidary-moss-agate.jpg",
+"kind": "natural"
+},
+"Agate Crushed": {
+"tex": "mockup-assets/tex/lapidary-moss-agate-crushed.jpg",
+"kind": "natural"
+},
+"Amboyna": {
+"tex": "mockup-assets/tex/wood-amboyna.jpg",
+"kind": "natural"
+},
+"Antler": {
+"tex": "mockup-assets/tex/antler-solid-dark.jpg",
+"kind": "natural"
+},
+"Antler - Light": {
+"tex": "mockup-assets/tex/antler-solid-light.jpg",
+"kind": "natural"
+},
+"Aquamarine": {
+"tex": "mockup-assets/tex/birthstone-aquamarine-crushed.jpg",
+"kind": "natural"
+},
+"Aspen": {
+"tex": "mockup-assets/tex/wood-aspen.jpg",
+"kind": "natural"
+},
+"Bamboo": {
+"tex": "mockup-assets/tex/wood-bamboo.jpg",
+"kind": "natural"
+},
+"Birch": {
+"tex": "mockup-assets/tex/wood-birch.jpg",
+"kind": "natural"
+},
+"Black Ash Burl": {
+"tex": "mockup-assets/tex/wood-black-ash-burl.jpg",
+"kind": "natural"
+},
+"Black Ceramic": {
+"tex": "mockup-assets/tex/metal-black-ceramic.jpg",
+"kind": "metal"
+},
+"Blackwood (African)": {
+"tex": "mockup-assets/tex/wood-african-blackwood.jpg",
+"kind": "natural"
+},
+"Bloodwood": {
+"tex": "mockup-assets/tex/wood-bloodwood.jpg",
+"kind": "natural"
+},
+"Bocote": {
+"tex": "mockup-assets/tex/wood-bocote.jpg",
+"kind": "natural"
+},
+"Box Elder Burl (Blue)": {
+"tex": "mockup-assets/tex/wood-box-elder-burl-blue.jpg",
+"kind": "natural"
+},
+"Box Elder Burl (Flame)": {
+"tex": "mockup-assets/tex/wood-box-elder-burl-flame.jpg",
+"kind": "natural"
+},
+"Box Elder Burl (Gold)": {
+"tex": "mockup-assets/tex/wood-box-elder-burl-gold.jpg",
+"kind": "natural"
+},
+"Box Elder Burl (Green)": {
+"tex": "mockup-assets/tex/wood-box-elder-burl-green.jpg",
+"kind": "natural"
+},
+"Box Elder Burl (Magenta)": {
+"tex": "mockup-assets/tex/wood-box-elder-burl-magenta.jpg",
+"kind": "natural"
+},
+"Box Elder Burl (Peridot)": {
+"tex": "mockup-assets/tex/wood-box-elder-burl-peridot.jpg",
+"kind": "natural"
+},
+"Box Elder Burl (Purple)": {
+"tex": "mockup-assets/tex/wood-box-elder-burl-purple.jpg",
+"kind": "natural"
+},
+"Box Elder Burl (Red)": {
+"tex": "mockup-assets/tex/wood-box-elder-burl-red.jpg",
+"kind": "natural"
+},
+"Briar": {
+"tex": "mockup-assets/tex/wood-briar.jpg",
+"kind": "natural"
+},
+"Bubinga": {
+"tex": "mockup-assets/tex/wood-bubinga.jpg",
+"kind": "natural"
+},
+"Buckeye Burl": {
+"tex": "mockup-assets/tex/wood-buckeye-burl.jpg",
+"kind": "natural"
+},
+"Canary": {
+"tex": "mockup-assets/tex/wood-canary.jpg",
+"kind": "natural"
+},
+"Cedar": {
+"tex": "mockup-assets/tex/wood-cedar-red.jpg",
+"kind": "natural"
+},
+"Cedar (Red)": {
+"tex": "mockup-assets/tex/wood-cedar-red.jpg",
+"kind": "natural"
+},
+"Cherry Burl": {
+"tex": "mockup-assets/tex/wood-cherry-burl.jpg",
+"kind": "natural"
+},
+"Cherry Wood": {
+"tex": "mockup-assets/tex/wood-cherry.jpg",
+"kind": "natural"
+},
+"Citrine Crushed": {
+"tex": "mockup-assets/tex/birthstone-citrine-crushed.jpg",
+"kind": "natural"
+},
+"Cocobolo": {
+"tex": "mockup-assets/tex/wood-cocobolo.jpg",
+"kind": "natural"
+},
+"Colored Enamel": {
+"tex": "mockup-assets/tex/enamel-red.jpg",
+"kind": "natural"
+},
+"Compact Crushed Meteorite": {
+"tex": "mockup-assets/tex/meteorite-compact-crushed.jpg",
+"kind": "natural"
+},
+"Coolibah": {
+"tex": "mockup-assets/tex/wood-coolibah.jpg",
+"kind": "natural"
+},
+"Crushed Antler": {
+"tile": "swatches-tex/antler.jpg",
+"kind": "natural"
+},
+"Crushed Wood": {
+"tex": "mockup-assets/tex/wood-petrified-crushed.jpg",
+"kind": "natural"
+},
+"Customer Antler": {
+"tex": "mockup-assets/tex/antler-solid-dark.jpg",
+"kind": "natural"
+},
+"Cypress": {
+"tex": "mockup-assets/tex/wood-cypress.jpg",
+"kind": "natural"
+},
+"Dalmata": {
+"tex": "mockup-assets/tex/wood-dalmata.jpg",
+"kind": "natural"
+},
+"Desert Mosaic": {
+"tex": "mockup-assets/tex/lapidary-desert-mosaic.jpg",
+"kind": "natural"
+},
+"Desert Mosaic Crushed": {
+"tex": "mockup-assets/tex/lapidary-desert-mosaic-crushed.jpg",
+"kind": "natural"
+},
+"Diamond Crushed": {
+"tex": "mockup-assets/tex/birthstone-diamond-crushed.jpg",
+"kind": "natural"
+},
+"Diamond Dust": {
+"tex": "mockup-assets/tex/stardust-white.jpg",
+"kind": "natural"
+},
+"Dino Bone Crushed": {
+"tex": "mockup-assets/tex/dino-crushed-dark.jpg",
+"kind": "natural"
+},
+"Dino Bone Solid": {
+"tex": "mockup-assets/tex/dino-solid-dark.jpg",
+"kind": "natural"
+},
+"Dymonwood (camo)": {
+"tile": "swatches-tex/dymonwood-camo.jpg",
+"kind": "natural"
+},
+"Ebony (Black & White)": {
+"tex": "mockup-assets/tex/wood-ebony-black-and-white.jpg",
+"kind": "natural"
+},
+"Ebony (Black)": {
+"tex": "mockup-assets/tex/wood-ebony-black.jpg",
+"kind": "natural"
+},
+"Ebony (Macassar)": {
+"tex": "mockup-assets/tex/wood-ebony-macassar.jpg",
+"kind": "natural"
+},
+"Emerald Crushed": {
+"tex": "mockup-assets/tex/birthstone-emerald-crushed.jpg",
+"kind": "natural"
+},
+"Enamel - Black": {
+"tex": "mockup-assets/tex/enamel-black.jpg",
+"kind": "natural"
+},
+"Enamel - Blue": {
+"tex": "mockup-assets/tex/enamel-blue.jpg",
+"kind": "natural"
+},
+"Enamel - Green": {
+"tex": "mockup-assets/tex/enamel-green.jpg",
+"kind": "natural"
+},
+"Enamel - Orange": {
+"tex": "mockup-assets/tex/enamel-orange.jpg",
+"kind": "natural"
+},
+"Enamel - Purple": {
+"tex": "mockup-assets/tex/enamel-purple.jpg",
+"kind": "natural"
+},
+"Enamel - Red": {
+"tex": "mockup-assets/tex/enamel-red.jpg",
+"kind": "natural"
+},
+"Enamel - White": {
+"tex": "mockup-assets/tex/enamel-white.jpg",
+"kind": "natural"
+},
+"Enamel - Yellow": {
+"tex": "mockup-assets/tex/enamel-yellow.jpg",
+"kind": "natural"
+},
+"Enamel Pinstripe": {
+"tex": "mockup-assets/tex/enamel-black.jpg",
+"kind": "natural"
+},
+"Eucalyptus (Red Gum)": {
+"tex": "mockup-assets/tex/wood-eucalyptus-red-gum.jpg",
+"kind": "natural"
+},
+"Faceted Gibeon Meteorite": {
+"tex": "mockup-assets/tex/meteorite-gibeon.jpg",
+"kind": "natural"
+},
+"Garapa": {
+"tex": "mockup-assets/tex/wood-garapa.jpg",
+"kind": "natural"
+},
+"Garnet Crushed": {
+"tex": "mockup-assets/tex/birthstone-garnet-crushed.jpg",
+"kind": "natural"
+},
+"Gibeon Meteorite": {
+"tex": "mockup-assets/tex/meteorite-gibeon.jpg",
+"kind": "natural"
+},
+"Gold Flakes": {
+"tex": "mockup-assets/tex/stardust-yellow-gold.jpg",
+"kind": "natural"
+},
+"Gold Leaf": {
+"tex": "mockup-assets/tex/stardust-yellow-gold.jpg",
+"kind": "natural"
+},
+"Goldstone Crushed": {
+"tex": "mockup-assets/tex/lapidary-goldstone-crushed.jpg",
+"kind": "natural"
+},
+"Holly": {
+"tex": "mockup-assets/tex/wood-holly.jpg",
+"kind": "natural"
+},
+"Homino Negro": {
+"tex": "mockup-assets/tex/wood-homino-negro.jpg",
+"kind": "natural"
+},
+"Ipe": {
+"tex": "mockup-assets/tex/wood-ipe.jpg",
+"kind": "natural"
+},
+"Ironwood": {
+"tex": "mockup-assets/tex/wood-ironwood.jpg",
+"kind": "natural"
+},
+"Ironwood (Burl)": {
+"tex": "mockup-assets/tex/wood-ironwood-burl.jpg",
+"kind": "natural"
+},
+"Jack Daniels Wood": {
+"tile": "swatches-tex/jack-daniels-wood.jpg",
+"kind": "natural"
+},
+"Jubillo": {
+"tile": "swatches-tex/jubillo.jpg",
+"kind": "natural"
+},
+"Kauri": {
+"tex": "mockup-assets/tex/wood-kauri.jpg",
+"kind": "natural"
+},
+"King": {
+"tex": "mockup-assets/tex/wood-king.jpg",
+"kind": "natural"
+},
+"Koa": {
+"tex": "mockup-assets/tex/wood-koa.jpg",
+"kind": "natural"
+},
+"Lapis Lazuli": {
+"tex": "mockup-assets/tex/lapidary-lapis-lazuli.jpg",
+"kind": "natural"
+},
+"Lapis Lazuli Crushed": {
+"tex": "mockup-assets/tex/lapidary-lapis-lazuli-crushed.jpg",
+"kind": "natural"
+},
+"Larimar": {
+"tex": "mockup-assets/tex/lapidary-larimar.jpg",
+"kind": "natural"
+},
+"Larimar Crushed": {
+"tex": "mockup-assets/tex/lapidary-larimar-crushed.jpg",
+"kind": "natural"
+},
+"Lava Mosaic Turquoise Crushed": {
+"tex": "mockup-assets/tex/lapidary-lava-mosaic-turquoise-crushed.jpg",
+"kind": "natural"
+},
+"Lava Turquoise Crushed": {
+"tex": "mockup-assets/tex/lapidary-lava-mosaic-turquoise-crushed.jpg",
+"kind": "natural"
+},
+"Leopard": {
+"tex": "mockup-assets/tex/wood-leopard.jpg",
+"kind": "natural"
+},
+"Lignum Vitae": {
+"tex": "mockup-assets/tex/wood-lignum-vitae.jpg",
+"kind": "natural"
+},
+"Lyptus": {
+"tex": "mockup-assets/tex/wood-lyptus.jpg",
+"kind": "natural"
+},
+"Madrone": {
+"tex": "mockup-assets/tex/wood-madrone.jpg",
+"kind": "natural"
+},
+"Mahogany": {
+"tex": "mockup-assets/tex/wood-mahogany.jpg",
+"kind": "natural"
+},
+"Mangowood": {
+"tex": "mockup-assets/tex/wood-mangowood.jpg",
+"kind": "natural"
+},
+"Maple": {
+"tex": "mockup-assets/tex/wood-maple.jpg",
+"kind": "natural"
+},
+"Maple (Birds Eye)": {
+"tex": "mockup-assets/tex/wood-maple-bird-s-eye.jpg",
+"kind": "natural"
+},
+"Maple (Burl)": {
+"tex": "mockup-assets/tex/wood-maple-burl.jpg",
+"kind": "natural"
+},
+"Maple (Curly)": {
+"tex": "mockup-assets/tex/wood-maple-curly.jpg",
+"kind": "natural"
+},
+"Marblewood": {
+"tex": "mockup-assets/tex/wood-marblewood.jpg",
+"kind": "natural"
+},
+"Mesquite": {
+"tex": "mockup-assets/tex/wood-mesquite.jpg",
+"kind": "natural"
+},
+"Mesquite (Black)": {
+"tex": "mockup-assets/tex/wood-mesquite-black.jpg",
+"kind": "natural"
+},
+"Mesquite (Burl)": {
+"tex": "mockup-assets/tex/wood-mesquite-burl.jpg",
+"kind": "natural"
+},
+"Mica Powder": {
+"tex": "mockup-assets/tex/stardust-white.jpg",
+"kind": "natural"
+},
+"Mokume-Black & Gold": {
+"tex": "mockup-assets/tex/mokume-black-and-gold.jpg",
+"kind": "natural"
+},
+"Mokume-Black & White": {
+"tex": "mockup-assets/tex/mokume-black-and-white.jpg",
+"kind": "natural"
+},
+"Mokume-Black and Red": {
+"tex": "mockup-assets/tex/mokume-black-and-red.jpg",
+"kind": "natural"
+},
+"Mokume-Blue Bronze": {
+"tex": "mockup-assets/tex/mokume-blue-bronze.jpg",
+"kind": "natural"
+},
+"Mokume-Blue Bronze and Red": {
+"tex": "mockup-assets/tex/mokume-blue-bronze-and-red.jpg",
+"kind": "natural"
+},
+"Mokume-Cobaltium": {
+"tex": "mockup-assets/tex/mokume-cobaltium.jpg",
+"kind": "natural"
+},
+"Mokume-Lapis": {
+"tex": "mockup-assets/tex/mokume-lapis.jpg",
+"kind": "natural"
+},
+"Mokume-Purple": {
+"tex": "mockup-assets/tex/mokume-purple.jpg",
+"kind": "natural"
+},
+"Mokume-Red and Black": {
+"tex": "mockup-assets/tex/mokume-red-and-black.jpg",
+"kind": "natural"
+},
+"Mokume-White": {
+"tex": "mockup-assets/tex/mokume-white.jpg",
+"kind": "natural"
+},
+"Moldavite Crushed": {
+"tex": "mockup-assets/tex/lapidary-moldavite-crushed.jpg",
+"kind": "natural"
+},
+"Moss": {
+"tex": "mockup-assets/tex/lapidary-moss-agate.jpg",
+"kind": "natural"
+},
+"Moss Agate": {
+"tex": "mockup-assets/tex/lapidary-moss-agate.jpg",
+"kind": "natural"
+},
+"Moss Agate Crushed": {
+"tex": "mockup-assets/tex/lapidary-moss-agate-crushed.jpg",
+"kind": "natural"
+},
+"Mother of Pearl": {
+"tex": "mockup-assets/tex/lapidary-mother-of-pearl-crushed.jpg",
+"kind": "natural"
+},
+"Mulberry": {
+"tex": "mockup-assets/tex/wood-mulberry.jpg",
+"kind": "natural"
+},
+"Oak": {
+"tex": "mockup-assets/tex/wood-oak.jpg",
+"kind": "natural"
+},
+"Oak (1st Generation)": {
+"tex": "mockup-assets/tex/wood-oak-1st-generation.jpg",
+"kind": "natural"
+},
+"Oak (Whiskey Barrel)": {
+"tex": "mockup-assets/tex/wood-oak-whiskey-barrel.jpg",
+"kind": "natural"
+},
+"Olive": {
+"tex": "mockup-assets/tex/wood-olive.jpg",
+"kind": "natural"
+},
+"Olive (Bethlehem)": {
+"tex": "mockup-assets/tex/wood-olive-bethlehem.jpg",
+"kind": "natural"
+},
+"Olive (Jerusalem)": {
+"tex": "mockup-assets/tex/wood-olive-jerusalem.jpg",
+"kind": "natural"
+},
+"Opal OP03 Crushed": {
+"tex": "mockup-assets/tex/opal-op03.jpg",
+"kind": "natural"
+},
+"Opal OP05 Crushed": {
+"tex": "mockup-assets/tex/opal-op05.jpg",
+"kind": "natural"
+},
+"Opal OP14 Crushed": {
+"tex": "mockup-assets/tex/opal-op14.jpg",
+"kind": "natural"
+},
+"Opal OP17 Crushed": {
+"tex": "mockup-assets/tex/opal-op17.jpg",
+"kind": "natural"
+},
+"Opal OP19 Crushed": {
+"tex": "mockup-assets/tex/opal-op19.jpg",
+"kind": "natural"
+},
+"Opal OP31 Crushed": {
+"tex": "mockup-assets/tex/opal-op31.jpg",
+"kind": "natural"
+},
+"Opal OP35 Crushed": {
+"tex": "mockup-assets/tex/opal-op35.jpg",
+"kind": "natural"
+},
+"Opal OP41 Crushed": {
+"tex": "mockup-assets/tex/opal-op41.jpg",
+"kind": "natural"
+},
+"Opal OP45 Crushed": {
+"tex": "mockup-assets/tex/opal-op45.jpg",
+"kind": "natural"
+},
+"Opal OP73 Crushed": {
+"tex": "mockup-assets/tex/opal-op73.jpg",
+"kind": "natural"
+},
+"Opal OP76 Crushed": {
+"tex": "mockup-assets/tex/opal-op76.jpg",
+"kind": "natural"
+},
+"Osage": {
+"tex": "mockup-assets/tex/wood-osage.jpg",
+"kind": "natural"
+},
+"Padauk": {
+"tex": "mockup-assets/tex/wood-padauk.jpg",
+"kind": "natural"
+},
+"Palm (Black)": {
+"tex": "mockup-assets/tex/wood-palm-black.jpg",
+"kind": "natural"
+},
+"Palm (Red)": {
+"tex": "mockup-assets/tex/wood-palm-red.jpg",
+"kind": "natural"
+},
+"Pear": {
+"tex": "mockup-assets/tex/wood-pear.jpg",
+"kind": "natural"
+},
+"Perfect Meteorite": {
+"tex": "mockup-assets/tex/meteorite-gibeon.jpg",
+"kind": "natural"
+},
+"Peridot Crushed": {
+"tex": "mockup-assets/tex/birthstone-peridot-crushed.jpg",
+"kind": "natural"
+},
+"Petrified Wood": {
+"tex": "mockup-assets/tex/wood-petrified.jpg",
+"kind": "natural"
+},
+"Petrified Wood Crushed": {
+"tex": "mockup-assets/tex/wood-petrified-crushed.jpg",
+"kind": "natural"
+},
+"Pine (Red)": {
+"tex": "mockup-assets/tex/wood-pine-red.jpg",
+"kind": "natural"
+},
+"Pine Needles (Brown)": {
+"tex": "mockup-assets/tex/wood-pine-needles-brown.jpg",
+"kind": "natural"
+},
+"Pine Needles (Green)": {
+"tex": "mockup-assets/tex/wood-pine-needles-green.jpg",
+"kind": "natural"
+},
+"Platinum": {
+"tex": "mockup-assets/tex/metal-platinum.jpg",
+"kind": "metal"
+},
+"Purple Heart": {
+"tex": "mockup-assets/tex/wood-purple-heart.jpg",
+"kind": "natural"
+},
+"Queen": {
+"tex": "mockup-assets/tex/wood-queen.jpg",
+"kind": "natural"
+},
+"Rainbow Fire Opal Crushed": {
+"tex": "mockup-assets/tex/opal-rainbow-fire-opal-crushed.jpg",
+"kind": "natural"
+},
+"Redwood (Natural)": {
+"tex": "mockup-assets/tex/wood-redwood-natural.jpg",
+"kind": "natural"
+},
+"Redwood (Ruby)": {
+"tex": "mockup-assets/tex/wood-redwood-ruby.jpg",
+"kind": "natural"
+},
+"Redwood (Sequoia)": {
+"tex": "mockup-assets/tex/wood-redwood-sequoia.jpg",
+"kind": "natural"
+},
+"Rose 14K": {
+"tex": "mockup-assets/tex/metal-gold-rose.jpg",
+"kind": "metal"
+},
+"Rose 18K": {
+"tex": "mockup-assets/tex/metal-gold-rose.jpg",
+"kind": "metal"
+},
+"Rosewood (Amazon)": {
+"tex": "mockup-assets/tex/wood-rosewood-amazon.jpg",
+"kind": "natural"
+},
+"Rosewood (Bolivian)": {
+"tex": "mockup-assets/tex/wood-rosewood-bolivian.jpg",
+"kind": "natural"
+},
+"Rosewood (Brazilian)": {
+"tex": "mockup-assets/tex/wood-rosewood-brazilian.jpg",
+"kind": "natural"
+},
+"Rosewood (Caribbean)": {
+"tex": "mockup-assets/tex/wood-rosewood-caribbean.jpg",
+"kind": "natural"
+},
+"Rosewood (East Indian)": {
+"tile": "swatches-tex/rosewood-east-indian.jpg",
+"kind": "natural"
+},
+"Rosewood (Honduran Burl)": {
+"tex": "mockup-assets/tex/wood-rosewood-honduran-burl.jpg",
+"kind": "natural"
+},
+"Rosewood (Honduran)": {
+"tex": "mockup-assets/tex/wood-rosewood-honduran.jpg",
+"kind": "natural"
+},
+"Rowan": {
+"tex": "mockup-assets/tex/wood-rowan.jpg",
+"kind": "natural"
+},
+"Ruby Crushed": {
+"tex": "mockup-assets/tex/birthstone-ruby-crushed.jpg",
+"kind": "natural"
+},
+"Sapphire Crushed": {
+"tex": "mockup-assets/tex/birthstone-sapphire-crushed.jpg",
+"kind": "natural"
+},
+"Seymchan Meteorite": {
+"tex": "mockup-assets/tex/meteorite-gibeon.jpg",
+"kind": "natural"
+},
+"Silver": {
+"tex": "mockup-assets/tex/metal-silver.jpg",
+"kind": "metal"
+},
+"Sindora": {
+"tex": "mockup-assets/tex/wood-sindora.jpg",
+"kind": "natural"
+},
+"Smokey Quartz Crushed": {
+"tex": "mockup-assets/tex/lapidary-smokey-quartz-crushed.jpg",
+"kind": "natural"
+},
+"Snakewood": {
+"tex": "mockup-assets/tex/wood-snakewood.jpg",
+"kind": "natural"
+},
+"Stainless": {
+"tex": "mockup-assets/tex/metal-titanium.jpg",
+"kind": "metal"
+},
+"Stardust": {
+"tex": "mockup-assets/tex/stardust-red.jpg",
+"kind": "natural"
+},
+"Stardust - Black": {
+"tex": "mockup-assets/tex/stardust-black.jpg",
+"kind": "natural"
+},
+"Stardust - Black Gold": {
+"tex": "mockup-assets/tex/stardust-black-gold.jpg",
+"kind": "natural"
+},
+"Stardust - Blue": {
+"tex": "mockup-assets/tex/stardust-blue.jpg",
+"kind": "natural"
+},
+"Stardust - Blue Gold": {
+"tex": "mockup-assets/tex/stardust-blue-gold.jpg",
+"kind": "natural"
+},
+"Stardust - Dino Bone Crushed": {
+"tex": "mockup-assets/tex/stardust-dino-bone-crushed.jpg",
+"kind": "natural"
+},
+"Stardust - Green": {
+"tex": "mockup-assets/tex/stardust-green.jpg",
+"kind": "natural"
+},
+"Stardust - Green Gold": {
+"tex": "mockup-assets/tex/stardust-green-gold.jpg",
+"kind": "natural"
+},
+"Stardust - Orange": {
+"tex": "mockup-assets/tex/stardust-orange.jpg",
+"kind": "natural"
+},
+"Stardust - Orange Gold": {
+"tex": "mockup-assets/tex/stardust-orange-gold.jpg",
+"kind": "natural"
+},
+"Stardust - Purple": {
+"tex": "mockup-assets/tex/stardust-purple.jpg",
+"kind": "natural"
+},
+"Stardust - Purple Gold": {
+"tex": "mockup-assets/tex/stardust-purple-gold.jpg",
+"kind": "natural"
+},
+"Stardust - Red": {
+"tex": "mockup-assets/tex/stardust-red.jpg",
+"kind": "natural"
+},
+"Stardust - Red Gold": {
+"tex": "mockup-assets/tex/stardust-red-gold.jpg",
+"kind": "natural"
+},
+"Stardust - White": {
+"tex": "mockup-assets/tex/stardust-white.jpg",
+"kind": "natural"
+},
+"Stardust - White Gold": {
+"tex": "mockup-assets/tex/stardust-white-gold.jpg",
+"kind": "natural"
+},
+"Stardust - Yellow": {
+"tex": "mockup-assets/tex/stardust-yellow.jpg",
+"kind": "natural"
+},
+"Stardust - Yellow Gold": {
+"tex": "mockup-assets/tex/stardust-yellow-gold.jpg",
+"kind": "natural"
+},
+"Supply Your Own Ash": {
+"tex": "mockup-assets/tex/memorial-ashes.jpg",
+"kind": "natural"
+},
+"Supply Your Own Vinyl Record": {
+"tile": "swatches-tex/supply-your-own-vinyl-record.jpg",
+"kind": "natural"
+},
+"Tamarind": {
+"tex": "mockup-assets/tex/wood-tamarind.jpg",
+"kind": "natural"
+},
+"Tanzanite Crushed": {
+"tex": "mockup-assets/tex/birthstone-tanzanite-crushed.jpg",
+"kind": "natural"
+},
+"Teak": {
+"tex": "mockup-assets/tex/wood-teak.jpg",
+"kind": "natural"
+},
+"Teak (Burl)": {
+"tex": "mockup-assets/tex/wood-teak-burl.jpg",
+"kind": "natural"
+},
+"Tineo": {
+"tex": "mockup-assets/tex/wood-tineo.jpg",
+"kind": "natural"
+},
+"Titanium": {
+"tex": "mockup-assets/tex/metal-titanium.jpg",
+"kind": "metal"
+},
+"Tulipwood": {
+"tex": "mockup-assets/tex/wood-tulipwood.jpg",
+"kind": "natural"
+},
+"Tungsten": {
+"tex": "mockup-assets/tex/metal-tungsten.jpg",
+"kind": "metal"
+},
+"Turquoise": {
+"tex": "mockup-assets/tex/lapidary-turquoise.jpg",
+"kind": "natural"
+},
+"Turquoise Crushed": {
+"tex": "mockup-assets/tex/lapidary-turquoise-crushed.jpg",
+"kind": "natural"
+},
+"Turquoise Crushed Gold Flakes": {
+"tex": "mockup-assets/tex/lapidary-turquoise-crushed-gold-flakes.jpg",
+"kind": "natural"
+},
+"Turquoise Crushed Gold Foil": {
+"tex": "mockup-assets/tex/lapidary-turquoise-crushed-gold-foil.jpg",
+"kind": "natural"
+},
+"Vinyl LP Record": {
+"tex": "mockup-assets/tex/vinyl-record-lp.jpg",
+"kind": "natural"
+},
+"Walnut": {
+"tex": "mockup-assets/tex/wood-walnut.jpg",
+"kind": "natural"
+},
+"Waterproof Meteorite": {
+"tex": "mockup-assets/tex/meteorite-gibeon.jpg",
+"kind": "natural"
+},
+"Waterproof Meteorite Shavings": {
+"tex": "mockup-assets/tex/meteorite-compact-crushed.jpg",
+"kind": "natural"
+},
+"Wenge": {
+"tex": "mockup-assets/tex/wood-wenge.jpg",
+"kind": "natural"
+},
+"White 10K": {
+"tex": "mockup-assets/tex/metal-gold-white.jpg",
+"kind": "metal"
+},
+"White 14K": {
+"tex": "mockup-assets/tex/metal-gold-white.jpg",
+"kind": "metal"
+},
+"White 18K": {
+"tex": "mockup-assets/tex/metal-gold-white.jpg",
+"kind": "metal"
+},
+"White Gold Flakes and Stardust": {
+"tile": "swatches-tex/white-gold-flakes-and-stardust.jpg",
+"kind": "natural"
+},
+"Yellow 10K": {
+"tex": "mockup-assets/tex/metal-gold-yellow.jpg",
+"kind": "metal"
+},
+"Yellow 14K": {
+"tex": "mockup-assets/tex/metal-gold-yellow.jpg",
+"kind": "metal"
+},
+"Yellow 18K": {
+"tex": "mockup-assets/tex/metal-gold-yellow.jpg",
+"kind": "metal"
+},
+"Yellow Gold Flakes and Stardust": {
+"tile": "swatches-tex/yellow-gold-flakes-and-stardust.jpg",
+"kind": "natural"
+},
+"Zebrawood": {
+"tex": "mockup-assets/tex/wood-zebrawood.jpg",
+"kind": "natural"
+},
+"Zirconium": {
+"tex": "mockup-assets/tex/metal-black-zirconium.jpg",
+"kind": "metal"
+},
+"Zircote": {
+"tile": "swatches-tex/zircote.jpg",
+"kind": "natural"
+}
+}
+}
