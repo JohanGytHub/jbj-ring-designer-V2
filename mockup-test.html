@@ -3084,31 +3084,43 @@ async function _v5Tex(src){
 }
 function _v5Smooth(x){x=x<0?0:x>1?1:x;return x*x*(3-2*x);}
 function _v5Geometry(entry,W,H,dome){
-  const near=entry.near,far=entry.far,NS=near.length,NT=dome?24:16,leftIsNear=!!entry.leftIsNear;
-  const n=W*H,U=new Float32Array(n).fill(-1),V=new Float32Array(n);
+  const near=entry.near,far=entry.far,NS=near.length,NT=dome?28:16,leftIsNear=!!entry.leftIsNear;
+  const n=W*H,U=new Float32Array(n).fill(-1),V=new Float32Array(n),F=new Float32Array(n).fill(1);
   // DOMED (Round) bases: the far polyline is the photo's outer silhouette. On a domed band that silhouette is the
   // far edge only where the band faces the camera; toward the top/bottom of the ring the surface turns away and the
-  // silhouette becomes the CREST of the dome (u≈0.5) — the far half of the band is hidden there. Model the band
-  // cross-section as a semicircle seen at angle β (from the local visible width): u(t)=(acos(-(-cosβ+t(1+cosβ)))-β)/π.
+  // silhouette becomes the CREST of the dome — the far part of the band is hidden there.
+  // Cross-section = half-ellipse x=-cosφ, y=DH·sinφ (φ∈[0,π], u = arc length fraction, NOT φ/π), seen at angle β
+  // (from the local visible width). Screen position p(φ)=-cosφ·cosβ+DH·sinφ·sinβ; silhouette where dp/dφ=0.
+  // F = foreshortening |dp/ds| (1 = facing the camera, 0 = rolling away) → shades the rollover so the dome reads round.
   const wArr=new Float32Array(NS);let wmax=0,wmin=1e9;
   for(let i=0;i<NS;i++){wArr[i]=Math.hypot(far[i][0]-near[i][0],far[i][1]-near[i][1]);if(wArr[i]>wmax)wmax=wArr[i];if(wArr[i]<wmin)wmin=wArr[i];}
-  // dome cross-section = half-ellipse (half-width 1, height DH); p(φ)=-cosφ·cosβ+DH·sinφ·sinβ is the screen position,
-  // the silhouette sits where dp/dφ=0 (tanφ=-DH·tanβ); u(t) inverts p on a 64-step table per polyline index.
-  const DH=0.45,K=64,tab=dome?new Float32Array(NS*(K+1)):null,uFar=new Float32Array(NS).fill(1);
+  const DH=0.45,KA=512,arcU=new Float32Array(KA+1),dsdphi=new Float32Array(KA+1);
+  if(dome){ // arc-length table of the half-ellipse
+    let acc=0;arcU[0]=0;
+    for(let k=1;k<=KA;k++){const a=Math.PI*(k-1)/KA,b=Math.PI*k/KA;acc+=Math.hypot(Math.cos(b)-Math.cos(a),DH*(Math.sin(b)-Math.sin(a)));arcU[k]=acc;}
+    for(let k=0;k<=KA;k++){arcU[k]/=acc;const ph=Math.PI*k/KA;dsdphi[k]=Math.hypot(Math.sin(ph),DH*Math.cos(ph));}
+  }
+  const uAt=ph=>{const x=ph/Math.PI*KA,k=Math.min(KA-1,Math.floor(x)),f=x-k;return arcU[k]*(1-f)+arcU[k+1]*f;};
+  const K=64,tabT=dome?new Float32Array(NS*(K+1)):null,tabU=dome?new Float32Array(NS*(K+1)):null,tabF=dome?new Float32Array(NS*(K+1)):null,uFar=new Float32Array(NS).fill(1);
   if(dome)for(let i=0;i<NS;i++){
     const cb=Math.pow(Math.max(0,Math.min(1,(wArr[i]-wmin)/Math.max(1e-6,wmax-wmin))),0.5),beta=Math.acos(cb),sb=Math.sin(beta);
-    const phiS=Math.PI-Math.atan(DH*Math.tan(Math.min(beta,1.5707)));uFar[i]=phiS/Math.PI;
-    const p0=-cb,p1=-Math.cos(phiS)*cb+DH*Math.sin(phiS)*sb;
-    for(let k=0;k<=K;k++){const phi=phiS*k/K;tab[i*(K+1)+k]=((-Math.cos(phi)*cb+DH*Math.sin(phi)*sb)-p0)/Math.max(1e-6,p1-p0);} // t as a function of φ (monotone)
+    const phiS=Math.PI-Math.atan(DH*Math.tan(Math.min(beta,1.5707)));uFar[i]=uAt(phiS);
+    const P=ph=>-Math.cos(ph)*cb+DH*Math.sin(ph)*sb,p0=P(0),p1=P(phiS);
+    for(let k=0;k<=K;k++){
+      const ph=phiS*k/K,b=i*(K+1)+k;
+      tabT[b]=(P(ph)-p0)/Math.max(1e-6,p1-p0);tabU[b]=uAt(ph);
+      const dp=Math.abs(Math.sin(ph)*cb+DH*Math.cos(ph)*sb),ds=dsdphi[Math.min(KA,Math.round(ph/Math.PI*KA))];
+      tabF[b]=Math.max(0,Math.min(1,dp/Math.max(1e-6,ds)));
+    }
   }
-  const uOf=(i,t)=>{
-    if(!dome)return t;
-    const base=i*(K+1);let lo=0,hi=K; // binary search t in the monotone table
-    while(hi-lo>1){const mid=(lo+hi)>>1;if(tab[base+mid]<=t)lo=mid;else hi=mid;}
-    const t0=tab[base+lo],t1=tab[base+hi],f=t1>t0?(t-t0)/(t1-t0):0;
-    return uFar[i]*(lo+Math.max(0,Math.min(1,f)))/K;
+  const look=(i,t)=>{ // → [u,f] at screen fraction t across near→silhouette
+    if(!dome)return [t,1];
+    const base=i*(K+1);let lo=0,hi=K;
+    while(hi-lo>1){const mid=(lo+hi)>>1;if(tabT[base+mid]<=t)lo=mid;else hi=mid;}
+    const t0=tabT[base+lo],t1=tabT[base+hi],f=t1>t0?Math.max(0,Math.min(1,(t-t0)/(t1-t0))):0;
+    return [tabU[base+lo]*(1-f)+tabU[base+hi]*f,tabF[base+lo]*(1-f)+tabF[base+hi]*f];
   };
-  function tri(ax,ay,au,av,bx,by,bu,bv,cx,cy,cu,cv){
+  function tri(ax,ay,au,av,af,bx,by,bu,bv,bf,cx,cy,cu,cv,cf){
     const den=(by-cy)*(ax-cx)+(cx-bx)*(ay-cy);if(Math.abs(den)<1e-8)return;
     const x0=Math.max(0,Math.floor(Math.min(ax,bx,cx))),x1=Math.min(W-1,Math.ceil(Math.max(ax,bx,cx)));
     const y0=Math.max(0,Math.floor(Math.min(ay,by,cy))),y1=Math.min(H-1,Math.ceil(Math.max(ay,by,cy)));
@@ -3117,7 +3129,7 @@ function _v5Geometry(entry,W,H,dome){
       const p=((by-cy)*(px-cx)+(cx-bx)*(py-cy))/den,q=((cy-ay)*(px-cx)+(ax-cx)*(py-cy))/den,r=1-p-q;
       if(p<-.002||q<-.002||r<-.002)continue;
       const i=y*W+x;let uu=p*au+q*bu+r*cu,vv=p*av+q*bv+r*cv;
-      U[i]=uu<0?0:uu>1?1:uu;V[i]=vv<0?0:vv>1?1:vv;
+      U[i]=uu<0?0:uu>1?1:uu;V[i]=vv<0?0:vv>1?1:vv;F[i]=p*af+q*bf+r*cf;
     }
   }
   for(let i=0;i<NS-1;i++){
@@ -3125,20 +3137,20 @@ function _v5Geometry(entry,W,H,dome){
     const nx0=near[i][0],ny0=near[i][1],fx0=far[i][0],fy0=far[i][1],nx1=near[i+1][0],ny1=near[i+1][1],fx1=far[i+1][0],fy1=far[i+1][1];
     for(let j=0;j<NT;j++){
       const t0=j/NT,t1=(j+1)/NT;
-      const ua0=uOf(i,t0),ua1=uOf(i,t1),ub0=uOf(i+1,t0),ub1=uOf(i+1,t1);
-      const A_u=leftIsNear?ua0:1-ua0,B_u=leftIsNear?ub0:1-ub0,C_u=leftIsNear?ub1:1-ub1,D_u=leftIsNear?ua1:1-ua1;
+      const a0=look(i,t0),a1=look(i,t1),b0=look(i+1,t0),b1=look(i+1,t1);
+      const A_u=leftIsNear?a0[0]:1-a0[0],B_u=leftIsNear?b0[0]:1-b0[0],C_u=leftIsNear?b1[0]:1-b1[0],D_u=leftIsNear?a1[0]:1-a1[0];
       const Ax=nx0*(1-t0)+fx0*t0,Ay=ny0*(1-t0)+fy0*t0;
       const Bx=nx1*(1-t0)+fx1*t0,By=ny1*(1-t0)+fy1*t0;
       const Cx=nx1*(1-t1)+fx1*t1,Cy=ny1*(1-t1)+fy1*t1;
       const Dx=nx0*(1-t1)+fx0*t1,Dy=ny0*(1-t1)+fy0*t1;
-      tri(Ax,Ay,A_u,v0,Bx,By,B_u,v1,Cx,Cy,C_u,v1);
-      tri(Ax,Ay,A_u,v0,Cx,Cy,C_u,v1,Dx,Dy,D_u,v0);
+      tri(Ax,Ay,A_u,v0,a0[1],Bx,By,B_u,v1,b0[1],Cx,Cy,C_u,v1,b1[1]);
+      tri(Ax,Ay,A_u,v0,a0[1],Cx,Cy,C_u,v1,b1[1],Dx,Dy,D_u,v0,a1[1]);
     }
   }
-  // px per unit u for edge softness: on a dome the visible width covers only uOf(i,1) of the band
+  // px per unit u for edge softness: on a dome the visible width covers only uFar of the band
   const widths=new Float32Array(NS);
   for(let i=0;i<NS;i++)widths[i]=wArr[i]/Math.max(0.2,uFar[i]);
-  return {U,V,widths,NS};
+  return {U,V,F,widths,NS};
 }
 function _v5Sample(tex,x,y,c){
   const w=tex.width,h=tex.height;
@@ -3216,7 +3228,8 @@ async function generateMockupImage(){
         r=r*lf+hl;gg=gg*lf+hl;b=b*lf+hl;
       }
       const e2=(Math.max(0,edge)-.15)/.8,seam=1-Math.exp(-e2*e2)*.18;
-      r*=seam;gg*=seam;b*=seam;
+      const roll=0.42+0.58*Math.pow(g.F[i],0.6); // dome rollover: darken where the surface turns away from the camera
+      r*=seam*roll;gg*=seam*roll;b*=seam*roll;
       const p=i*4;
       px[p]=px[p]*(1-a)+(r<0?0:r>255?255:r)*a;
       px[p+1]=px[p+1]*(1-a)+(gg<0?0:gg>255?255:gg)*a;
