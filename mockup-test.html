@@ -3005,7 +3005,7 @@ const MOCKUP_BASE_MAP={'Titanium':'titanium','Tungsten':'tungsten','Silver':'sil
 // Metals absent here have no Round photo yet and keep the flat base (preview notes it).
 const MOCKUP_ROUND_BASES={'Titanium':{'4':'round-titanium-4','6':'round-titanium-6','8':'round-titanium-8','10':'round-titanium-10'},'Tungsten':{'4':'round-tungsten-4','6':'round-tungsten-6','8':'round-tungsten-8'},'Zirconium':{'8':'round-zirconium-8'},'Black Ceramic':{'6':'round-black-ceramic-6'}};
 function _mockupRoundSlug(metal,widthMm){
-  const t=MOCKUP_ROUND_BASES[metal];if(!t)return null;
+  const t=Object.assign({},MOCKUP_ROUND_BASES,(_mockupMeshCache&&_mockupMeshCache.roundBases)||{})[metal];if(!t)return null; // PHOTO MOCKUP v5: JSON-added Round bases
   const w0=Number(widthMm)||6;let bestW=null;
   for(const k in t){const w=parseFloat(k);
     if(bestW===null){bestW=w;continue;}
@@ -3050,145 +3050,201 @@ function _mockupDesign(){
     const mat=sl.mat;
     const tex=_mockupTileSrc(mat);
     if(mat===state.baseMetal){
-      if(tex&&(mat==='Damascus'||mat==='Metal Mokume'))return {s:sl.s,e:sl.e,kind:'tile',src:tex};
-      return {s:sl.s,e:sl.e,kind:'base'};
+      if(tex&&(mat==='Damascus'||mat==='Metal Mokume'))return {mat:mat,s:sl.s,e:sl.e,kind:'tile',src:tex};
+      return {mat:mat,s:sl.s,e:sl.e,kind:'base'};
     }
-    if(tex)return {s:sl.s,e:sl.e,kind:'tile',src:tex};
-    if(isMetalGroup(mat))return {s:sl.s,e:sl.e,kind:'metal',rgb:_mockupHexRgb(getColor(mat))};
-    return {s:sl.s,e:sl.e,kind:'color',rgb:_mockupHexRgb(getColor(mat))};
+    if(tex)return {mat:mat,s:sl.s,e:sl.e,kind:'tile',src:tex};
+    if(isMetalGroup(mat))return {mat:mat,s:sl.s,e:sl.e,kind:'metal',rgb:_mockupHexRgb(getColor(mat))};
+    return {mat:mat,s:sl.s,e:sl.e,kind:'color',rgb:_mockupHexRgb(getColor(mat))};
   });
+}
+// ===== PHOTO MOCKUP v5 (2026-09-08) — photographic compositor =====
+// Geometry: mockup-meshes.json (near/far polylines per base photo, incl. the 9 Round bases).
+// Pixels: full-size material closeups (mockup-assets/tex/*.jpg, from the CS "(2)" swatches), lit by the
+// base photo's own blurred luminance (studio light-map technique), seam shading at every strip edge.
+// Fallbacks per strip: closeup → engine tile (swatches-tex) → catalog colour. Base-metal strips keep the photo.
+const MOCKUP_MATERIALS_URL='mockup-assets/mockup-materials.json';
+let _v5MatCache=null;
+async function _v5Materials(){
+  if(!_v5MatCache){
+    try{const r=await fetch(MOCKUP_MATERIALS_URL);_v5MatCache=r.ok?((await r.json()).materials||{}):{};}
+    catch(e){_v5MatCache={};}
+  }
+  return _v5MatCache;
+}
+const _v5TexCache={};
+async function _v5Tex(src){
+  if(_v5TexCache[src])return _v5TexCache[src];
+  const im=await _mockupLoadImg(src);
+  const c=document.createElement('canvas');c.width=im.naturalWidth||im.width;c.height=im.naturalHeight||im.height;
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0);
+  const px=x.getImageData(0,0,c.width,c.height);
+  _v5TexCache[src]={data:px.data,width:c.width,height:c.height};
+  return _v5TexCache[src];
+}
+function _v5Smooth(x){x=x<0?0:x>1?1:x;return x*x*(3-2*x);}
+function _v5Geometry(entry,W,H){
+  const near=entry.near,far=entry.far,NS=near.length,NT=16,leftIsNear=!!entry.leftIsNear;
+  const n=W*H,U=new Float32Array(n).fill(-1),V=new Float32Array(n);
+  function tri(ax,ay,au,av,bx,by,bu,bv,cx,cy,cu,cv){
+    const den=(by-cy)*(ax-cx)+(cx-bx)*(ay-cy);if(Math.abs(den)<1e-8)return;
+    const x0=Math.max(0,Math.floor(Math.min(ax,bx,cx))),x1=Math.min(W-1,Math.ceil(Math.max(ax,bx,cx)));
+    const y0=Math.max(0,Math.floor(Math.min(ay,by,cy))),y1=Math.min(H-1,Math.ceil(Math.max(ay,by,cy)));
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+      const px=x+.5,py=y+.5;
+      const p=((by-cy)*(px-cx)+(cx-bx)*(py-cy))/den,q=((cy-ay)*(px-cx)+(ax-cx)*(py-cy))/den,r=1-p-q;
+      if(p<-.002||q<-.002||r<-.002)continue;
+      const i=y*W+x;let uu=p*au+q*bu+r*cu,vv=p*av+q*bv+r*cv;
+      U[i]=uu<0?0:uu>1?1:uu;V[i]=vv<0?0:vv>1?1:vv;
+    }
+  }
+  for(let i=0;i<NS-1;i++){
+    const v0=i/(NS-1),v1=(i+1)/(NS-1);
+    const nx0=near[i][0],ny0=near[i][1],fx0=far[i][0],fy0=far[i][1],nx1=near[i+1][0],ny1=near[i+1][1],fx1=far[i+1][0],fy1=far[i+1][1];
+    for(let j=0;j<NT;j++){
+      const t0=j/NT,t1=(j+1)/NT,u0=leftIsNear?t0:1-t0,u1=leftIsNear?t1:1-t1;
+      const Ax=nx0*(1-t0)+fx0*t0,Ay=ny0*(1-t0)+fy0*t0;
+      const Bx=nx1*(1-t0)+fx1*t0,By=ny1*(1-t0)+fy1*t0;
+      const Cx=nx1*(1-t1)+fx1*t1,Cy=ny1*(1-t1)+fy1*t1;
+      const Dx=nx0*(1-t1)+fx0*t1,Dy=ny0*(1-t1)+fy0*t1;
+      tri(Ax,Ay,u0,v0,Bx,By,u0,v1,Cx,Cy,u1,v1);
+      tri(Ax,Ay,u0,v0,Cx,Cy,u1,v1,Dx,Dy,u1,v0);
+    }
+  }
+  const widths=new Float32Array(NS);
+  for(let i=0;i<NS;i++)widths[i]=Math.hypot(far[i][0]-near[i][0],far[i][1]-near[i][1]);
+  return {U,V,widths,NS};
+}
+function _v5Sample(tex,x,y,c){
+  const w=tex.width,h=tex.height;
+  x=x<0?0:x>w-1.001?w-1.001:x;y=y<0?0:y>h-1.001?h-1.001:y;
+  const ix=x|0,iy=y|0,dx=x-ix,dy=y-iy,d=tex.data;
+  const p00=(iy*w+ix)*4+c,p10=p00+4,p01=p00+w*4,p11=p01+4;
+  return (d[p00]*(1-dx)+d[p10]*dx)*(1-dy)+(d[p01]*(1-dx)+d[p11]*dx)*dy;
 }
 async function generateMockupImage(){
   const meshes=await _mockupMeshes();
-  let slug=MOCKUP_BASE_MAP[state.baseMetal]||'titanium';
+  const mats=await _v5Materials();
+  const baseMap=Object.assign({},MOCKUP_BASE_MAP,meshes.baseMap||{}); // JSON-added bases win (fit-base-photo.py)
+  let slug=baseMap[state.baseMetal]||'titanium';
   if(state.profile==='Round'){const rs=_mockupRoundSlug(state.baseMetal,state.ringWidth);if(rs&&meshes.bases[rs])slug=rs;}
-  const entry=meshes.bases[slug]||meshes.bases[MOCKUP_BASE_MAP[state.baseMetal]||'titanium']||meshes.bases['titanium'];
+  const entry=meshes.bases[slug]||meshes.bases[baseMap[state.baseMetal]||'titanium']||meshes.bases['titanium'];
   const design=_mockupDesign();
   if(!design.some(d=>d.kind!=='base'))return null; // plain band: the photo itself IS the mockup
   const baseImg=await _mockupLoadImg(entry.img);
-  const W=entry.w,H=entry.h;
+  const W=entry.w,H=entry.h,N=W*H;
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;
   const ctx=cv.getContext('2d',{willReadFrequently:true});
   ctx.drawImage(baseImg,0,0,W,H);
-  const basePx=ctx.getImageData(0,0,W,H);
-  // blurred luminance (downscale/upscale approximates the gaussian)
-  const sw=Math.max(8,W>>3),sh=Math.max(8,H>>3);
+  const out=ctx.getImageData(0,0,W,H);
+  // light map: blurred base luminance (downscale 1/12 + smooth upscale ≈ gaussian)
+  const sw=Math.max(8,Math.round(W/12)),sh=Math.max(8,Math.round(H/12));
   const s1=document.createElement('canvas');s1.width=sw;s1.height=sh;
-  s1.getContext('2d').drawImage(baseImg,0,0,sw,sh);
+  const s1x=s1.getContext('2d');s1x.imageSmoothingEnabled=true;s1x.imageSmoothingQuality='high';s1x.drawImage(baseImg,0,0,sw,sh);
   const s2=document.createElement('canvas');s2.width=W;s2.height=H;
-  const s2x=s2.getContext('2d',{willReadFrequently:true});
-  s2x.imageSmoothingEnabled=true;s2x.drawImage(s1,0,0,W,H);
-  const blurPx=s2x.getImageData(0,0,W,H);
-  // UV columns: x = design position (0=left edge), one tile period tall
-  const UVW=512,PH=1024;
-  const uvCv=document.createElement('canvas');uvCv.width=UVW;uvCv.height=PH;
-  const uvx=uvCv.getContext('2d',{willReadFrequently:true});
-  const kindCol=new Int8Array(UVW),rgbCol=new Float32Array(UVW*3),gainCol=new Float32Array(UVW).fill(1),seamCol=new Float32Array(UVW);
+  const s2x=s2.getContext('2d',{willReadFrequently:true});s2x.imageSmoothingEnabled=true;s2x.imageSmoothingQuality='high';s2x.drawImage(s1,0,0,W,H);
+  const blur=s2x.getImageData(0,0,W,H).data;
+  const lum=new Float32Array(N);for(let i=0;i<N;i++)lum[i]=(blur[i*4]+blur[i*4+1]+blur[i*4+2])/3;
+  const g=_v5Geometry(entry,W,H);
+  const arcMm=Math.max(8,(entry.theta1-entry.theta0)*meshes.params.arcMmPerTheta);
+  const wmm=Number(state.ringWidth)||Number(entry.Wmm)||8;
+  const grain=meshes.params.grain||1.9,periodMm=2*wmm*grain;
+  const scaleOf=new Float32Array(N);
+  for(let i=0;i<N;i++){if(g.U[i]>=0){const k=Math.round(g.V[i]*(g.NS-1));scaleOf[i]=g.widths[k<0?0:k>=g.NS?g.NS-1:k];}}
+  const px=out.data;
+  const report={colorOnly:[],closeup:[],tile:[]};window.__v5Report=report;
+  const standIn=(baseMap[state.baseMetal]||'titanium')==='titanium'&&state.baseMetal!=='Titanium'; // textured base metal shown on the titanium photo → paint its tile
   for(const d of design){
-    const x0=Math.max(0,Math.round(d.s*UVW)),x1=Math.min(UVW,Math.round(d.e*UVW));
-    if(x1<=x0)continue;
-    if(d.kind==='tile'){
-      const t=await _mockupLoadImg(d.src);
-      uvx.drawImage(t,x0/UVW*t.width,0,(x1-x0)/UVW*t.width,t.height,x0,0,x1-x0,PH);
-      const g=_mockupTileGain(d.src);
-      for(let x=x0;x<x1;x++){kindCol[x]=1;gainCol[x]=g;}
-    }else if(d.kind==='metal'||d.kind==='color'){
-      for(let x=x0;x<x1;x++){kindCol[x]=d.kind==='metal'?2:3;rgbCol[x*3]=d.rgb[0];rgbCol[x*3+1]=d.rgb[1];rgbCol[x*3+2]=d.rgb[2];}
-    }
-    for(const xb of [x0,x1]){
-      for(const [o,wgt] of [[-2,0.25],[-1,0.55],[0,0.8],[1,0.55],[2,0.25]]){
-        const xi=xb+o; if(xi>=0&&xi<UVW)seamCol[xi]=Math.max(seamCol[xi],wgt);
-      }
-    }
-  }
-  const uvPx=uvx.getImageData(0,0,UVW,PH);
-  const near=entry.near,far=entry.far,NS=near.length;
-  const grain=meshes.params.grain,designW=state.ringWidth||6;
-  const periodMm=2*designW*grain,arcPerTheta=meshes.params.arcMmPerTheta;
-  const th0=entry.theta0,th1=entry.theta1;
-  const SS=2,WS=W*SS,HS=H*SS;
-  const accC=new Float32Array(WS*HS*3),accW=new Float32Array(WS*HS);
-  const _msc=Math.max(1,W/750);const NTH=Math.round(2800*_msc),NT=Math.round(220*_msc);
-  // shading median over a sample subset first
-  const lsSamples=[];
-  for(let i=0;i<NTH;i+=7){
-    const si=i*(NS-1)/(NTH-1),i0=Math.floor(si),fr=si-i0,i1=Math.min(i0+1,NS-1);
-    const nx=near[i0][0]*(1-fr)+near[i1][0]*fr,ny=near[i0][1]*(1-fr)+near[i1][1]*fr;
-    const fx2=far[i0][0]*(1-fr)+far[i1][0]*fr,fy2=far[i0][1]*(1-fr)+far[i1][1]*fr;
-    const x=Math.round((nx+fx2)/2),y=Math.round((ny+fy2)/2);
-    if(x>=0&&x<W&&y>=0&&y<H){const p=(y*W+x)*4;lsSamples.push((blurPx.data[p]+blurPx.data[p+1]+blurPx.data[p+2])/765);}
-  }
-  lsSamples.sort((a,b)=>a-b);
-  const med=Math.max(lsSamples[Math.floor(lsSamples.length/2)]||0.6,0.001);
-  const shadeLo=meshes.params.shadeLo,specAmt=meshes.params.specAmt;
-  for(let i=0;i<NTH;i++){
-    const si=i*(NS-1)/(NTH-1),i0=Math.floor(si),fr=si-i0,i1=Math.min(i0+1,NS-1);
-    const nx=near[i0][0]*(1-fr)+near[i1][0]*fr,ny=near[i0][1]*(1-fr)+near[i1][1]*fr;
-    const fx2=far[i0][0]*(1-fr)+far[i1][0]*fr,fy2=far[i0][1]*(1-fr)+far[i1][1]*fr;
-    const th=th0+(th1-th0)*si/(NS-1);
-    const vyBase=((th-th0)*arcPerTheta/periodMm)*PH;
-    for(let j=0;j<NT;j++){
-      const t=j/(NT-1);
-      const X=fx2*(1-t)+nx*t,Y=fy2*(1-t)+ny*t;
-      const dx=entry.leftIsNear?(1-t):t;
-      const ux=Math.min(UVW-1,Math.max(0,Math.round(dx*(UVW-1))));
-      const kind=kindCol[ux];
-      if(kind===0)continue;
-      const xi=Math.round(X),yi=Math.round(Y);
-      if(xi<0||xi>=W||yi<0||yi>=H)continue;
-      const p=(yi*W+xi)*4;
-      const lr=(basePx.data[p]+basePx.data[p+1]+basePx.data[p+2])/765;
-      const ls=(blurPx.data[p]+blurPx.data[p+1]+blurPx.data[p+2])/765;
-      let shade=Math.pow(Math.min(1.42,Math.max(shadeLo,ls/med)),0.75);
-      shade=0.22+0.78*shade;
-      const spec=Math.min(1,Math.max(0,(lr-0.88)/0.105))*specAmt;
-      let r,g,b;
-      if(kind===2){
-        const lum=Math.pow(lr,0.9)*1.15;
-        r=rgbCol[ux*3]*lum;g=rgbCol[ux*3+1]*lum;b=rgbCol[ux*3+2]*lum;
+    if(d.kind==='base'||(d.mat===state.baseMetal&&!standIn))continue; // base-metal strips = the photo itself
+    const mat=d.mat||null;
+    const m=mat&&mats[mat]?mats[mat]:null;
+    let tex=null,mode='color',isMetal=(d.kind==='metal');
+    if(m&&m.tex){try{tex=await _v5Tex(m.tex);mode='closeup';isMetal=(m.kind==='metal');}catch(e){tex=null;}}
+    if(!tex&&m&&m.tile){try{tex=await _v5Tex(m.tile);mode='tile';}catch(e){tex=null;}}
+    if(!tex&&d.kind==='tile'&&d.src){try{tex=await _v5Tex(d.src);mode='tile';}catch(e){tex=null;}}
+    const rgb=d.rgb||[138,138,138];
+    if(mat){const lst=mode==='closeup'?report.closeup:mode==='tile'?report.tile:report.colorOnly;if(lst.indexOf(mat)<0)lst.push(mat);}
+    const lo=d.s,hi=d.e;
+    const tw=tex?tex.width:1,th=tex?tex.height:1;
+    const kpx=th/arcMm; // closeup: isotropic px per mm (arc length ↔ texture height)
+    const x0=0.34*tw;
+    for(let i=0;i<N;i++){
+      const u=g.U[i];if(u<0)continue;
+      const v=g.V[i],sc=scaleOf[i];
+      let edge=Math.min((u-lo)*sc,(hi-u)*sc);
+      const eo=Math.min(v*1400,(1-v)*1400);if(eo<edge)edge=eo;
+      const a=_v5Smooth(edge+.5);if(a<=0)continue;
+      const L=lum[i];
+      let r,gg,b;
+      if(mode==='closeup'){
+        const tx=x0+(u*wmm)*kpx,ty=v*(th-1);
+        r=_v5Sample(tex,tx,ty,0);gg=_v5Sample(tex,tx,ty,1);b=_v5Sample(tex,tx,ty,2);
+      }else if(mode==='tile'){
+        const tx=u*(tw-1);let ty=((v*arcMm)/periodMm)*th;ty=((ty%th)+th)%th;
+        r=_v5Sample(tex,tx,ty,0);gg=_v5Sample(tex,tx,ty,1);b=_v5Sample(tex,tx,ty,2);
+      }else{r=rgb[0];gg=rgb[1];b=rgb[2];}
+      if(isMetal){
+        const spec=_v5Smooth((L-211)/44)*.55,lf=(L/210)*(1-spec);
+        r=r*lf+255*spec;gg=gg*lf+255*spec;b=b*lf+255*spec;
       }else{
-        if(kind===1){
-          const vy=((Math.floor(vyBase)%PH)+PH)%PH;
-          const q=(vy*UVW+ux)*4,gn=gainCol[ux];
-          r=uvPx.data[q]*gn;g=uvPx.data[q+1]*gn;b=uvPx.data[q+2]*gn;
-        }else{
-          r=rgbCol[ux*3];g=rgbCol[ux*3+1];b=rgbCol[ux*3+2];
-        }
-        r*=shade;g*=shade;b*=shade;
-        r=r*(1-spec)+235*spec;g=g*(1-spec)+235*spec;b=b*(1-spec)+235*spec;
+        const lf=.72+.30*L/200,hl=Math.max(0,L-211)*.3;
+        r=r*lf+hl;gg=gg*lf+hl;b=b*lf+hl;
       }
-      const sm=1-0.55*seamCol[ux];
-      r*=sm;g*=sm;b*=sm;
-      const xs=Math.min(WS-1,Math.max(0,Math.round(X*SS))),ys=Math.min(HS-1,Math.max(0,Math.round(Y*SS)));
-      for(let oy=0;oy<2;oy++)for(let ox2=0;ox2<2;ox2++){
-        const idx=Math.min(HS-1,ys+oy)*WS+Math.min(WS-1,xs+ox2);
-        accW[idx]+=1;accC[idx*3]+=r;accC[idx*3+1]+=g;accC[idx*3+2]+=b;
+      const e2=(Math.max(0,edge)-.15)/.8,seam=1-Math.exp(-e2*e2)*.18;
+      r*=seam;gg*=seam;b*=seam;
+      const p=i*4;
+      px[p]=px[p]*(1-a)+(r<0?0:r>255?255:r)*a;
+      px[p+1]=px[p+1]*(1-a)+(gg<0?0:gg>255?255:gg)*a;
+      px[p+2]=px[p+2]*(1-a)+(b<0?0:b>255?255:b)*a;
+    }
+  }
+  // ---- FINISH on exposed base-metal top-face regions only (never inlays, side faces or the sleeve) ----
+  const finish=String(state.finish||'Polished'),native=entry.nativeFinish||'Polished';
+  if(finish!==native&&finish!=='Polished'){
+    let sum=0,cnt=0;for(let i=0;i<N;i++){if(g.U[i]>=0){sum+=lum[i];cnt++;}}
+    const avgL=cnt?sum/cnt:170;
+    const hash=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n);};
+    const vnoise=(x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),fx=x-xi,fy=y-yi,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy);
+      return (hash(xi,yi)*(1-sx)+hash(xi+1,yi)*sx)*(1-sy)+(hash(xi,yi+1)*(1-sx)+hash(xi+1,yi+1)*sx)*sy;};
+    const baseStrips=design.filter(d=>d.mat===state.baseMetal);
+    for(let i=0;i<N;i++){
+      const u=g.U[i];if(u<0)continue;
+      const v=g.V[i],sc=scaleOf[i];
+      let edge=-1;for(const d of baseStrips){const e=Math.min((u-d.s)*sc,(d.e-u)*sc);if(e>edge)edge=e;}
+      const eo=Math.min(v*1400,(1-v)*1400);if(eo<edge)edge=eo;
+      const a=_v5Smooth(edge+.5);if(a<=0)continue;
+      const p=i*4,L=lum[i],r0=px[p],g0=px[p+1],b0=px[p+2];
+      const shade=Math.pow(Math.max(.35,Math.min(1.6,L/avgL)),.55); // keep the photo's gentle light direction
+      const tint=[r0,g0,b0].map(c=>c/Math.max(1,(r0+g0+b0)/3)); // metal colour cast (gold stays gold)
+      const mmU=u*wmm,mmV=v*arcMm;
+      let tone,mixTex=0;
+      if(finish==='Brushed'){
+        const st=0.5+0.5*vnoise(mmU*22,mmV*0.9)*0.7+0.3*vnoise(mmU*60,mmV*2.2);
+        tone=avgL*0.95*Math.pow(Math.max(.6,Math.min(1.3,L/avgL)),.8)*(0.84+0.28*st);mixTex=.88;
+      }else if(finish==='Matte'){
+        tone=avgL*0.86*Math.pow(Math.max(.85,Math.min(1.08,L/avgL)),.5)*(0.985+0.03*vnoise(mmU*40,mmV*40));mixTex=.96;
+      }else if(finish==='Sandblasted'){
+        tone=avgL*0.64*Math.pow(Math.max(.8,Math.min(1.1,L/avgL)),.5)*(0.93+0.14*vnoise(mmU*70,mmV*70));mixTex=.96;
+      }else if(finish==='Frost'||finish==='Frosted'){
+        const sp=vnoise(mmU*90,mmV*90);tone=avgL*0.90*Math.pow(Math.max(.8,Math.min(1.1,L/avgL)),.5)*(0.90+0.20*sp)+(sp>0.86?40:0);mixTex=.95;
+      }else if(finish==='Hammer'||finish==='Hammered'){
+        // Worley facets ≈1.4mm: each cell its own brightness, bright ridge where cells meet
+        const cx=mmU/1.1,cy=mmV/1.1,ix=Math.floor(cx),iy=Math.floor(cy);let d1=9,d2=9,id=0,rid=0;
+        for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){const jx=ix+ox,jy=iy+oy,px2=jx+hash(jx,jy),py2=jy+hash(jy+17,jx+3);const dd=Math.hypot(cx-px2,cy-py2);if(dd<d1){d2=d1;d1=dd;id=hash(jx+7,jy+11);rid=hash(jx+3,jy+5);}else if(dd<d2)d2=dd;}
+        const ridge=Math.max(0,1-(d2-d1)/0.14)*(0.35+0.65*rid);
+        tone=L*(0.80+0.40*id)*(1-0.22*Math.min(1,d1*1.4))+ridge*55*shade;mixTex=.80;
+      }else{tone=L;mixTex=0;}
+      if(mixTex>0){
+        const nr=Math.min(255,tone*tint[0]),ng=Math.min(255,tone*tint[1]),nb=Math.min(255,tone*tint[2]);
+        const k=a*mixTex;px[p]=r0*(1-k)+nr*k;px[p+1]=g0*(1-k)+ng*k;px[p+2]=b0*(1-k)+nb*k;
       }
     }
   }
-  let wSum=0,wCnt=0;
-  for(let i=0;i<accW.length;i++){if(accW[i]>0){wSum+=accW[i];wCnt++;}}
-  if(!wCnt)return null;
-  const wMean=wSum/wCnt;
-  // composite at SS then downsample via canvas
-  const ssCv=document.createElement('canvas');ssCv.width=WS;ssCv.height=HS;
-  const ssx=ssCv.getContext('2d',{willReadFrequently:true});
-  ssx.imageSmoothingEnabled=true;ssx.drawImage(baseImg,0,0,WS,HS);
-  const ssPx=ssx.getImageData(0,0,WS,HS);
-  for(let i=0;i<accW.length;i++){
-    const w2=accW[i];if(!w2)continue;
-    const a=Math.min(1,w2/(wMean*0.35)),p=i*4;
-    ssPx.data[p]=ssPx.data[p]*(1-a)+(accC[i*3]/w2)*a;
-    ssPx.data[p+1]=ssPx.data[p+1]*(1-a)+(accC[i*3+1]/w2)*a;
-    ssPx.data[p+2]=ssPx.data[p+2]*(1-a)+(accC[i*3+2]/w2)*a;
-  }
-  ssx.putImageData(ssPx,0,0);
-  const outCv=document.createElement('canvas');outCv.width=W;outCv.height=H;
-  const ox=outCv.getContext('2d');ox.imageSmoothingEnabled=true;ox.imageSmoothingQuality='high';
-  ox.drawImage(ssCv,0,0,W,H);
-  const dataUrl=outCv.toDataURL('image/jpeg',0.82);
+  ctx.putImageData(out,0,0);
+  const dataUrl=cv.toDataURL('image/jpeg',0.86);
   return dataUrl.split(',')[1]||null;
 }
+// ===== end PHOTO MOCKUP v5 =====
 function getMockupImage(timeoutMs){
   return Promise.race([
     generateMockupImage().catch(e=>{try{ringAudit.record('quote','mockup_generation_failed',{message:String(e&&e.message||e)});}catch(_){ } return null;}),
@@ -7121,6 +7177,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var summary = state.baseMetal + ' · size ' + state.ringSize + ' · ' + state.ringWidth + 'mm · ' + state.profile + ' · ' + state.finish +
       (state.strips.length ? ' — ' + state.strips.map(function(s){return s.material + ' ' + s.width + 'mm';}).join(' | ') : ' — plain band');
     if (state.profile === 'Round' && !(typeof _mockupRoundSlug === 'function' && _mockupRoundSlug(state.baseMetal, state.ringWidth))) summary += ' — ⚠ no Round photo for this metal yet: FLAT base shown';
+    if (window.__v5Report && window.__v5Report.colorOnly && window.__v5Report.colorOnly.length) summary += ' — ⚠ no material photo yet (flat colour shown): ' + window.__v5Report.colorOnly.join(', '); // PHOTO MOCKUP v5 note
     if (b64) {
       ov.innerHTML = '<div style="color:#fff;font:13px sans-serif;margin-bottom:10px;max-width:860px;text-align:center;">' + summary.replace(/</g,'&lt;') + '</div>' +
         '<img style="max-width:min(90vw,760px);max-height:72vh;border-radius:8px;background:#fff;" src="data:image/jpeg;base64,' + b64 + '">' +
