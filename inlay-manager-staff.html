@@ -83,6 +83,7 @@ hr.thin { border:0; border-top:1px solid var(--line); margin:12px 0 10px; }
     <button class="lite" style="width:100%; margin-bottom:7px" onclick="showAddForm()">+ Add a new material</button>
     <button class="lite" style="width:100%; margin-bottom:7px" onclick="showAddMetalForm()">+ Add a new metal</button>
     <button class="lite" style="width:100%; margin-bottom:7px" onclick="showSpotFloorForm()">$ Fixed metal prices</button>
+    <button class="lite" style="width:100%; margin-bottom:7px" onclick="showUpsellForm()">✦ Customer offer message</button>
     <div class="filters">
       <select id="groupFilter" onchange="renderList()"><option value="">All groups</option></select>
       <label><input type="checkbox" id="hiddenOnly" onchange="renderList()"> hidden</label>
@@ -93,7 +94,7 @@ hr.thin { border:0; border-top:1px solid var(--line); margin:12px 0 10px; }
 
   <section class="col" id="detailCol">
     <div class="help" id="helpBox">
-      <b>How it works:</b> scroll or search the list on the left, click a material, type new prices (only the lines you want to change) or use Hide / Restore, press <b>Stage these changes</b>. "+ Add a new material" creates one as a copy of an existing material. "+ Add a new metal" adds a metal to the Alternative or Precious tab (you type its prices; precious golds price themselves by the live formula). Metals also get <b>Hide as Base Metal</b> / <b>Hide as Inlay</b> buttons to hide them from just one place. "$ Fixed metal prices" sets a fixed market price per precious metal — ring pricing always uses the HIGHER of the live spot price and the fixed price. Repeat as needed, then <b>Submit for approval</b> on the right. Johan reviews and publishes — nothing goes live until he approves.
+      <b>How it works:</b> scroll or search the list on the left, click a material, type new prices (only the lines you want to change) or use Hide / Restore, press <b>Stage these changes</b>. "+ Add a new material" creates one as a copy of an existing material. "+ Add a new metal" adds a metal to the Alternative or Precious tab (you type its prices; precious golds price themselves by the live formula). Metals also get <b>Hide as Base Metal</b> / <b>Hide as Inlay</b> buttons to hide them from just one place. "$ Fixed metal prices" sets a fixed market price per precious metal — ring pricing always uses the HIGHER of the live spot price and the fixed price. "✦ Customer offer message" changes or turns off the gold offer banner customers see in the builder once their ring has an inlay. Repeat as needed, then <b>Submit for approval</b> on the right. Johan reviews and publishes — nothing goes live until he approves.
     </div>
     <div id="detail"><span class="hint">Select a material from the list.</span></div>
   </section>
@@ -121,6 +122,7 @@ var API = 'https://jbj-spot-prices.johan-475.workers.dev';
 var VIEW_URL = API + '/staff/pricing-view';
 var PENDING_URL = API + '/staff/pending';
 var CLEAR_URL = API + '/staff/pending/clear';
+var UPSELL_URL = API + '/staff/upsell-message';
 var PRICING_URL = API + '/pricing';
 
 var view = null;        // trimmed tables (staff + owner browsing)
@@ -435,6 +437,50 @@ function stageClearSpotFloor(metal) {
   toast(metal + ' back-to-live-spot staged — ' + (ownerMode ? 'publish on the right.' : 'submit it on the right.'), 'ok');
 }
 
+// ---------- customer offer message (2026-09-15) ----------
+// The gold banner + exit overlay in the builder (KV `upsell_message`). Shows only
+// when the customer's ring has at least one inlay. Blank = off. Goes through the
+// same approval queue as prices; the owner publish writes it to KV.
+function upsellState() {
+  var cur = (view && typeof view.upsell_message === 'string') ? view.upsell_message.trim() : '';
+  var prev = (view && typeof view.upsell_message_prev === 'string') ? view.upsell_message_prev.trim() : '';
+  return { current: cur, prev: prev, enabled: !!cur };
+}
+function showUpsellForm() {
+  if (!view) return;
+  selected = null;
+  renderList();
+  var st = upsellState();
+  var html = '<div class="big">Customer offer message</div>' +
+    '<div class="hint" style="margin:4px 0 10px">This is the gold banner (and the exit pop-up) customers see in the ring builder as soon as their design has an inlay. Type the new text and press <b>Stage new message</b>, or press <b>Turn off</b> to hide the banner. Nothing changes until Johan approves and publishes.</div>' +
+    '<div class="frow"><label>Status</label><span id="upsellStatus" style="font-weight:600; color:' + (st.enabled ? '#1c7c3c' : '#a33') + '">' + (st.enabled ? 'ON — customers see it' : 'OFF — no banner shown') + '</span></div>' +
+    '<div class="frow" style="align-items:flex-start"><label>Current text</label><span id="upsellCurrent" class="hint" style="flex:1">' + (st.enabled ? esc(st.current) : '(none)' + (st.prev ? ' — last message was: “' + esc(st.prev) + '”' : '')) + '</span></div>' +
+    '<div class="frow" style="align-items:flex-start"><label for="upsellText">New text</label>' +
+      '<textarea id="upsellText" rows="3" maxlength="300" style="flex:1; min-width:260px; font:inherit; padding:6px" placeholder="e.g. Purchase this ring within the next 3 days and get 20% OFF">' + esc(st.enabled ? st.current : st.prev) + '</textarea></div>' +
+    '<div class="frow"><label></label>' +
+      '<button class="act" onclick="stageUpsellMessage()">Stage new message</button>' +
+      (st.enabled ? '<button class="lite" onclick="stageUpsellOff()">Turn off</button>' : '') +
+      '<span class="hint">max 300 characters · shows only when the ring has an inlay</span></div>';
+  document.getElementById('detail').innerHTML = html;
+}
+function stageUpsellMessage() {
+  var box = document.getElementById('upsellText');
+  var text = (box ? box.value : '').replace(/\s+/g, ' ').trim();
+  var st = upsellState();
+  if (!text) { toast('Type the message first — or use Turn off to hide the banner.', 'err'); return; }
+  if (text.length > 300) { toast('Keep the message under 300 characters.', 'err'); return; }
+  if (text === st.current) { toast('That is already the live message.', 'err'); return; }
+  cartAdd({ op: 'set_upsell_message', material: 'Customer offer message', value: text, before: st.current });
+  toast('New customer message staged — ' + (ownerMode ? 'publish on the right.' : 'submit it on the right.'), 'ok');
+}
+function stageUpsellOff() {
+  var st = upsellState();
+  if (!st.enabled) { toast('The customer message is already off.', 'err'); return; }
+  cartAdd({ op: 'set_upsell_message', material: 'Customer offer message', value: '', before: st.current });
+  toast('Turning the customer message OFF is staged — ' + (ownerMode ? 'publish on the right.' : 'submit it on the right.'), 'ok');
+}
+function isUpsellOp(entry) { return entry && entry.op === 'set_upsell_message'; }
+
 // ---------- add a new metal (2026-08-27) ----------
 function showAddMetalForm() {
   if (!view) return;
@@ -582,6 +628,7 @@ function describeChange(entry) {
   if (entry.op === 'restore_inlay') return 'Restore "' + entry.material + '" as an Inlay';
   if (entry.op === 'hide') return 'Hide "' + entry.material + '" from customers';
   if (entry.op === 'restore') return 'Restore "' + entry.material + '"';
+  if (entry.op === 'set_upsell_message') return entry.value ? 'Customer offer message → “' + entry.value + '”' + (entry.before ? ' (was: “' + entry.before + '”)' : ' (was OFF)') : 'Customer offer message → OFF (was: “' + (entry.before || '') + '”)';
   if (entry.op === 'set_spot_floor') return 'Fixed market price — ' + entry.material + ': ' + (entry.before != null ? fmt(entry.before) : 'none') + ' → ' + fmt(entry.value) + '/toz (used only when above live spot)';
   if (entry.op === 'clear_spot_floor') return 'Clear fixed market price — ' + entry.material + ' (back to live spot only)';
   var target = entry.material;
@@ -636,6 +683,7 @@ async function staffSubmit() {
 // ---------- pending queue ----------
 function pendingStale(entry) {
   if (!view || entry.before == null) return null;
+  if (entry.op === 'set_upsell_message') { var um = upsellState().current; return um !== String(entry.before) ? (um || '(off)') : null; }
   var current = null;
   if (entry.op === 'set_base') { var row = view.base_prices[entry.material]; current = row ? row[entry.field] : null; }
   else if (entry.op === 'set_width') { current = pointValue(view.width_prices[entry.material], entry.width); }
