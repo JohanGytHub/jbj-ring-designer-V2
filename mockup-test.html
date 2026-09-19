@@ -1172,6 +1172,7 @@ const state = {
   lastName: '',
   email: '',
   notes: '',
+  budget: '',          // CUSTOMER BUDGET (2026-09-18): optional budgeted amount typed on the Summary page, sent with the quote
   serverTotal: null,   // no hardcoded fallback — populated only by the protected /estimate endpoint
   estimateToken: null, // signed by the Worker; a current token gates the Submit button
   staffBreakdown: null // itemized breakdown returned by /estimate for authorized staff sessions only
@@ -1295,6 +1296,7 @@ const ringAudit = (() => {
       lastName: state.lastName,
       email: state.email,
       notes: state.notes,
+      budget: state.budget,
       pricingVersion: DATA ? DATA._version : null,
       total: safePrice(),
       quoteSubmitted: Boolean(state._quoteSubmitted)
@@ -3266,7 +3268,7 @@ function showExitEmailModal(onDone){
     try{
       const mockupImage=await getMockupImage(4000);
       const response=await fetch(SERVICES.quote_url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        firstName:state.firstName,lastName:state.lastName,email:state.email,notes:state.notes,auditVisitorId:ringAudit.visitorId,auditSessionId:ringAudit.sessionId,baseMetal:state.baseMetal,ringSize:state.ringSize,ringWidth:state.ringWidth,
+        firstName:state.firstName,lastName:state.lastName,email:state.email,notes:state.notes,budget:state.budget||'',auditVisitorId:ringAudit.visitorId,auditSessionId:ringAudit.sessionId,baseMetal:state.baseMetal,ringSize:state.ringSize,ringWidth:state.ringWidth,
         profile:state.profile,sleeve:state.sleeve,finish:state.finish,engraving:state.engraving,font:state.engravingFont||'',
         strips:state.strips,total:state.serverTotal,estimateToken:state.estimateToken,pricingVersion:DATA._version,shareUrl,
         ringImage:_getCanvasImage(),
@@ -5097,6 +5099,36 @@ function renderSummaryPanel(col){
   notesRow.appendChild(notesTA);
   form.appendChild(notesRow);
 
+  // CUSTOMER BUDGET (2026-09-18, Johan): optional budgeted amount for the ring, sent with the quote (staff email only)
+  const budgetRow=h('div',{class:'form-row'});
+  budgetRow.appendChild(h('label',{},['Your Budget for this Ring (optional)']));
+  const budgetInput=h('input',{type:'text',id:'quoteBudget',inputmode:'decimal',placeholder:'e.g. 1,500',autocomplete:'off',maxlength:'12',value:state.budget||'',
+    onInput:(e)=>{
+      const clean=String(e.target.value).replace(/[^0-9.,]/g,'').slice(0,12);
+      if(clean!==e.target.value) e.target.value=clean;
+      state.budget=clean;
+    }
+  });
+  budgetRow.appendChild(budgetInput);
+  budgetRow.appendChild(h('div',{style:{fontSize:'.7rem',color:'var(--text-muted)',marginTop:'4px'}},['USD. Helps us tailor the quote to what you have in mind.']));
+  // SHOP PAY TABLE (2026-09-18, Johan): what a ring costs per month with Shop Pay Installments, $500–$5,000 in $500 steps.
+  // Term + rate mirror the live product-page banner (verified 2026-09-18: price ÷ 6, 0% interest, at every price probed). Change SHOP_PAY_MONTHS if the plan changes.
+  const SHOP_PAY_MONTHS=6, SHOP_PAY_MIN=500, SHOP_PAY_MAX=5000, SHOP_PAY_STEP=500;
+  const spMoney=(n)=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const spBox=h('div',{id:'shopPayTable',style:{marginTop:'10px',padding:'10px 12px',border:'1px solid var(--border, #e3e3ea)',borderRadius:'8px',background:'rgba(90,49,244,0.04)'}});
+  spBox.appendChild(h('div',{style:{fontSize:'.72rem',fontWeight:'600',marginBottom:'6px'}},['Pay over time with Shop Pay — '+SHOP_PAY_MONTHS+' monthly payments, 0% interest']));
+  const spGrid=h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',fontSize:'.72rem',lineHeight:'1.6',columnGap:'12px'}});
+  spGrid.appendChild(h('div',{style:{color:'var(--text-muted)',borderBottom:'1px solid var(--border, #e3e3ea)'}},['Ring price']));
+  spGrid.appendChild(h('div',{style:{color:'var(--text-muted)',borderBottom:'1px solid var(--border, #e3e3ea)',textAlign:'right'}},['Per month']));
+  for(let p=SHOP_PAY_MIN;p<=SHOP_PAY_MAX;p+=SHOP_PAY_STEP){
+    spGrid.appendChild(h('div',{class:'sp-price'},[spMoney(p)]));
+    spGrid.appendChild(h('div',{class:'sp-month',style:{textAlign:'right',fontWeight:'600'}},[spMoney(Math.round(p/SHOP_PAY_MONTHS*100)/100)+'/mo']));
+  }
+  spBox.appendChild(spGrid);
+  spBox.appendChild(h('div',{style:{fontSize:'.65rem',color:'var(--text-muted)',marginTop:'6px'}},['Example amounts. Shop Pay Installments are offered at checkout, subject to eligibility; rings under $1,000 can also be split into 4 interest-free biweekly payments.']));
+  budgetRow.appendChild(spBox);
+  form.appendChild(budgetRow);
+
   const submitStatus=h('div',{style:{textAlign:'center',padding:'8px 0',fontSize:'.8rem',display:'none'}});
 
   const isValidEmail=(email)=>{
@@ -5156,6 +5188,7 @@ function renderSummaryPanel(col){
         lastName:state.lastName,
         email:state.email,
         notes:state.notes,
+        budget:state.budget||'',
         auditVisitorId:ringAudit.visitorId,
         auditSessionId:ringAudit.sessionId,
         baseMetal:state.baseMetal,
