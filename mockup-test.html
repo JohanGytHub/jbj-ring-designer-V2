@@ -4004,7 +4004,9 @@ function renderComposePanel(col){
 
     if(canSlideLeft){
       // When creating a new metal strip on right, need at least bmMinW
-      const slideNeedsNewRight=!rightIsMetal;
+      // SLIDE-LEFT GHOST FIX (2026-09-18, Johan): no right neighbor = the base-metal remaining plane — the freed width
+      // simply returns to it; only a non-metal RIGHT STRIP needs a new metal separator. (Was inserting a redundant base-metal strip.)
+      const slideNeedsNewRight=!rightIsMetal&&!!rightNeighbor;
       const effectiveStep=slideNeedsNewRight?Math.max(step,bmMinW):step;
       const inlayNeedsEdges=needsMetalEdges(selStrip.material);
       const canAfford=leftNeighbor.width>=effectiveStep||(leftNeighbor.width>=step&&!slideNeedsNewRight)||(!inlayNeedsEdges&&leftNeighbor.width>0&&!slideNeedsNewRight);
@@ -4022,10 +4024,10 @@ function renderComposePanel(col){
         // Grow or create metal on right side
         if(rightIsMetal){
           rightNeighbor.width=parseFloat((rightNeighbor.width+moveAmt).toFixed(2));
-        } else {
+        } else if(rightNeighbor){
           // Insert new metal strip after the inlay at minimum width
           state.strips.splice(si+1,0,{material:state.baseMetal,width:moveAmt});
-        }
+        } // SLIDE-LEFT GHOST FIX: no right neighbor → width goes back to the remaining base-metal plane
 
         // Remove left metal if it hit zero
         if(leftNeighbor.width<=0){
@@ -5111,16 +5113,16 @@ function renderSummaryPanel(col){
   });
   budgetRow.appendChild(budgetInput);
   budgetRow.appendChild(h('div',{style:{fontSize:'.7rem',color:'var(--text-muted)',marginTop:'4px'}},['USD. Helps us tailor the quote to what you have in mind.']));
-  // SHOP PAY TABLE (2026-09-18, Johan): what a ring costs per month with Shop Pay Installments, $500–$5,000 in $500 steps.
+  // SHOP PAY TABLE (2026-09-18, Johan): what a ring costs per month with Shop Pay Installments at $200, then $1,000–$5,000 in $1,000 steps.
   // Term + rate mirror the live product-page banner (verified 2026-09-18: price ÷ 6, 0% interest, at every price probed). Change SHOP_PAY_MONTHS if the plan changes.
-  const SHOP_PAY_MONTHS=6, SHOP_PAY_MIN=500, SHOP_PAY_MAX=5000, SHOP_PAY_STEP=500;
+  const SHOP_PAY_MONTHS=6, SHOP_PAY_PRICES=[200,1000,2000,3000,4000,5000];
   const spMoney=(n)=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const spBox=h('div',{id:'shopPayTable',style:{marginTop:'10px',padding:'10px 12px',border:'1px solid var(--border, #e3e3ea)',borderRadius:'8px',background:'rgba(90,49,244,0.04)'}});
   spBox.appendChild(h('div',{style:{fontSize:'.72rem',fontWeight:'600',marginBottom:'6px'}},['Pay over time with Shop Pay — '+SHOP_PAY_MONTHS+' monthly payments, 0% interest']));
   const spGrid=h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',fontSize:'.72rem',lineHeight:'1.6',columnGap:'12px'}});
   spGrid.appendChild(h('div',{style:{color:'var(--text-muted)',borderBottom:'1px solid var(--border, #e3e3ea)'}},['Ring price']));
   spGrid.appendChild(h('div',{style:{color:'var(--text-muted)',borderBottom:'1px solid var(--border, #e3e3ea)',textAlign:'right'}},['Per month']));
-  for(let p=SHOP_PAY_MIN;p<=SHOP_PAY_MAX;p+=SHOP_PAY_STEP){
+  for(const p of SHOP_PAY_PRICES){
     spGrid.appendChild(h('div',{class:'sp-price'},[spMoney(p)]));
     spGrid.appendChild(h('div',{class:'sp-month',style:{textAlign:'right',fontWeight:'600'}},[spMoney(Math.round(p/SHOP_PAY_MONTHS*100)/100)+'/mo']));
   }
