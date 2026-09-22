@@ -4901,9 +4901,9 @@ function renderSummaryPanel(col){
   budgetRow.appendChild(h('div',{style:{fontSize:'.75rem',color:'#7b6523',marginBottom:'8px'}},['Optional — tell us what you would like to spend and we will tailor the quote to it.']));
   const budgetWrap=h('div',{style:{display:'flex',alignItems:'center',gap:'8px'}});
   budgetWrap.appendChild(h('span',{style:{fontSize:'1.4rem',fontWeight:'700',color:'#7b6523'}},['$']));
-  const budgetInput=h('input',{type:'text',id:'quoteBudget',inputmode:'decimal',placeholder:'1,500',autocomplete:'off',maxlength:'12',value:state.budget||'',
+  const budgetInput=h('input',{type:'text',id:'quoteBudget',inputmode:'decimal',placeholder:'1,500',autocomplete:'off',maxlength:'20',value:state.budget||'',
     onInput:(e)=>{
-      const clean=String(e.target.value).replace(/[^0-9.,]/g,'').slice(0,12);
+      const clean=String(e.target.value).replace(/[^0-9.,\-\u2013 ]/g,'').slice(0,20); // digits , . and ranges (1,500-2,000)
       if(clean!==e.target.value) e.target.value=clean;
       state.budget=clean;
     }
