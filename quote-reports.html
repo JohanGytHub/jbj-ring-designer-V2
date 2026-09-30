@@ -204,7 +204,7 @@ async function boot() {
   if (!session) { showLogin(''); return; }
   var me = await api('/report/me');
   if (!me.ok) { showLogin(me.error || 'Please sign in.'); return; }
-  document.getElementById('who').innerHTML = esc(me.email) + ' <button onclick="signOut(\'Signed out.\')">Sign out</button>';
+  document.getElementById('who').innerHTML = esc(me.email) + ' <button onclick="signOut(\'Signed out — request a new link below to sign in again.\')">Sign out</button>';
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   meta = await api('/report/meta');
