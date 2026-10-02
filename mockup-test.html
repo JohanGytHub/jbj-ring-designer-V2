@@ -5102,38 +5102,40 @@ function renderSummaryPanel(col){
   form.appendChild(notesRow);
 
   // CUSTOMER BUDGET (2026-09-18, Johan): optional budgeted amount for the ring, sent with the quote (staff email only)
-  // BUDGET HIGHLIGHT (2026-09-21, Johan): the budget box must stand out — gold callout, big label, $-prefixed large input.
+  // BUDGET HIGHLIGHT (2026-09-21, Johan): the budget box must stand out — gold callout, big label.
+  // COMFORTABLE PRICE POINT (2026-10-02, Johan): the free-text amount became a fixed set of ranges (radio rows, mobile-first,
+  // 48px tap targets) — customers anchored their own designs too low and staff felt an open "budget" question scares people
+  // off. state.budget now carries the chosen range label (one of PRICE_POINT_OPTIONS) and still travels as `budget`.
+  const PRICE_POINT_OPTIONS=['Under $500','$500 – $999','$1,000 – $2,499','$2,500 – $4,999','$5,000+','Not sure yet'];
+  if(state.budget && !PRICE_POINT_OPTIONS.includes(state.budget)) state.budget=''; // a value from the old free-text field never leaks into the new control
   const budgetRow=h('div',{class:'form-row',id:'quoteBudgetBox',style:{padding:'14px 16px',border:'2px solid #d4a017',borderRadius:'10px',background:'#fff6d6',marginTop:'4px'}});
-  budgetRow.appendChild(h('label',{style:{fontSize:'.9rem',fontWeight:'700',color:'#7b6523',letterSpacing:'.02em',textTransform:'none',marginBottom:'4px'}},['💰 Your Budget for this Ring']));
-  budgetRow.appendChild(h('div',{style:{fontSize:'.75rem',color:'#7b6523',marginBottom:'8px'}},['Optional — tell us what you would like to spend and we will tailor the quote to it.']));
-  const budgetWrap=h('div',{style:{display:'flex',alignItems:'center',gap:'8px'}});
-  budgetWrap.appendChild(h('span',{style:{fontSize:'1.4rem',fontWeight:'700',color:'#7b6523'}},['$']));
-  const budgetInput=h('input',{type:'text',id:'quoteBudget',inputmode:'decimal',placeholder:'1,500',autocomplete:'off',maxlength:'20',value:state.budget||'',
-    onInput:(e)=>{
-      const clean=String(e.target.value).replace(/[^0-9.,\-\u2013 ]/g,'').slice(0,20); // digits , . and ranges (1,500-2,000)
-      if(clean!==e.target.value) e.target.value=clean;
-      state.budget=clean;
-    }
+  budgetRow.appendChild(h('label',{style:{fontSize:'.9rem',fontWeight:'700',color:'#7b6523',letterSpacing:'.02em',textTransform:'none',marginBottom:'4px'}},['💰 Comfortable Price Point']));
+  budgetRow.appendChild(h('div',{style:{fontSize:'.75rem',color:'#7b6523',marginBottom:'8px'}},['Optional — This helps us recommend materials, design options, or alternatives that align with the price point you\u2019re comfortable with.']));
+  const budgetInput=h('input',{type:'hidden',id:'quoteBudget',value:state.budget||''}); // mirrors state.budget for anything that reads #quoteBudget
+  const ppList=h('div',{id:'pricePointList',role:'radiogroup','aria-label':'Comfortable price point',style:{display:'flex',flexDirection:'column',gap:'8px'}});
+  const ppRows=[];
+  const ppPaint=()=>{for(const row of ppRows){const on=row.dataset.value===(state.budget||'');row.style.borderColor=on?'#d4a017':'#f0d78a';row.style.boxShadow=on?'0 0 0 2px rgba(212,160,23,.25)':'none';}};
+  PRICE_POINT_OPTIONS.forEach((opt,i)=>{
+    const radio=h('input',{type:'radio',name:'quotePricePoint',id:'quotePricePoint'+i,value:opt,
+      onChange:()=>{state.budget=opt;budgetInput.value=opt;ppPaint();}
+    });
+    Object.assign(radio.style,{width:'22px',height:'22px',margin:'0',flex:'none',accentColor:'#d4a017'});
+    if(state.budget===opt) radio.checked=true;
+    const row=h('label',{for:'quotePricePoint'+i,class:'pp-row',style:{display:'flex',alignItems:'center',gap:'12px',minHeight:'48px',padding:'0 14px',background:'#fff',border:'1.5px solid #f0d78a',borderRadius:'10px',fontSize:'1rem',fontWeight:'500',color:'#191813',cursor:'pointer',textTransform:'none',letterSpacing:'0',margin:'0',boxSizing:'border-box'}},[radio,opt]);
+    row.dataset.value=opt;
+    ppRows.push(row);
+    ppList.appendChild(row);
   });
-  Object.assign(budgetInput.style,{fontSize:'1.25rem',fontWeight:'700',padding:'12px 14px',border:'2px solid #d4a017',background:'#fff',color:'#191813',flex:'1 1 auto',minWidth:'0'});
-  budgetWrap.appendChild(budgetInput);
-  budgetWrap.appendChild(h('span',{style:{fontSize:'.8rem',fontWeight:'600',color:'#7b6523'}},['USD']));
-  budgetRow.appendChild(budgetWrap);
-  // SHOP PAY TABLE (2026-09-18, Johan): what a ring costs per month with Shop Pay Installments at $200, then $1,000–$5,000 in $1,000 steps.
-  // Term + rate mirror the live product-page banner (verified 2026-09-18: price ÷ 6, 0% interest, at every price probed). Change SHOP_PAY_MONTHS if the plan changes.
-  const SHOP_PAY_MONTHS=6, SHOP_PAY_PRICES=[200,1000,2000,3000,4000,5000];
-  const spMoney=(n)=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const spBox=h('div',{id:'shopPayTable',style:{marginTop:'12px',padding:'10px 12px',border:'1px solid #e6cf8a',borderRadius:'8px',background:'#fff'}});
-  spBox.appendChild(h('div',{style:{fontSize:'.72rem',fontWeight:'600',marginBottom:'6px'}},['Pay over time with Shop Pay — '+SHOP_PAY_MONTHS+' monthly payments, 0% interest']));
-  const spGrid=h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',fontSize:'.72rem',lineHeight:'1.6',columnGap:'12px'}});
-  spGrid.appendChild(h('div',{style:{color:'var(--text-muted)',borderBottom:'1px solid var(--border, #e3e3ea)'}},['Ring price']));
-  spGrid.appendChild(h('div',{style:{color:'var(--text-muted)',borderBottom:'1px solid var(--border, #e3e3ea)',textAlign:'right'}},['Per month']));
-  for(const p of SHOP_PAY_PRICES){
-    spGrid.appendChild(h('div',{class:'sp-price'},[spMoney(p)]));
-    spGrid.appendChild(h('div',{class:'sp-month',style:{textAlign:'right',fontWeight:'600'}},[spMoney(Math.round(p/SHOP_PAY_MONTHS*100)/100)+'/mo']));
-  }
-  spBox.appendChild(spGrid);
-  spBox.appendChild(h('div',{style:{fontSize:'.65rem',color:'var(--text-muted)',marginTop:'6px'}},['Example amounts. Shop Pay Installments are offered at checkout, subject to eligibility; rings under $1,000 can also be split into 4 interest-free biweekly payments.']));
+  ppPaint();
+  budgetRow.appendChild(ppList);
+  budgetRow.appendChild(budgetInput);
+  // SHOP PAY NOTE (2026-10-02, Johan): replaces the 2026-09-18 example table (fixed $200…$5,000 rows read as "large amounts").
+  // No amounts are shown. Countries: edit SHOP_PAY_COUNTRIES_NOTE when Shopify switches on more markets (Canada + UK announced for late Oct 2026).
+  const SHOP_PAY_COUNTRIES_NOTE='Offered at checkout to customers in the United States — and soon Canada and the United Kingdom, with more countries to follow.';
+  const spBox=h('div',{id:'shopPayNote',style:{marginTop:'12px',padding:'10px 12px',border:'1px solid #e6cf8a',borderRadius:'8px',background:'#fff'}});
+  spBox.appendChild(h('div',{style:{fontSize:'.78rem',fontWeight:'600',marginBottom:'6px',lineHeight:'1.3'}},['Pay over time with Shop Pay — split your ring into monthly payments, 0% interest available']));
+  spBox.appendChild(h('div',{class:'sp-note',style:{fontSize:'.7rem',color:'var(--text-muted)',lineHeight:'1.45'}},[SHOP_PAY_COUNTRIES_NOTE]));
+  spBox.appendChild(h('div',{class:'sp-note',style:{fontSize:'.7rem',color:'var(--text-muted)',lineHeight:'1.45',marginTop:'6px'}},['Subject to eligibility; rings under $1,000 can also be split into 4 interest-free biweekly payments.']));
   budgetRow.appendChild(spBox);
   form.appendChild(budgetRow);
 
