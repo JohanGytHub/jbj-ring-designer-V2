@@ -5410,7 +5410,15 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       updatePriceBar();
     }
     var canTransition=id && previousSection && id!==previousSection && document.startViewTransition && !(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    if(canTransition) document.startViewTransition(applyOpenState); else applyOpenState();
+    // VIEW-TRANSITION ABORT CATCH (2026-10-02): a fast second tap aborts the running transition and its
+    // promises reject with "InvalidStateError: Transition was aborted" — 589 unhandled rejections in the
+    // Jul–Aug audit data. Harmless, so swallow them instead of logging an error per tap.
+    if(canTransition){
+      try{
+        var _vt=document.startViewTransition(applyOpenState);
+        if(_vt){ ['ready','finished','updateCallbackDone'].forEach(function(k){ try{ var p=_vt[k]; if(p&&typeof p.catch==='function') p.catch(function(){}); }catch(e){} }); }
+      }catch(e){ applyOpenState(); }
+    } else applyOpenState();
     if(id && !state._skipNextStudioScroll){
       var op=panelEl(id);
       if(op) setTimeout(function(){ op.scrollIntoView({behavior:'smooth',block:'start'}); }, BUILDER.ui.section_scroll_delay_ms);
@@ -6222,8 +6230,9 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       // profiles — if the new profile is incompatible, reset the finish and explain.
       try{
         if(HAMMERED_FINISH&&state.finish===HAMMERED_FINISH&&HAMMERED_PROFILES.length&&HAMMERED_PROFILES.indexOf(profileName)===-1){
-          state.finish='Polished';
-          showRuleToast('The '+HAMMERED_FINISH+' finish is only available on the '+HAMMERED_PROFILES.join(' or ')+' profile, so the finish was changed to Polished.');
+          var _nextH=(typeof v2FinishFallback==='function')?v2FinishFallback(HAMMERED_FINISH):'Polished';
+          state.finish=_nextH;
+          showRuleToast('The '+HAMMERED_FINISH+' finish is only available on the '+HAMMERED_PROFILES.join(' or ')+' profile, so the finish was changed to '+_nextH+'.');
         }
       }catch(err){}
       if(!v2FlatOnlySweep(profileName)) return;
@@ -6245,6 +6254,21 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   // ── MANUFACTURABILITY SWEEPS (2026-08-20) ──
   // Finish first: if the chosen finish is impossible with a strip on the ring
   // (e.g. Hammer + Dino Bone Solid), reset the finish rather than the design.
+  // FINISH FALLBACK (2026-10-02): the sweeps used to reset a blocked finish to 'Polished' unconditionally —
+  // on Zirconium rings (finishes Brushed/Matte only) that re-blocked on the very next render and the toast
+  // "The Polished finish is not available with Zirconium, so the finish was changed to Polished" fired on
+  // every render (137× in the Jul–Aug audit data). Now the fallback is the first finish allowed by the base
+  // metal AND every strip (Polished preferred, never the finish that just failed); no change = no toast.
+  function v2FinishFallback(exclude){
+    var allowed=null;
+    function narrow(m){ if(!m||!Array.isArray(m.f)) return; allowed=allowed?allowed.filter(function(f){ return m.f.indexOf(f)!==-1; }):m.f.slice(); }
+    try{ narrow(DATA.m[state.baseMetal]); (state.strips||[]).forEach(function(s){ narrow(s&&DATA.m[s.material]); }); }catch(e){}
+    if(!allowed) allowed=(typeof FINISHES!=='undefined'&&Array.isArray(FINISHES))?FINISHES.slice():['Polished'];
+    try{ if(HAMMERED_FINISH&&HAMMERED_PROFILES.length&&HAMMERED_PROFILES.indexOf(state.profile)===-1) allowed=allowed.filter(function(f){ return f!==HAMMERED_FINISH; }); }catch(e){}
+    if(exclude) allowed=allowed.filter(function(f){ return f!==exclude; });
+    if(!allowed.length) return exclude||'Polished';
+    return allowed.indexOf('Polished')!==-1?'Polished':allowed[0];
+  }
   function v2FinishSweep(){
     if(!state.baseMetal||!state.finish) return;
     var blocker=null;
@@ -6259,15 +6283,17 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       var widthBlock=null;
       try{ widthBlock=(typeof finishMinMetalViolation==='function')?finishMinMetalViolation(state.finish):null; }catch(e){}
       if(widthBlock){
-        var oldFinish=state.finish;
-        state.finish='Polished';
-        try{ showRuleToast('The '+oldFinish+' finish needs every metal strip to be at least '+(Number(FINISH_MIN_METAL[oldFinish])||0)+'mm wide — your '+widthBlock+' is thinner, so the finish was changed to Polished.'); }catch(e){}
+        var oldFinish=state.finish, nextW=v2FinishFallback(oldFinish);
+        if(nextW===oldFinish) return;
+        state.finish=nextW;
+        try{ showRuleToast('The '+oldFinish+' finish needs every metal strip to be at least '+(Number(FINISH_MIN_METAL[oldFinish])||0)+'mm wide — your '+widthBlock+' is thinner, so the finish was changed to '+nextW+'.'); }catch(e){}
       }
       return;
     }
-    var old=state.finish;
-    state.finish='Polished';
-    try{ showRuleToast('The '+old+' finish is not available with "'+blocker+'", so the finish was changed to Polished.'); }catch(e){}
+    var old=state.finish, next=v2FinishFallback(old);
+    if(next===old) return;
+    state.finish=next;
+    try{ showRuleToast('The '+old+' finish is not available with "'+blocker+'", so the finish was changed to '+next+'.'); }catch(e){}
   }
   // Base-metal rules second: strips that this base metal cannot take (KV-driven,
   // e.g. Zirconium group limits, Black Ceramic crushed-only lapidary) are removed
@@ -6915,6 +6941,76 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     openSection('size');
   });
 
+})();
+(function(){
+  // ── LIVE FUNNEL BEACON (2026-10-02, Johan) ──────────────────────────────────
+  // Replaces the retired audit D1 (10 GB of scroll/touch events) for the "where do customers leave" question.
+  // Keeps ONE compact snapshot per session and posts it to the quote worker's /funnel relay (text/plain body =
+  // no preflight; sendBeacon when the tab hides) at most once per 1.5 s and only after something meaningful
+  // happened — never on scroll/touch. Staff sessions are flagged and excluded from the report.
+  var ORDER=['size','metal','width','compose','sleeve','finish','summary'];
+  var ENDPOINT=(typeof PROTECTED_PRICING_API==='string'?PROTECTED_PRICING_API:'')+'/funnel';
+  var F={v:1,sid:'',vid:'',page:(location.pathname.split('/').pop()||'index.html').slice(0,60),started:Date.now(),last:Date.now(),staff:false,events:0,
+         steps:{},maxStep:-1,lastStep:'',base:'',width:0,profile:'',finish:'',strips:0,inlay:false,rule:0,lastRule:'',est:0,err:0,
+         emailTyped:false,attempt:0,failed:0,submitted:false,quoteId:'',share:0,
+         vw:window.innerWidth||0,touch:(('ontouchstart' in window)||(navigator.maxTouchPoints||0)>0),ref:(document.referrer||'').slice(0,300)};
+  var timer=null,lastSent='';
+  function snap(){
+    try{ F.sid=String(ringAudit.sessionId||''); F.vid=String(ringAudit.visitorId||''); }catch(e){}
+    try{ F.staff=F.staff||!!(typeof _staffMode!=='undefined'&&_staffMode); }catch(e){}
+    try{
+      var st=state; F.base=String(st.baseMetal||''); F.width=Number(st.ringWidth)||0; F.profile=String(st.profile||''); F.finish=String(st.finish||'');
+      var strips=(st.strips||[]).filter(function(s){ return s&&s.material&&s.material!=='(choose)'; });
+      F.strips=strips.length; F.inlay=F.inlay||strips.some(function(s){ return s.material!==st.baseMetal; });
+      F.emailTyped=F.emailTyped||!!(st.email&&/@/.test(String(st.email)));
+    }catch(e){}
+    F.last=Date.now();
+    return F;
+  }
+  function send(beacon){
+    var body; try{ body=JSON.stringify(snap()); }catch(e){ return; }
+    if(!F.sid||!ENDPOINT) return;
+    if(body===lastSent) return;
+    lastSent=body;
+    try{
+      if(beacon&&navigator.sendBeacon){ navigator.sendBeacon(ENDPOINT,new Blob([body],{type:'text/plain;charset=UTF-8'})); return; }
+      fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:body,keepalive:true}).catch(function(){});
+    }catch(e){}
+  }
+  function mark(){ clearTimeout(timer); timer=setTimeout(function(){ send(false); },1500); }
+  function stepOf(name,payload){
+    if(name==='section_opened'&&payload&&typeof payload.to==='string') return payload.to;
+    try{ var s=(STEPS[state.step]&&STEPS[state.step].id)||state._openSection||null; return s; }catch(e){ return null; }
+  }
+  function onEvent(type,name,payload){
+    if(type==='interaction') return;                       // scroll/touch/pointer spam: ignored
+    F.events++;
+    var step=stepOf(name,payload);
+    if(step&&ORDER.indexOf(step)!==-1){ F.steps[step]=1; var i=ORDER.indexOf(step); if(i>F.maxStep) F.maxStep=i; F.lastStep=step; }
+    if(name==='composer_rule_blocked'){ F.rule++; F.lastRule=String((payload&&payload.message)||'').slice(0,160); }
+    else if(name==='estimate_unavailable') F.est++;
+    else if(type==='error') F.err++;
+    else if(name==='quote_submit_attempt'||name==='exit_quote_submit_attempt') F.attempt++;
+    else if(name==='quote_submit_failed'||name==='exit_quote_submit_failed') F.failed++;
+    else if(name==='quote_submit_succeeded'||name==='exit_quote_submit_succeeded'){
+      F.submitted=true;
+      try{ var r=payload&&payload.serverResponse; var q=r&&(r.quoteId||(r.tracking&&r.tracking.quoteId)); if(q) F.quoteId=String(q).slice(0,40); }catch(e){}
+    }
+    else if(name==='share_copy_attempt') F.share++;
+    else if(name==='staff_signed_in') F.staff=true;
+    mark();
+  }
+  try{
+    if(typeof ringAudit==='object'&&ringAudit&&typeof ringAudit.record==='function'){
+      var _rec=ringAudit.record;
+      ringAudit.record=function(type,name,payload){ try{ onEvent(type,name,payload||{}); }catch(e){} return _rec.apply(this,arguments); };
+    }
+  }catch(e){}
+  window.addEventListener('error',function(){ F.err++; mark(); });
+  window.addEventListener('unhandledrejection',function(){ F.err++; mark(); });
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='hidden') send(true); });
+  window.addEventListener('pagehide',function(){ send(true); });
+  window.__V2_FUNNEL__={ snapshot:snap, flush:function(){ clearTimeout(timer); send(false); } };
 })();
 </script>
 </body>

@@ -100,6 +100,15 @@
       <div class="presets" style="margin-top:10px" id="presets"></div>
     </div>
 
+    <!-- LIVE FUNNEL (2026-10-02): where Ring Builder visitors leave — from funnel_sessions (beacons), same date range as above -->
+    <div class="card" id="funnelCard">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Ring Builder funnel — where visitors leave</h2>
+        <span class="row"><span class="hint" id="funnelInfo"></span><button class="act" onclick="runFunnel()">Show funnel</button></span>
+      </div>
+      <div id="funnelBody" class="hidden" style="margin-top:10px"></div>
+    </div>
+
     <div class="card">
       <h2>Filters <span class="hint">(all must match)</span></h2>
       <div id="filters"></div>
@@ -498,6 +507,63 @@ async function syncEmails() {
   openDossier();
 }
 boot();
+
+// ── LIVE FUNNEL (2026-10-02) ──────────────────────────────────────────────────
+function pct(a, b) { return b ? (100 * a / b).toFixed(1) + '%' : '—'; }
+function fbar(label, v, max, extra) {
+  return '<div class="bar"><span class="lab" title="' + esc(label) + '">' + esc(label) + '</span><span class="track"><span class="fill" style="width:' + (max ? Math.round(100 * v / max) : 0) + '%"></span></span><span class="v">' + esc(fmtNum(v, 0)) + (extra ? ' <span class="hint">' + esc(extra) + '</span>' : '') + '</span></div>';
+}
+function ftable(head, rows) {
+  return '<div class="tablewrap"><table><thead><tr>' + head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return '<td' + (i ? ' class="num"' : '') + '>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+}
+async function runFunnel() {
+  var range = currentRange(), qs = [];
+  if (range.from) qs.push('from=' + encodeURIComponent(range.from));
+  if (range.to) qs.push('to=' + encodeURIComponent(range.to));
+  var body = document.getElementById('funnelBody'), info = document.getElementById('funnelInfo');
+  info.textContent = 'Loading…';
+  var j = await api('/report/funnel' + (qs.length ? '?' + qs.join('&') : ''));
+  if (!j.ok) { info.textContent = ''; toast(j.error || 'Funnel failed', 'err'); return; }
+  var t = j.totals || {}, n = Number(t.sessions) || 0;
+  info.textContent = n ? (fmtNum(n, 0) + ' sessions · ' + (t.first_at ? fmtDay(t.first_at) : '') + ' → ' + (t.last_at ? fmtDay(t.last_at) : '')) : 'No builder sessions in this range yet (beacons start with the 2026-10-02 builder).';
+  if (!n) { body.classList.remove('hidden'); body.innerHTML = '<div class="hint">Nothing recorded for this range. The builder reports sessions from the moment the 2026-10-02 index.html went live; staff sessions and the mockup-test page are excluded.</div>'; return; }
+  var sub = Number(t.submitted) || 0, mob = Number(t.mobile) || 0, sum = Number(t.reached_summary) || 0;
+  var sns = j.summaryNoSubmit || {}, fr = j.friction || {};
+  var maxR = Math.max.apply(null, j.reached.map(function (r) { return r.all; }).concat([1]));
+  var maxE = Math.max.apply(null, j.exitStep.map(function (r) { return r.all; }).concat([1]));
+  var snsN = Number(sns.total) || 0;
+  var html = '';
+  html += '<div class="row" style="gap:10px;flex-wrap:wrap">' + [
+    [fmtNum(n, 0), 'customer sessions'], [fmtNum(mob, 0), 'on mobile (' + pct(mob, n) + ')'], [fmtNum(sum, 0), 'reached 7 Summary (' + pct(sum, n) + ')'],
+    [fmtNum(sub, 0), 'quotes submitted (' + pct(sub, n) + ')'], [fmtNum(Number(t.purchased) || 0, 0), 'of those ordered'], [fmtNum(snsN, 0), 'saw Summary, did not submit'], [fmtNum(Number(t.bounced) || 0, 0), 'bounced (<10 s)']
+  ].map(function (x) { return '<div class="stat"><div class="n">' + x[0] + '</div><div class="l">' + esc(x[1]) + '</div></div>'; }).join('') + '</div>';
+  html += '<div class="sec"><b>Sessions that reached each tool</b>' + j.reached.map(function (r) { return fbar(r.label, r.all, maxR, pct(r.all, n) + ' · mobile ' + r.mobile + ' / desktop ' + r.desktop); }).join('') + '</div>';
+  html += '<div class="sec"><b>Last tool open when they left (non-submitters)</b>' + j.exitStep.map(function (r) { return fbar(r.label, r.all, maxE, pct(r.all, n - sub) + ' · mobile ' + r.mobile + ' / desktop ' + r.desktop); }).join('') + '</div>';
+  html += '<div class="sec"><b>Reached Summary but never submitted (' + fmtNum(snsN, 0) + ')</b>' + ftable(['Signal', 'Sessions', '%'], [
+    ['Design had an inlay', fmtNum(sns.with_inlay, 0), pct(sns.with_inlay, snsN)], ['Plain band', fmtNum(sns.plain, 0), pct(sns.plain, snsN)],
+    ['Typed an email, then left', fmtNum(sns.typed_email, 0), pct(sns.typed_email, snsN)], ['Pressed submit, it failed', fmtNum(sns.attempted_failed, 0), pct(sns.attempted_failed, snsN)],
+    ['Saw the estimate-unavailable banner', fmtNum(sns.estimate_unavailable, 0), pct(sns.estimate_unavailable, snsN)], ['Hit a manufacturing rule block', fmtNum(sns.rule_blocked, 0), pct(sns.rule_blocked, snsN)],
+    ['On mobile', fmtNum(sns.mobile, 0), pct(sns.mobile, snsN)], ['Average time in the builder', fmtNum(Math.round(Number(sns.avg_s) || 0), 0) + ' s', '']
+  ]) + '</div>';
+  html += '<div class="row" style="align-items:flex-start;gap:24px;flex-wrap:wrap">';
+  html += '<div class="sec" style="flex:1 1 300px"><b>By device</b>' + ftable(['Device', 'Sessions', 'Reached Summary', 'Submitted', 'Rate'], (j.byDevice || []).map(function (d) { return [esc(d.device || '?'), fmtNum(d.sessions, 0), fmtNum(d.reached_summary, 0), fmtNum(d.submitted, 0), pct(d.submitted, d.sessions)]; })) + '</div>';
+  html += '<div class="sec" style="flex:1 1 300px"><b>Friction</b>' + ftable(['Signal', 'Sessions'], [
+    ['Manufacturing rule blocked a choice', fmtNum(fr.rule_block_sessions, 0) + ' (' + fmtNum(fr.rule_blocks_total, 0) + ' blocks)'], ['Estimate unavailable banner', fmtNum(fr.estimate_unavailable_sessions, 0)],
+    ['JavaScript errors', fmtNum(fr.error_sessions, 0)], ['Submit failed, never succeeded', fmtNum(fr.submit_failed, 0)]
+  ]) + '</div>';
+  html += '<div class="sec" style="flex:1 1 300px"><b>Time in the builder by furthest tool</b>' + ftable(['Furthest tool', 'Sessions', 'Avg seconds'], (j.durations || []).map(function (d) { return [esc(d.label), fmtNum(d.n, 0), fmtNum(d.avg_s, 0)]; })) + '</div>';
+  html += '</div>';
+  if ((j.topRules || []).length) html += '<div class="sec"><b>Most recent rule block per session (top)</b>' + ftable(['Rule / message', 'Sessions'], j.topRules.map(function (r) { return [esc(r.rule), fmtNum(r.n, 0)]; })) + '</div>';
+  html += '<div class="sec"><b>By day</b>' + ftable(['Day', 'Sessions', 'Mobile', 'Reached Summary', 'Submitted', 'Rate'], (j.daily || []).map(function (d) { return [esc(d.day), fmtNum(d.sessions, 0), fmtNum(d.mobile, 0), fmtNum(d.reached_summary, 0), fmtNum(d.submitted, 0), pct(d.submitted, d.sessions)]; })) + '</div>';
+  html += '<div class="row" style="align-items:flex-start;gap:24px;flex-wrap:wrap">';
+  html += '<div class="sec" style="flex:1 1 220px"><b>Countries</b>' + ftable(['Country', 'Sessions'], (j.countries || []).map(function (c) { return [esc(c.country), fmtNum(c.n, 0)]; })) + '</div>';
+  html += '<div class="sec" style="flex:1 1 260px"><b>Base metal at exit</b>' + ftable(['Base metal', 'Sessions', 'Submitted'], (j.baseMetals || []).map(function (c) { return [esc(c.base_metal), fmtNum(c.n, 0), fmtNum(c.submitted, 0)]; })) + '</div>';
+  html += '<div class="sec" style="flex:1 1 260px"><b>Where sessions came from</b>' + ftable(['Referrer', 'Sessions'], (j.referrers || []).map(function (c) { return [esc(c.referrer), fmtNum(c.n, 0)]; })) + '</div>';
+  html += '</div>';
+  html += '<div class="hint" style="margin-top:8px">Submitted = the builder reported a successful quote OR a tracked quote carries this session. Staff sessions and the mockup-test page are excluded. Beacons started with the 2026-10-02 builder; the Jul 17 – Aug 30 history lives in the folder’s audit-extract\\funnel-report.html.</div>';
+  body.innerHTML = html; body.classList.remove('hidden');
+}
 </script>
 </body>
 </html>
