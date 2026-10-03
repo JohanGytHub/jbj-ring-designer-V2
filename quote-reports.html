@@ -510,8 +510,11 @@ boot();
 
 // ── LIVE FUNNEL (2026-10-02) ──────────────────────────────────────────────────
 function pct(a, b) { return b ? (100 * a / b).toFixed(1) + '%' : '—'; }
-function fbar(label, v, max, extra) {
-  return '<div class="bar"><span class="lab" title="' + esc(label) + '">' + esc(label) + '</span><span class="track"><span class="fill" style="width:' + (max ? Math.round(100 * v / max) : 0) + '%"></span></span><span class="v">' + esc(fmtNum(v, 0)) + (extra ? ' <span class="hint">' + esc(extra) + '</span>' : '') + '</span></div>';
+// Funnel rows as a real table (tool · count · % · mobile · desktop · bar) — the old bar grid wrapped its labels (Johan 10-02).
+function ftrack(v, max) { return '<span style="display:block;min-width:160px;height:14px;background:#eef1f3;border-radius:0 4px 4px 0"><span style="display:block;height:14px;background:var(--gold);border-radius:0 4px 4px 0;min-width:2px;width:' + (max ? Math.round(100 * v / max) : 0) + '%"></span></span>'; }
+function fstepTable(rows, denom, max) {
+  return '<div class="tablewrap"><table><thead><tr><th>Tool</th><th class="num">Sessions</th><th class="num">%</th><th class="num">Mobile</th><th class="num">Desktop</th><th style="width:40%"></th></tr></thead><tbody>' +
+    rows.map(function (r) { return '<tr><td>' + esc(r.label) + '</td><td class="num">' + fmtNum(r.all, 0) + '</td><td class="num">' + pct(r.all, denom) + '</td><td class="num">' + fmtNum(r.mobile, 0) + '</td><td class="num">' + fmtNum(r.desktop, 0) + '</td><td>' + ftrack(r.all, max) + '</td></tr>'; }).join('') + '</tbody></table></div>';
 }
 function ftable(head, rows) {
   return '<div class="tablewrap"><table><thead><tr>' + head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' +
@@ -530,6 +533,8 @@ async function runFunnel() {
   if (!n) { body.classList.remove('hidden'); body.innerHTML = '<div class="hint">Nothing recorded for this range. The builder reports sessions from the moment the 2026-10-02 index.html went live; staff sessions and the mockup-test page are excluded.</div>'; return; }
   var sub = Number(t.submitted) || 0, mob = Number(t.mobile) || 0, sum = Number(t.reached_summary) || 0;
   var sns = j.summaryNoSubmit || {}, fr = j.friction || {};
+  ['total', 'with_inlay', 'plain', 'typed_email', 'attempted_failed', 'estimate_unavailable', 'rule_blocked', 'mobile', 'avg_s'].forEach(function (k) { sns[k] = Number(sns[k]) || 0; });
+  ['rule_block_sessions', 'rule_blocks_total', 'estimate_unavailable_sessions', 'error_sessions', 'submit_failed'].forEach(function (k) { fr[k] = Number(fr[k]) || 0; });
   var maxR = Math.max.apply(null, j.reached.map(function (r) { return r.all; }).concat([1]));
   var maxE = Math.max.apply(null, j.exitStep.map(function (r) { return r.all; }).concat([1]));
   var snsN = Number(sns.total) || 0;
@@ -538,8 +543,8 @@ async function runFunnel() {
     [fmtNum(n, 0), 'customer sessions'], [fmtNum(mob, 0), 'on mobile (' + pct(mob, n) + ')'], [fmtNum(sum, 0), 'reached 7 Summary (' + pct(sum, n) + ')'],
     [fmtNum(sub, 0), 'quotes submitted (' + pct(sub, n) + ')'], [fmtNum(Number(t.purchased) || 0, 0), 'of those ordered'], [fmtNum(snsN, 0), 'saw Summary, did not submit'], [fmtNum(Number(t.bounced) || 0, 0), 'bounced (<10 s)']
   ].map(function (x) { return '<div class="stat"><div class="n">' + x[0] + '</div><div class="l">' + esc(x[1]) + '</div></div>'; }).join('') + '</div>';
-  html += '<div class="sec"><b>Sessions that reached each tool</b>' + j.reached.map(function (r) { return fbar(r.label, r.all, maxR, pct(r.all, n) + ' · mobile ' + r.mobile + ' / desktop ' + r.desktop); }).join('') + '</div>';
-  html += '<div class="sec"><b>Last tool open when they left (non-submitters)</b>' + j.exitStep.map(function (r) { return fbar(r.label, r.all, maxE, pct(r.all, n - sub) + ' · mobile ' + r.mobile + ' / desktop ' + r.desktop); }).join('') + '</div>';
+  html += '<div class="sec"><b>Sessions that reached each tool</b> <span class="hint">% of all sessions</span>' + fstepTable(j.reached, n, maxR) + '</div>';
+  html += '<div class="sec"><b>Last tool open when they left (non-submitters)</b> <span class="hint">% of non-submitters</span>' + fstepTable(j.exitStep, n - sub, maxE) + '</div>';
   html += '<div class="sec"><b>Reached Summary but never submitted (' + fmtNum(snsN, 0) + ')</b>' + ftable(['Signal', 'Sessions', '%'], [
     ['Design had an inlay', fmtNum(sns.with_inlay, 0), pct(sns.with_inlay, snsN)], ['Plain band', fmtNum(sns.plain, 0), pct(sns.plain, snsN)],
     ['Typed an email, then left', fmtNum(sns.typed_email, 0), pct(sns.typed_email, snsN)], ['Pressed submit, it failed', fmtNum(sns.attempted_failed, 0), pct(sns.attempted_failed, snsN)],
