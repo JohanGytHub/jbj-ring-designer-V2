@@ -5639,6 +5639,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     clampModalWidth();
     ensureX(document.getElementById('addStripModal'),'#addStripModalInner');
     hideInnerModalX();
+    if(modalInner) v2StripWidthNote(modalInner); /* STRIP MIN-WIDTH SNAP (2026-10-09) */
   }
 
   // Selecting a material starts at that material's manufacturing minimum.
@@ -5764,11 +5765,74 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       inner.__v2applyingMinimum=false;
     },true);
   }
+  /* STRIP MIN-WIDTH SNAP (2026-10-09): with a material selected in the Add/Edit Inlay modal, a
+     Strip Width typed BELOW that material's minimum snaps UP to the minimum and warns (toast +
+     inline note under the width field). The engine's own change handler then runs on the
+     corrected value. No room for the minimum = warning only (the engine's clamps still apply). */
+  function v2StripModalSelectedMaterial(inner){
+    var card=inner.querySelector('.mat-card.selected'); if(!card) return null;
+    if(typeof DATA==='undefined' || !DATA || !DATA.m) return null;
+    var label=card.querySelector('.name');
+    var text=(label&&label.textContent||'').trim();
+    return Object.keys(DATA.m).find(function(name){ return text===name || text.indexOf(name+' (')===0; })||null;
+  }
+  function v2StripMaterialMinimum(material){
+    var mat=DATA.m[material], mi=mat&&mat.mi||{};
+    var m=isMetal(material)
+      ? ((typeof metalStripMin==='function')?metalStripMin(material):(mi.edge_same_sleeve||BUILDER.strip_width.min))
+      : (mi.solid_inlay||mi.inlay_swarf||BUILDER.material_default_min_width);
+    m=parseFloat(m); return isNaN(m)?null:m;
+  }
+  function v2StripWidthNote(inner){
+    var old=inner.querySelector('.v2-width-note');
+    if(!inner.__v2widthNote){ if(old) old.remove(); return; }
+    var picker=inner.querySelector('.width-picker'); if(!picker) return;
+    var text='\u26A0 '+inner.__v2widthNote;
+    if(old){ if(old.textContent!==text) old.textContent=text; return; }
+    var note=document.createElement('div');
+    note.className='validation-msg warn v2-width-note';
+    note.setAttribute('role','alert');
+    note.style.marginTop='8px'; note.style.marginBottom='0';
+    note.textContent=text;
+    picker.parentNode.insertBefore(note,picker.nextSibling);
+  }
+  function installStripWidthMinimumSnap(){
+    var inner=document.getElementById('addStripModalInner');
+    if(!inner || inner.__v2widthSnap) return;
+    inner.__v2widthSnap=true;
+    var overlay=document.getElementById('addStripModal');
+    if(overlay) new MutationObserver(function(){ if(!overlay.classList.contains('open')) inner.__v2widthNote=''; }).observe(overlay,{attributes:true,attributeFilter:['class']});
+    inner.addEventListener('click',function(event){
+      if(event.target && event.target.closest && event.target.closest('.mat-card')) inner.__v2widthNote='';
+    },true);
+    inner.addEventListener('change',function(event){
+      var input=event.target;
+      if(!input || input.tagName!=='INPUT' || input.type!=='number' || !inner.contains(input)) return;
+      if(!event.isTrusted || inner.__v2applyingMinimum) return;
+      if(!inner.classList.contains('v2-add-strip-mode') && !inner.classList.contains('v2-edit-strip-mode')) return;
+      inner.__v2widthNote=''; v2StripWidthNote(inner);
+      var material=v2StripModalSelectedMaterial(inner); if(!material) return;
+      var minimum=v2StripMaterialMinimum(material); if(minimum===null) return;
+      var v=parseFloat(input.value);
+      if(!isNaN(v) && v>=minimum-BUILDER.width_epsilon) return;
+      var max=parseFloat(input.getAttribute('max'));
+      var typed=isNaN(v)?'':(v+'mm entered');
+      if(!isNaN(max) && minimum>max+BUILDER.width_epsilon){
+        inner.__v2widthNote=material+' needs at least '+minimum+'mm, but only '+Math.max(0,max).toFixed(2)+'mm is available for this strip.';
+      } else {
+        input.value=String(minimum);
+        inner.__v2widthNote='Strip width changed to '+minimum+'mm \u2014 the minimum for '+material+(typed?' ('+typed+')':'')+'.';
+      }
+      if(typeof showRuleToast==='function') try{showRuleToast(inner.__v2widthNote);}catch(e){}
+      v2StripWidthNote(inner);
+    },true);
+  }
   function installStripModalObserver(){
     var inner=document.getElementById('addStripModalInner'); if(!inner) return;
     if(inner.__v2observed) return; inner.__v2observed=true;
     new MutationObserver(function(){ onStripModalRender(); }).observe(inner,{childList:true,subtree:true});
     installStripMinimumSelection();
+    installStripWidthMinimumSnap(); /* STRIP MIN-WIDTH SNAP (2026-10-09) */
   }
   // Swatch lightbox already has its own outer .slb-close X — do not inject an inner X.
 
