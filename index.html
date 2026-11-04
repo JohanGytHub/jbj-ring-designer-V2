@@ -1610,6 +1610,52 @@ function debounceSlider(fn){return function(){clearTimeout(_dbTimer);_dbTimer=se
 const _staffMode = new URLSearchParams(window.location.search).has('staff');
 if(_staffMode) document.body.classList.add('staff-mode');
 
+// ── GOOGLE ATTRIBUTION (2026-11-04, Johan) ────────────────────────────────────
+// The builder runs in an iframe on johangythub.github.io, so it cannot see the Google
+// Ads click id or the GA4 cookies that live on jewelrybyjohan.com. Two feeds fill the gap:
+//   (1) URL params forwarded by the Shopify section (?gclid=… ?utm_source=… ?ga_cid=…)
+//   (2) a postMessage {type:'jbj-attribution', …} sent by the Shopify page (sections/ring-designer.liquid)
+// Whatever arrives is kept in sessionStorage and sent as `attribution` in both quote payloads.
+// Staff-only data; the customer never sees it. Missing = null (old behavior).
+const JBJ_ATTR_KEYS={ga_client_id:64,ga_session_id:32,gclid:200,gbraid:200,wbraid:200,utm_source:120,utm_medium:120,utm_campaign:200,utm_term:200,utm_content:200,landing_page:1000,referrer:500};
+const JBJ_ATTR_PARENT_ORIGINS=['https://www.jewelrybyjohan.com','https://jewelrybyjohan.com'];
+function jbjAttrClean(src){
+  if(!src||typeof src!=='object')return null;
+  const out={};let any=false;
+  for(const k of Object.keys(JBJ_ATTR_KEYS)){
+    let v=src[k];if(v==null)continue;
+    v=String(v).trim().slice(0,JBJ_ATTR_KEYS[k]);if(!v)continue;
+    if(/[\u0000-\u001f<>]/.test(v))continue;
+    out[k]=v;any=true;
+  }
+  return any?out:null;
+}
+function jbjAttrMerge(src){
+  const add=jbjAttrClean(src);if(!add)return;
+  let cur=null;try{cur=JSON.parse(sessionStorage.getItem('jbj_attribution')||'null');}catch(e){cur=null;}
+  const merged=Object.assign({},cur||{},add);
+  try{sessionStorage.setItem('jbj_attribution',JSON.stringify(merged));}catch(e){}
+}
+function jbjAttribution(){
+  try{return jbjAttrClean(JSON.parse(sessionStorage.getItem('jbj_attribution')||'null'));}catch(e){return null;}
+}
+(function(){
+  try{
+    const q=new URLSearchParams(window.location.search);
+    const fromUrl={ga_client_id:q.get('ga_cid'),ga_session_id:q.get('ga_sid'),gclid:q.get('gclid'),gbraid:q.get('gbraid'),wbraid:q.get('wbraid'),
+      utm_source:q.get('utm_source'),utm_medium:q.get('utm_medium'),utm_campaign:q.get('utm_campaign'),utm_term:q.get('utm_term'),utm_content:q.get('utm_content'),
+      landing_page:q.get('jbj_lp'),referrer:q.get('jbj_ref')};
+    jbjAttrMerge(fromUrl);
+  }catch(e){}
+  window.addEventListener('message',function(ev){
+    try{
+      if(JBJ_ATTR_PARENT_ORIGINS.indexOf(ev.origin)<0)return;
+      const d=ev.data;if(!d||d.type!=='jbj-attribution')return;
+      jbjAttrMerge(d.attribution||d);
+    }catch(e){}
+  });
+})();
+
 // ── STAFF KEY (2026-08-25, Johan): ?staff now requires the staff pricing key ──
 // POST /staff/session exchanges the key for a signed Bearer token (worker TTL, default 8h);
 // the token rides on /estimate and /staff/components. Without it the worker treats the
@@ -3062,7 +3108,7 @@ function showExitEmailModal(onDone){
     ringAudit.record('quote','exit_quote_submit_attempt',{shareUrl});
     try{
       const response=await fetch(SERVICES.quote_url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        firstName:state.firstName,lastName:state.lastName,email:state.email,notes:state.notes,budget:state.budget||'',auditVisitorId:ringAudit.visitorId,auditSessionId:ringAudit.sessionId,baseMetal:state.baseMetal,ringSize:state.ringSize,ringWidth:state.ringWidth,
+        firstName:state.firstName,lastName:state.lastName,email:state.email,notes:state.notes,budget:state.budget||'',auditVisitorId:ringAudit.visitorId,auditSessionId:ringAudit.sessionId,attribution:jbjAttribution(),baseMetal:state.baseMetal,ringSize:state.ringSize,ringWidth:state.ringWidth,
         profile:state.profile,sleeve:state.sleeve,finish:state.finish,engraving:state.engraving,font:state.engravingFont||'',
         strips:state.strips,total:state.serverTotal,estimateToken:state.estimateToken,pricingVersion:DATA._version,shareUrl,
         ringImage:_getCanvasImage()
@@ -4994,6 +5040,7 @@ function renderSummaryPanel(col){
         budget:state.budget||'',
         auditVisitorId:ringAudit.visitorId,
         auditSessionId:ringAudit.sessionId,
+        attribution:jbjAttribution(),   // GOOGLE ATTRIBUTION (2026-11-04)
         baseMetal:state.baseMetal,
         ringSize:state.ringSize,
         ringWidth:state.ringWidth,
