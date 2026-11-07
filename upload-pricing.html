@@ -252,14 +252,27 @@ const PIRO_CALCULATOR_DEFAULTS = {
   densities_g_per_cm3: { Gold: { '10K': { Yellow: 11.57, Rose: 11.59, White: 11.07 }, '14K': { Yellow: 13.07, Rose: 13.26, White: 12.61 }, '18K': { Yellow: 15.58, Rose: 15.18, White: 14.64 } }, Platinum: 21.45, Silver: 10.4 },
   cast_cost_inlay_ring: 70, cast_cost_full_ring: 70, cast_cost_solid: 140, sleeve_thickness_mm: 0.75,
   pinstripe_depth_mm: 1.75, pinstripe_bench_labor: 50, pinstripe_retail_multiplier: 1.5,
-  round_total_up_to_whole_dollar: 1, exclude_precious_misc: 1, exclude_non_precious_misc: 1
+  round_total_up_to_whole_dollar: 1, exclude_precious_misc: 1, exclude_non_precious_misc: 1,
+  markup_percent: 15   // PRECIOUS MARKUP (2026-11-07): staff-only markup % on precious-base rings (0 = off)
 };
 let piroBlockAdded = false;   // true while the loaded data lacked the block (so the report can say it is being ADDED)
+let markupFieldAdded = false;   // PRECIOUS MARKUP (2026-11-07): true while the loaded block lacked markup_percent (filled with 15)
 function ensurePiroCalculator(data, where) {
   piroBlockAdded = false;
+  markupFieldAdded = false;
   if (!data || !data.formula_constants || typeof data.formula_constants !== 'object') return false;
   const pc = data.formula_constants.piro_calculator;
-  if (pc && typeof pc === 'object') return false;
+  if (pc && typeof pc === 'object') {
+    // PRECIOUS MARKUP (2026-11-07): a 25.25 live doc has the block but not markup_percent yet — fill the default (15) so the
+    // required box is never empty; the upload then ADDS the field. The 11-06 worker ignores it, the 11-07 worker requires it.
+    markupFieldAdded = false;
+    if (!finiteNumber(pc.markup_percent)) {
+      pc.markup_percent = PIRO_CALCULATOR_DEFAULTS.markup_percent;
+      markupFieldAdded = true;
+      log((where || 'Loaded data') + ' has no "markup_percent" in the CS calculator block (it is from before 2026-11-07). The standard value 15 has been filled in and WILL BE ADDED when you upload — see the "CS calculator — staff markup %" group.', 'log-err');
+    }
+    return false;
+  }
   data.formula_constants.piro_calculator = JSON.parse(JSON.stringify(PIRO_CALCULATOR_DEFAULTS));
   piroBlockAdded = true;
   log((where || 'Loaded data') + ' has no "CS calculator" block (formula_constants.piro_calculator) — it is from before 2026-11-06. The standard values (Keys 2.2, misc switches 1, markup 0.10 …) have been filled in and WILL BE ADDED when you upload. Review them in the "CS calculator — …" groups.', 'log-err');
@@ -335,7 +348,7 @@ function pricingValidationErrors(data) {
     else {
       ['keys', 'metal_markup', 'ring_thickness_mm', 'width_allowance_mm', 'inlay_depth_mm', 'scrap_multiplier', 'grams_to_dwt', 'dwt_per_troy_oz', 'karat_divisor',
        'cast_cost_inlay_ring', 'cast_cost_full_ring', 'cast_cost_solid', 'sleeve_thickness_mm', 'pinstripe_depth_mm', 'pinstripe_bench_labor', 'pinstripe_retail_multiplier',
-       'round_total_up_to_whole_dollar', 'exclude_precious_misc', 'exclude_non_precious_misc', 'karat_purity.10K', 'karat_purity.14K', 'karat_purity.18K', 'densities_g_per_cm3.Platinum', 'densities_g_per_cm3.Silver',
+       'round_total_up_to_whole_dollar', 'exclude_precious_misc', 'exclude_non_precious_misc', 'markup_percent', 'karat_purity.10K', 'karat_purity.14K', 'karat_purity.18K', 'densities_g_per_cm3.Platinum', 'densities_g_per_cm3.Silver',
        'densities_g_per_cm3.Gold.10K.Yellow', 'densities_g_per_cm3.Gold.10K.Rose', 'densities_g_per_cm3.Gold.10K.White',
        'densities_g_per_cm3.Gold.14K.Yellow', 'densities_g_per_cm3.Gold.14K.Rose', 'densities_g_per_cm3.Gold.14K.White',
        'densities_g_per_cm3.Gold.18K.Yellow', 'densities_g_per_cm3.Gold.18K.Rose', 'densities_g_per_cm3.Gold.18K.White'].forEach(path => {
@@ -518,6 +531,13 @@ const FORMULA_GROUPS = [
          from: 'Johan, 2026-11-06: exclude the lines not used in Piro.',
          used: 'Set a switch to 0 to charge that group of adders again — no code change, just upload.',
          why: 'Lets the misc lines be turned on or off without editing the quote worker.' } },
+  // PRECIOUS MARKUP (2026-11-07): staff-only markup line in the staff quote email (precious BASE metal rings only).
+  { title: 'CS calculator — staff markup % (precious base metal rings)',
+    fields: [{ p: 'formula_constants.piro_calculator.markup_percent', l: 'markup_percent (15 = 15%; 0 = off)' }],
+    x: { what: 'Adds a "Markup 15%" line (whole dollars) under the Price Breakdown of the STAFF quote email, after the Server-Verified Total. Base = the whole ring total (metal + inlays + sleeve, after the whole-dollar round-up).',
+         from: 'Johan, 2026-11-07. Only when the customer\'s Base Metal is gold, platinum or silver — never for a titanium / tungsten / etc. ring, even with a precious sleeve or precious pinstripes.',
+         used: 'Staff email only. The customer\'s Estimated Total, the customer email and the quote records are unchanged.',
+         why: 'Set to 0 to remove the line, or any other percentage — no code change, just upload.' } },
   { title: 'CS calculator — markup, casting, rounding',
     fields: [{ p: 'formula_constants.piro_calculator.metal_markup', l: 'metal_markup (0.10 = 10%)' },
              { p: 'formula_constants.piro_calculator.cast_cost_inlay_ring', l: 'cast_cost_inlay_ring ($)' },
@@ -977,10 +997,11 @@ function checkAll() {
     log('Validation passed.', 'log-ok');
   }
   if (piroBlockAdded) blocks.push('<div class="r-info" style="margin-top:8px"><b>formula_constants.piro_calculator</b> (CS calculator block — Keys, misc switches, markup…) is missing in the live data and will be ADDED with the standard values shown in the "CS calculator — …" groups.</div>');
+  if (markupFieldAdded) blocks.push('<div class="r-info" style="margin-top:8px"><b>formula_constants.piro_calculator.markup_percent</b> (staff markup %) is missing in the live data and will be ADDED with the standard value 15 — see "CS calculator — staff markup %".</div>');   // PRECIOUS MARKUP (2026-11-07)
   if (r.changed.length) {
     blocks.push('<div class="r-info" style="margin-top:8px"><b>Changed sections vs the downloaded data (' + r.changed.length + '):</b></div>');
     blocks.push(listHtml(r.changed, 'r-info'));
-  } else if (!piroBlockAdded) {
+  } else if (!piroBlockAdded && !markupFieldAdded) {
     blocks.push('<div class="r-warn" style="margin-top:8px">No content changes yet — the editor matches the downloaded data.</div>');
   }
   blocks.push(r.versionOk
