@@ -534,9 +534,9 @@ const FORMULA_GROUPS = [
   // PRECIOUS MARKUP (2026-11-07): staff-only markup line in the staff quote email (precious BASE metal rings only).
   { title: 'CS calculator — staff markup % (precious base metal rings)',
     fields: [{ p: 'formula_constants.piro_calculator.markup_percent', l: 'markup_percent (15 = 15%; 0 = off)' }],
-    x: { what: 'Adds a "Markup 15%" line (whole dollars) under the Price Breakdown of the STAFF quote email, after the Server-Verified Total. Base = the whole ring total (metal + inlays + sleeve, after the whole-dollar round-up).',
-         from: 'Johan, 2026-11-07. Only when the customer\'s Base Metal is gold, platinum or silver — never for a titanium / tungsten / etc. ring, even with a precious sleeve or precious pinstripes.',
-         used: 'Staff email only. The customer\'s Estimated Total, the customer email and the quote records are unchanged.',
+    x: { what: 'Adds a "Markup 15%" price line (whole dollars) to every ring whose Base Metal is gold, platinum or silver. Base = the whole ring (metal + inlays + sleeve, after the whole-dollar round-up); the line is part of the price.',
+         from: 'Johan, 2026-11-07. Never for a titanium / tungsten / etc. ring, even with a precious sleeve or precious pinstripes.',
+         used: 'The Estimated Total (customer + staff), the signed estimate, the staff screen breakdown, the staff email and the quote records all include it.',
          why: 'Set to 0 to remove the line, or any other percentage — no code change, just upload.' } },
   { title: 'CS calculator — markup, casting, rounding',
     fields: [{ p: 'formula_constants.piro_calculator.metal_markup', l: 'metal_markup (0.10 = 10%)' },

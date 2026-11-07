@@ -1174,8 +1174,7 @@ const state = {
   budget: '',          // CUSTOMER BUDGET (2026-09-18): optional budgeted amount typed on the Summary page, sent with the quote
   serverTotal: null,   // no hardcoded fallback — populated only by the protected /estimate endpoint
   estimateToken: null, // signed by the Worker; a current token gates the Submit button
-  staffBreakdown: null, // itemized breakdown returned by /estimate for authorized staff sessions only
-  staffMarkup: null // PRECIOUS MARKUP (2026-11-07): {percent, amount} from /estimate for staff sessions on precious-base rings; null = no line
+  staffBreakdown: null // itemized breakdown returned by /estimate for authorized staff sessions only
 };
 
 const RING_AUDIT_VISITOR_KEY = 'jbj-ring-audit-visitor-v2';
@@ -2031,7 +2030,6 @@ function clearEstimate(){
   state.serverTotal=null;
   state.estimateToken=null;
   state.staffBreakdown=null;
-  state.staffMarkup=null; // PRECIOUS MARKUP (2026-11-07)
 }
 
 function showEstimateError(message){
@@ -2105,7 +2103,6 @@ async function sendEstimateRequest(){
       state.estimateToken=json.estimateToken;
       _estimateIssuedAt=Date.now(); // token freshness (2026-08-25)
       state.staffBreakdown=Array.isArray(json.breakdown)?json.breakdown:null;
-      state.staffMarkup=(json.markup&&Number.isFinite(json.markup.amount)&&Number.isFinite(json.markup.percent))?json.markup:null; // PRECIOUS MARKUP (2026-11-07): server-computed, staff only
       _lastEstimateKey=key;
       _estimatePending=false;
       clearEstimateError();
@@ -2946,20 +2943,6 @@ function fillStaffBreakdown(){
     box.appendChild(row);
   });
 }
-// PRECIOUS MARKUP (2026-11-07, Johan): staff see the markup line on screen too — rendered as the last
-// breakdown row, directly ABOVE the Estimated Total on the Summary page (Johan 03:05). Value comes from /estimate
-// (staff sessions only, server-computed); customers never receive it.
-function fillStaffMarkup(){
-  const box=document.getElementById('staffMarkupBox');
-  if(!box)return;
-  box.innerHTML='';
-  const m=state.staffMarkup;
-  if(!_staffMode||!m||!Number.isFinite(m.amount)||!Number.isFinite(m.percent))return;
-  const row=h('div',{class:'summary-row','data-staff-markup':'true'});
-  row.appendChild(h('span',{class:'label'},['Markup '+m.percent+'%']));
-  row.appendChild(h('span',{class:'price'},['$'+m.amount.toFixed(2)]));
-  box.appendChild(row);
-}
 
 function refreshSubmitGate(){
   const btn=document.getElementById('quoteSubmitBtn');
@@ -2979,7 +2962,6 @@ function refreshPriceDisplays(){
   if(elMobile) elMobile.textContent=txt;
   $$('[data-estimate-total]').forEach(node=>{node.textContent=txt;});
   fillStaffBreakdown();
-  fillStaffMarkup(); // PRECIOUS MARKUP (2026-11-07)
   refreshSubmitGate();
   // Update mobile step info
   const stepInfo=$('#mobileStepInfo');
@@ -4863,11 +4845,9 @@ function renderSummaryPanel(col){
   const total=h('div',{class:'summary-total'});
   total.appendChild(h('span',{class:'label'},['Estimated Total']));
   total.appendChild(h('span',{class:'price','data-estimate-total':'true'},[priceDisplayText()]));
-  if(_staffMode) section3.appendChild(h('div',{id:'staffMarkupBox'})); // PRECIOUS MARKUP (2026-11-07): ABOVE the Estimated Total (Johan 03:05)
   section3.appendChild(total);
   col.appendChild(section3);
   fillStaffBreakdown();
-  fillStaffMarkup(); // PRECIOUS MARKUP (2026-11-07)
 
   // "Not seeing it?" CTA
   col.appendChild(h('p',{style:{fontSize:'.72rem',color:'var(--text-muted)',textAlign:'center',margin:'14px 0'}},[
