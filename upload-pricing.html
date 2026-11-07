@@ -303,6 +303,19 @@ function pricingValidationErrors(data) {
         if (!finiteNumber(getPath(formula, path))) errors.push('formula_constants.' + path + ' must be a finite number');
       });
     }
+    // PIRO CALCULATOR PARITY (2026-11-06): the quote worker requires this block (strict KV-only)
+    const pc = formula.piro_calculator;
+    if (!pc || typeof pc !== 'object') errors.push('formula_constants.piro_calculator is required (CS calculator constants)');
+    else {
+      ['keys', 'metal_markup', 'ring_thickness_mm', 'width_allowance_mm', 'inlay_depth_mm', 'scrap_multiplier', 'grams_to_dwt', 'dwt_per_troy_oz', 'karat_divisor',
+       'cast_cost_inlay_ring', 'cast_cost_full_ring', 'cast_cost_solid', 'sleeve_thickness_mm', 'pinstripe_depth_mm', 'pinstripe_bench_labor', 'pinstripe_retail_multiplier',
+       'round_total_up_to_whole_dollar', 'exclude_precious_misc', 'exclude_non_precious_misc', 'karat_purity.10K', 'karat_purity.14K', 'karat_purity.18K', 'densities_g_per_cm3.Platinum', 'densities_g_per_cm3.Silver',
+       'densities_g_per_cm3.Gold.10K.Yellow', 'densities_g_per_cm3.Gold.10K.Rose', 'densities_g_per_cm3.Gold.10K.White',
+       'densities_g_per_cm3.Gold.14K.Yellow', 'densities_g_per_cm3.Gold.14K.Rose', 'densities_g_per_cm3.Gold.14K.White',
+       'densities_g_per_cm3.Gold.18K.Yellow', 'densities_g_per_cm3.Gold.18K.Rose', 'densities_g_per_cm3.Gold.18K.White'].forEach(path => {
+        if (!finiteNumber(getPath(pc, path))) errors.push('formula_constants.piro_calculator.' + path + ' must be a finite number');
+      });
+    }
   }
   REQUIRED_MISC_COST_KEYS.forEach(key => {
     if (!finiteNumber(data.misc_costs && data.misc_costs[key])) errors.push('misc_costs.' + key + ' must be a finite number');
@@ -464,7 +477,52 @@ const FORMULA_GROUPS = [
     x: { what: 'The fixed bench labor charged per pinstripe.',
          from: 'The bench labor rate.',
          used: 'Added per pinstripe.',
-         why: 'Setting a stripe is fixed-effort work.' } }
+         why: 'Setting a stripe is fixed-effort work.' } },
+  // PIRO CALCULATOR PARITY (2026-11-06): the CS workbook constants the quote worker uses for every precious metal.
+  // The legacy groups above (precious_markup 2, printing/cast/desprue, Gold_all_karats, pinstripe outer diameter) are no longer used by the worker.
+  { title: 'CS calculator — Keys (precious metal multiplier)', fields: [{ p: 'formula_constants.piro_calculator.keys', l: 'piro_calculator.keys' }],
+    x: { what: 'Same as the "Keys (Production)" cell in JBJ_Ring_Calculator - MASTER. Metal cost (incl. the 10% markup) × Keys, plus the casting cost.',
+         from: 'Johan asked CS to use 2.2. Staff can also change it through the manager\'s "$ Fixed metal prices" form (approval queue).',
+         used: 'Every gold / platinum / silver base ring and sleeve.',
+         why: 'Both systems match only when the CS sheet and this value are the same number.' } },
+  { title: 'CS calculator — misc line switches (1 = NOT charged, 0 = charged)',
+    fields: [{ p: 'formula_constants.piro_calculator.exclude_precious_misc', l: 'exclude_precious_misc (precious base / inlay / sleeve adders)' },
+             { p: 'formula_constants.piro_calculator.exclude_non_precious_misc', l: 'exclude_non_precious_misc (base / inlay / sleeve adders + repeat-wood labor)' }],
+    x: { what: 'Piro quotes carry none of the six Miscellaneous adders, so both switches are 1 (not charged). The dollar values in the Miscellaneous section stay as they are.',
+         from: 'Johan, 2026-11-06: exclude the lines not used in Piro.',
+         used: 'Set a switch to 0 to charge that group of adders again — no code change, just upload.',
+         why: 'Lets the misc lines be turned on or off without editing the quote worker.' } },
+  { title: 'CS calculator — markup, casting, rounding',
+    fields: [{ p: 'formula_constants.piro_calculator.metal_markup', l: 'metal_markup (0.10 = 10%)' },
+             { p: 'formula_constants.piro_calculator.cast_cost_inlay_ring', l: 'cast_cost_inlay_ring ($)' },
+             { p: 'formula_constants.piro_calculator.cast_cost_full_ring', l: 'cast_cost_full_ring ($)' },
+             { p: 'formula_constants.piro_calculator.cast_cost_solid', l: 'cast_cost_solid ($, stored, unused)' },
+             { p: 'formula_constants.piro_calculator.round_total_up_to_whole_dollar', l: 'round_total_up_to_whole_dollar (1/0)' }],
+    x: { what: 'Admin sheet H2 markup, the Inlay Type Rules casting costs, and the TOTAL RETAIL PRICE ROUNDUP.',
+         from: 'JBJ_Ring_Calculator - MASTER (Admin sheet).',
+         used: 'Precious base rings and sleeves.',
+         why: 'Keep in step with the CS workbook.' } },
+  { title: 'CS calculator — pinstripes',
+    fields: [{ p: 'formula_constants.piro_calculator.pinstripe_depth_mm', l: 'pinstripe_depth_mm' },
+             { p: 'formula_constants.piro_calculator.pinstripe_bench_labor', l: 'pinstripe_bench_labor ($)' },
+             { p: 'formula_constants.piro_calculator.pinstripe_retail_multiplier', l: 'pinstripe_retail_multiplier (1.5)' }],
+    x: { what: 'Admin_Pinstripe sheet: groove depth, bench labor, and the retail multiplier applied to (material + labor).',
+         from: 'JBJ_Ring_Calculator - MASTER (Admin_Pinstripe sheet).',
+         used: 'Every precious pinstripe / metal inlay strip (one run per metal, like the sheet\'s Qty).',
+         why: 'Keep in step with the CS workbook.' } },
+  { title: 'CS calculator — geometry & conversions', lock: true,
+    fields: [{ p: 'formula_constants.piro_calculator.ring_thickness_mm', l: 'ring_thickness_mm' },
+             { p: 'formula_constants.piro_calculator.width_allowance_mm', l: 'width_allowance_mm (+0.2)' },
+             { p: 'formula_constants.piro_calculator.inlay_depth_mm', l: 'inlay_depth_mm' },
+             { p: 'formula_constants.piro_calculator.sleeve_thickness_mm', l: 'sleeve_thickness_mm' },
+             { p: 'formula_constants.piro_calculator.scrap_multiplier', l: 'scrap_multiplier (1.05)' },
+             { p: 'formula_constants.piro_calculator.grams_to_dwt', l: 'grams_to_dwt' },
+             { p: 'formula_constants.piro_calculator.dwt_per_troy_oz', l: 'dwt_per_troy_oz' },
+             { p: 'formula_constants.piro_calculator.karat_divisor', l: 'karat_divisor' }],
+    x: { what: 'The workbook geometry (true ring annulus, width + 0.2 mm) and unit conversions.',
+         from: 'JBJ_Ring_Calculator - MASTER (Admin sheet formulas).',
+         used: 'Precious metal weight.',
+         why: 'Universal — change only if the workbook changes.' } }
 ];
 
 const PRODUCTION_EXPLAIN = {
@@ -476,7 +534,8 @@ const PRODUCTION_EXPLAIN = {
 
 // ── Structured (non-formula) field lists: [path, label, type] ──
 const MISC_FIELDS = [
-  ['misc_costs.precious_base_metal', 'precious_base_metal ($)', 'Applied when the base metal is precious (gold, platinum, silver). Exactly one base-metal adder applies per ring.'],
+  // 2026-11-06: all six adders are currently switched OFF (CS calculator — misc line switches, Formula section). The values are kept for when a switch goes back to 0.
+  ['misc_costs.precious_base_metal', 'precious_base_metal ($)', 'Applied when the base metal is precious (gold, platinum, silver) — only while exclude_precious_misc = 0. Exactly one base-metal adder applies per ring.'],
   ['misc_costs.non_precious_base_metal', 'non_precious_base_metal ($)', 'Applied when the base metal is not precious (titanium, tungsten…). Exactly one base-metal adder applies per ring.'],
   ['misc_costs.precious_inlay', 'precious_inlay ($)', 'Added when the design has inlay strips and the base metal is precious.'],
   ['misc_costs.non_precious_inlay', 'non_precious_inlay ($)', 'Added when the design has inlay strips and the base metal is not precious.'],
