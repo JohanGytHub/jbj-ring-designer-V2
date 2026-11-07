@@ -2946,8 +2946,8 @@ function fillStaffBreakdown(){
     box.appendChild(row);
   });
 }
-// PRECIOUS MARKUP (2026-11-07, Johan): staff see the markup line on screen too — rendered AFTER the
-// Estimated Total on the Summary page (same order as the staff email). Value comes from /estimate
+// PRECIOUS MARKUP (2026-11-07, Johan): staff see the markup line on screen too — rendered as the last
+// breakdown row, directly ABOVE the Estimated Total on the Summary page (Johan 03:05). Value comes from /estimate
 // (staff sessions only, server-computed); customers never receive it.
 function fillStaffMarkup(){
   const box=document.getElementById('staffMarkupBox');
@@ -4863,8 +4863,8 @@ function renderSummaryPanel(col){
   const total=h('div',{class:'summary-total'});
   total.appendChild(h('span',{class:'label'},['Estimated Total']));
   total.appendChild(h('span',{class:'price','data-estimate-total':'true'},[priceDisplayText()]));
+  if(_staffMode) section3.appendChild(h('div',{id:'staffMarkupBox'})); // PRECIOUS MARKUP (2026-11-07): ABOVE the Estimated Total (Johan 03:05)
   section3.appendChild(total);
-  if(_staffMode) section3.appendChild(h('div',{id:'staffMarkupBox'})); // PRECIOUS MARKUP (2026-11-07): after the total
   col.appendChild(section3);
   fillStaffBreakdown();
   fillStaffMarkup(); // PRECIOUS MARKUP (2026-11-07)
