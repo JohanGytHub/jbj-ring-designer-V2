@@ -239,6 +239,32 @@ details.sec .secbody{padding:4px 16px 16px;border-top:1px solid #26304d}
 // demand by collectPayload(); nothing is stored in the browser.
 // ────────────────────────────────────────────────────────────────
 let original = null;
+
+// PIRO CALCULATOR PARITY (2026-11-06): the CS-workbook block the quote worker needs since the 11-06 build.
+// A live doc from before 25.25 has no such block; loading one would leave 19 empty required boxes.
+// So: when the loaded data lacks it, the shipped defaults are filled in (and logged) — the upload then ADDS the block.
+// The pre-11-06 quote worker ignores the block, the new one requires it, so adding it is always safe.
+const PIRO_CALCULATOR_DEFAULTS = {
+  _source: 'JBJ_Ring_Calculator - MASTER 4_14_2026.xlsx — CS, Admin, Admin_Pinstripe sheets (parity build 2026-11-06)',
+  keys: 2.2, metal_markup: 0.10, ring_thickness_mm: 2.1, width_allowance_mm: 0.2, inlay_depth_mm: 1.25,
+  scrap_multiplier: 1.05, grams_to_dwt: 0.643014931, dwt_per_troy_oz: 20, karat_divisor: 24,
+  karat_purity: { '10K': 10, '14K': 14, '18K': 18 },
+  densities_g_per_cm3: { Gold: { '10K': { Yellow: 11.57, Rose: 11.59, White: 11.07 }, '14K': { Yellow: 13.07, Rose: 13.26, White: 12.61 }, '18K': { Yellow: 15.58, Rose: 15.18, White: 14.64 } }, Platinum: 21.45, Silver: 10.4 },
+  cast_cost_inlay_ring: 70, cast_cost_full_ring: 70, cast_cost_solid: 140, sleeve_thickness_mm: 0.75,
+  pinstripe_depth_mm: 1.75, pinstripe_bench_labor: 50, pinstripe_retail_multiplier: 1.5,
+  round_total_up_to_whole_dollar: 1, exclude_precious_misc: 1, exclude_non_precious_misc: 1
+};
+let piroBlockAdded = false;   // true while the loaded data lacked the block (so the report can say it is being ADDED)
+function ensurePiroCalculator(data, where) {
+  piroBlockAdded = false;
+  if (!data || !data.formula_constants || typeof data.formula_constants !== 'object') return false;
+  const pc = data.formula_constants.piro_calculator;
+  if (pc && typeof pc === 'object') return false;
+  data.formula_constants.piro_calculator = JSON.parse(JSON.stringify(PIRO_CALCULATOR_DEFAULTS));
+  piroBlockAdded = true;
+  log((where || 'Loaded data') + ' has no "CS calculator" block (formula_constants.piro_calculator) — it is from before 2026-11-06. The standard values (Keys 2.2, misc switches 1, markup 0.10 …) have been filled in and WILL BE ADDED when you upload. Review them in the "CS calculator — …" groups.', 'log-err');
+  return true;
+}
 let liveVersion = null; // version currently live in KV — set by fetchLive, probeLiveVersion (file mode) and a successful upload
 let dataSource = null;          // 'kv' or 'local'
 let backupVersionTag = null;    // version string at time of the last backup this session
@@ -950,10 +976,11 @@ function checkAll() {
     blocks.push('<div class="r-ok"><b>✓ All checks passed — this payload is valid.</b></div>');
     log('Validation passed.', 'log-ok');
   }
+  if (piroBlockAdded) blocks.push('<div class="r-info" style="margin-top:8px"><b>formula_constants.piro_calculator</b> (CS calculator block — Keys, misc switches, markup…) is missing in the live data and will be ADDED with the standard values shown in the "CS calculator — …" groups.</div>');
   if (r.changed.length) {
     blocks.push('<div class="r-info" style="margin-top:8px"><b>Changed sections vs the downloaded data (' + r.changed.length + '):</b></div>');
     blocks.push(listHtml(r.changed, 'r-info'));
-  } else {
+  } else if (!piroBlockAdded) {
     blocks.push('<div class="r-warn" style="margin-top:8px">No content changes yet — the editor matches the downloaded data.</div>');
   }
   blocks.push(r.versionOk
@@ -980,6 +1007,7 @@ async function fetchLive() {
     liveVersion = data._version || null;
     setSource('kv', 'Version ' + (data._version || '?') + ' — updated ' + (data._updated || data._uploaded || '?'));
     log('Live data loaded. Version ' + (data._version || '?') + ', ' + (JSON.stringify(data).length / 1024).toFixed(1) + ' KB.', 'log-ok');
+    ensurePiroCalculator(original, 'Live data');
     const problems = pricingValidationErrors(data);
     if (problems.length) log('Note: the live data itself has ' + problems.length + ' validation issue(s); run "Check everything" for details.', 'log-err');
     renderAll();
@@ -1003,6 +1031,7 @@ function handleLocalFile(e) {
       original = deepClone(parsed);
       setSource('local', file.name + ' — version ' + (parsed._version || '?'));
       log('Loaded from file: ' + file.name + ' (version ' + (parsed._version || '?') + '). Uploading will overwrite the live data.', 'log-ok');
+      ensurePiroCalculator(original, file.name);
       const problems = pricingValidationErrors(parsed);
       if (problems.length) log('Note: this file has ' + problems.length + ' validation issue(s); run "Check everything" for details.', 'log-err');
       renderAll();
