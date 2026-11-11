@@ -253,13 +253,23 @@ const PIRO_CALCULATOR_DEFAULTS = {
   cast_cost_inlay_ring: 70, cast_cost_full_ring: 70, cast_cost_solid: 140, sleeve_thickness_mm: 0.75,
   pinstripe_depth_mm: 1.75, pinstripe_bench_labor: 50, pinstripe_retail_multiplier: 1.5,
   round_total_up_to_whole_dollar: 1, exclude_precious_misc: 1, exclude_non_precious_misc: 1,
-  markup_percent: 15   // PRECIOUS MARKUP (2026-11-07): staff-only markup % on precious-base rings (0 = off)
+  markup_percent: 15,  // PRECIOUS MARKUP (2026-11-07): staff-only markup % on precious-base rings (0 = off)
+  // PIRO PARITY (2026-11-10, Johan): markup on all rings, Piro price ending, CS sleeve styles, Piro divider line, charge-once groups
+  markup_all_rings: 1, price_ending_5_or_9: 1, non_precious_whole_dollar: 0,
+  sleeve_styles_enabled: 1, sleeve_style_size_adjust: 3.14, sleeve_overlay_thickness_mm: 1.25, sleeve_reverse_thickness_mm: 1.5,
+  cast_cost_overlay: 70, cast_cost_reverse: 70,
+  divider_strip_prices: { Titanium: 33 }, charge_once_groups: { Woods: 1, Antler: 1 }
 };
+// PIRO PARITY (2026-11-10): keys the 2026-11-10 quote worker requires; a pre-25.27 document lacks them (filled with the defaults above).
+const PIRO_PARITY_KEYS = ['markup_all_rings', 'price_ending_5_or_9', 'non_precious_whole_dollar', 'sleeve_styles_enabled', 'sleeve_style_size_adjust', 'sleeve_overlay_thickness_mm',
+  'sleeve_reverse_thickness_mm', 'cast_cost_overlay', 'cast_cost_reverse', 'divider_strip_prices', 'charge_once_groups'];
+let piroParityAdded = [];
 let piroBlockAdded = false;   // true while the loaded data lacked the block (so the report can say it is being ADDED)
 let markupFieldAdded = false;   // PRECIOUS MARKUP (2026-11-07): true while the loaded block lacked markup_percent (filled with 15)
 function ensurePiroCalculator(data, where) {
   piroBlockAdded = false;
   markupFieldAdded = false;
+  piroParityAdded = [];   // PIRO PARITY (2026-11-10)
   if (!data || !data.formula_constants || typeof data.formula_constants !== 'object') return false;
   const pc = data.formula_constants.piro_calculator;
   if (pc && typeof pc === 'object') {
@@ -271,6 +281,14 @@ function ensurePiroCalculator(data, where) {
       markupFieldAdded = true;
       log((where || 'Loaded data') + ' has no "markup_percent" in the CS calculator block (it is from before 2026-11-07). The standard value 15 has been filled in and WILL BE ADDED when you upload — see the "CS calculator — staff markup %" group.', 'log-err');
     }
+    // PIRO PARITY (2026-11-10): a pre-25.27 doc has the block but not the new keys - fill the standard values so no required
+    // box is empty; the upload then ADDS them. The older worker ignores them, the 2026-11-10 worker requires them.
+    PIRO_PARITY_KEYS.forEach(k => {
+      const isMap = typeof PIRO_CALCULATOR_DEFAULTS[k] === 'object';
+      const present = isMap ? (pc[k] && typeof pc[k] === 'object' && !Array.isArray(pc[k])) : finiteNumber(pc[k]);
+      if (!present) { pc[k] = JSON.parse(JSON.stringify(PIRO_CALCULATOR_DEFAULTS[k])); piroParityAdded.push(k); }
+    });
+    if (piroParityAdded.length) log((where || 'Loaded data') + ' has no ' + piroParityAdded.join(', ') + ' in the CS calculator block (it is from before 2026-11-10). The standard values have been filled in and WILL BE ADDED when you upload - see the "CS calculator - markup on all rings", "sleeve styles" groups and the two "Piro" sections.', 'log-err');
     return false;
   }
   data.formula_constants.piro_calculator = JSON.parse(JSON.stringify(PIRO_CALCULATOR_DEFAULTS));
@@ -348,11 +366,18 @@ function pricingValidationErrors(data) {
     else {
       ['keys', 'metal_markup', 'ring_thickness_mm', 'width_allowance_mm', 'inlay_depth_mm', 'scrap_multiplier', 'grams_to_dwt', 'dwt_per_troy_oz', 'karat_divisor',
        'cast_cost_inlay_ring', 'cast_cost_full_ring', 'cast_cost_solid', 'sleeve_thickness_mm', 'pinstripe_depth_mm', 'pinstripe_bench_labor', 'pinstripe_retail_multiplier',
-       'round_total_up_to_whole_dollar', 'exclude_precious_misc', 'exclude_non_precious_misc', 'markup_percent', 'karat_purity.10K', 'karat_purity.14K', 'karat_purity.18K', 'densities_g_per_cm3.Platinum', 'densities_g_per_cm3.Silver',
+       'round_total_up_to_whole_dollar', 'exclude_precious_misc', 'exclude_non_precious_misc', 'markup_percent',
+       'markup_all_rings', 'price_ending_5_or_9', 'non_precious_whole_dollar', 'sleeve_styles_enabled', 'sleeve_style_size_adjust', 'sleeve_overlay_thickness_mm', 'sleeve_reverse_thickness_mm', 'cast_cost_overlay', 'cast_cost_reverse',   // PIRO PARITY (2026-11-10)
+       'karat_purity.10K', 'karat_purity.14K', 'karat_purity.18K', 'densities_g_per_cm3.Platinum', 'densities_g_per_cm3.Silver',
        'densities_g_per_cm3.Gold.10K.Yellow', 'densities_g_per_cm3.Gold.10K.Rose', 'densities_g_per_cm3.Gold.10K.White',
        'densities_g_per_cm3.Gold.14K.Yellow', 'densities_g_per_cm3.Gold.14K.Rose', 'densities_g_per_cm3.Gold.14K.White',
        'densities_g_per_cm3.Gold.18K.Yellow', 'densities_g_per_cm3.Gold.18K.Rose', 'densities_g_per_cm3.Gold.18K.White'].forEach(path => {
         if (!finiteNumber(getPath(pc, path))) errors.push('formula_constants.piro_calculator.' + path + ' must be a finite number');
+      });
+      // PIRO PARITY (2026-11-10): two name -> number maps (the quote worker refuses the document without them)
+      ['divider_strip_prices', 'charge_once_groups'].forEach(k => {
+        const map = pc[k];
+        if (!map || typeof map !== 'object' || Array.isArray(map) || !Object.keys(map).every(name => finiteNumber(map[name]) && map[name] >= 0)) errors.push('formula_constants.piro_calculator.' + k + ' must be a JSON object of "name": number pairs (numbers 0 or higher)');
       });
     }
   }
@@ -534,10 +559,31 @@ const FORMULA_GROUPS = [
   // PRECIOUS MARKUP (2026-11-07): staff-only markup line in the staff quote email (precious BASE metal rings only).
   { title: 'CS calculator — staff markup % (precious base metal rings)',
     fields: [{ p: 'formula_constants.piro_calculator.markup_percent', l: 'markup_percent (15 = 15%; 0 = off)' }],
-    x: { what: 'Adds a "Markup 15%" price line (whole dollars) to every ring whose Base Metal is gold, platinum or silver. Base = the whole ring (metal + inlays + sleeve, after the whole-dollar round-up); the line is part of the price.',
-         from: 'Johan, 2026-11-07. Never for a titanium / tungsten / etc. ring, even with a precious sleeve or precious pinstripes.',
+    x: { what: 'Adds a "Markup 15%" price line to the ring. Base = the whole ring (metal + inlays + sleeve); the line is part of the price. A ring whose Base Metal is gold, platinum or silver is priced like the CS calculator: ROUNDUP(subtotal x 1.15) to whole dollars. Since 2026-11-10 every other ring carries it too (see the next group): total x 1.15 in cents.',
+         from: 'Johan, 2026-11-07; extended to all rings 2026-11-10.',
          used: 'The Estimated Total (customer + staff), the signed estimate, the staff screen breakdown, the staff email and the quote records all include it.',
          why: 'Set to 0 to remove the line, or any other percentage — no code change, just upload.' } },
+  // PIRO PARITY (2026-11-10, Johan): markup on every ring + the Piro price ending.
+  { title: 'CS calculator — markup on all rings & Piro price ending (1 = on, 0 = off)',
+    fields: [{ p: 'formula_constants.piro_calculator.markup_all_rings', l: 'markup_all_rings (1 = every ring, 0 = gold / platinum / silver base only)' },
+             { p: 'formula_constants.piro_calculator.price_ending_5_or_9', l: 'price_ending_5_or_9 (1 = last cent digit goes up to 5 or 9)' },
+             { p: 'formula_constants.piro_calculator.non_precious_whole_dollar', l: 'non_precious_whole_dollar (1 = titanium etc. rings rounded to the nearest whole dollar)' }],
+    x: { what: 'markup_all_rings 1: the markup % above is added to EVERY ring (titanium, tungsten, Damascus ...), not only precious-base rings. price_ending_5_or_9 1: the final price (after every line and the markup) has its last cent digit raised to 5 or 9 - .12 becomes .15, .28 becomes .29; .10, .15 and .19 stay. Whole-dollar prices (gold / platinum / silver rings) end in .00 and do not change. non_precious_whole_dollar 1 (shipped as 0): a non-precious ring is rounded to the nearest whole dollar instead, the way the PQ private listings are priced (447.35 becomes 447).',
+         from: 'Johan, 2026-11-10: "The 15% must now be added to all rings" and "match Piro\'s rounding rule".',
+         used: 'The Estimated Total, the signed estimate, the staff breakdown (the cents ride the Markup line), the staff email and the quote records.',
+         why: 'Set either switch to 0 to go back to the 2026-11-07 behavior - no code change, just upload.' } },
+  // PIRO PARITY (2026-11-10, Johan + the CS "Inlay Type" pictures): sleeve rings use the workbook's sleeve styles.
+  { title: 'CS calculator — sleeve styles Overlay / Reverse',
+    fields: [{ p: 'formula_constants.piro_calculator.sleeve_styles_enabled', l: 'sleeve_styles_enabled (1 = on, 0 = off)' },
+             { p: 'formula_constants.piro_calculator.sleeve_style_size_adjust', l: 'sleeve_style_size_adjust (+3.14 ring sizes)' },
+             { p: 'formula_constants.piro_calculator.sleeve_overlay_thickness_mm', l: 'sleeve_overlay_thickness_mm (1.25)' },
+             { p: 'formula_constants.piro_calculator.sleeve_reverse_thickness_mm', l: 'sleeve_reverse_thickness_mm (1.5)' },
+             { p: 'formula_constants.piro_calculator.cast_cost_overlay', l: 'cast_cost_overlay ($)' },
+             { p: 'formula_constants.piro_calculator.cast_cost_reverse', l: 'cast_cost_reverse ($)' }],
+    x: { what: 'The "Inlay Type Rules" rows Overlay (no pinstripes) and Reverse of the CS calculator (Admin sheet D35:H36). A gold / platinum / silver ring WITH a sleeve and no inlay is priced as Overlay (size + 3.14, 1.25 mm thick, no inlay deduction); with inlays as Reverse (size + 3.14, 1.5 mm thick, inlay deducted). A precious sleeve inside a titanium / tungsten / etc. ring is priced as Overlay at the sleeve\'s metal.',
+         from: 'Johan, 2026-11-10, from the style pictures CS sent ("what they choose with each ring style").',
+         used: 'The base-metal line of precious rings with a sleeve, and the sleeve line of a precious sleeve in a non-precious ring.',
+         why: 'Keep in step with the CS workbook. sleeve_styles_enabled 0 = every precious ring is priced at the non-sleeve styles again (2.1 mm) and a precious sleeve as a 0.75 mm ring.' } },
   { title: 'CS calculator — markup, casting, rounding',
     fields: [{ p: 'formula_constants.piro_calculator.metal_markup', l: 'metal_markup (0.10 = 10%)' },
              { p: 'formula_constants.piro_calculator.cast_cost_inlay_ring', l: 'cast_cost_inlay_ring ($)' },
@@ -633,6 +679,9 @@ const TOPLEVEL_FIELDS = [
 
 // ── Raw JSON table sections ─────────────────────────────────────
 const RAW_SECTIONS = [
+  // PIRO PARITY (2026-11-10)
+  { p: 'formula_constants.piro_calculator.divider_strip_prices', kind: 'object', l: 'Piro divider line — price per base metal', n: 'Base metal name → dollars charged for EACH base-metal strip that sits between two inlays (Piro line "Titanium $33.00"). A base metal that is not listed, or a price of 0, gets no line. Example: {"Titanium": 33}.' },
+  { p: 'formula_constants.piro_calculator.charge_once_groups', kind: 'object', l: 'Charge-once material groups', n: 'Material group → 1: when the SAME material of that group is used in two strips, only the first is charged (Piro charges a repeated wood or antler once). 0 = every strip is charged. Example: {"Woods": 1, "Antler": 1}.' },
   { p: 'base_prices', kind: 'object', l: 'Base prices (per material)', n: 'One entry per material with dollar amounts per construction: fixed_price, sleeve, sleeve_with_inlay, partials, split, shaped, crushed…' },
   { p: 'width_prices', kind: 'object', l: 'Width-based prices', n: 'Per material: a list of [width_mm, price] pairs, e.g. [3, 354.2] = $354.20 at 3 mm.' },
   { p: 'meteorite_prices', kind: 'array', l: 'Meteorite prices', n: 'A list of entries like {"m": "Faceted Gibeon Meteorite", "w": 2, "mm": 380.64} — material, width in mm, price.' },
@@ -712,6 +761,7 @@ function renderFormula() {
     Object.keys(obj || {}).forEach(k => {
       const p = prefix + '.' + k;
       const v = obj[k];
+      if (RAW_SECTIONS.some(sec => sec.p === p)) return;   // PIRO PARITY (2026-11-10): edited as a JSON section below
       if (v && typeof v === 'object' && !Array.isArray(v)) walk(v, p);
       else if (!covered.has(p)) leftovers.push({ p: p, v: v });
     });
@@ -998,6 +1048,7 @@ function checkAll() {
   }
   if (piroBlockAdded) blocks.push('<div class="r-info" style="margin-top:8px"><b>formula_constants.piro_calculator</b> (CS calculator block — Keys, misc switches, markup…) is missing in the live data and will be ADDED with the standard values shown in the "CS calculator — …" groups.</div>');
   if (markupFieldAdded) blocks.push('<div class="r-info" style="margin-top:8px"><b>formula_constants.piro_calculator.markup_percent</b> (staff markup %) is missing in the live data and will be ADDED with the standard value 15 — see "CS calculator — staff markup %".</div>');   // PRECIOUS MARKUP (2026-11-07)
+  if (piroParityAdded.length) blocks.push('<div class="r-info" style="margin-top:8px"><b>formula_constants.piro_calculator: ' + esc(piroParityAdded.join(', ')) + '</b> missing in the loaded data and will be ADDED with the standard values (15% on all rings, 5-or-9 price ending, sleeve styles, Titanium divider $33, wood + antler charged once).</div>');   // PIRO PARITY (2026-11-10)
   if (r.changed.length) {
     blocks.push('<div class="r-info" style="margin-top:8px"><b>Changed sections vs the downloaded data (' + r.changed.length + '):</b></div>');
     blocks.push(listHtml(r.changed, 'r-info'));
