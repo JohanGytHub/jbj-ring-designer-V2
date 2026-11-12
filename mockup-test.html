@@ -5667,7 +5667,12 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     // metal existed — "null (same as base metal)" label and no Continue button until
     // the card was clicked. Re-render on every open so it defaults correctly.
     if(id==='sleeve'){ rerenderSection('sleeve'); }
-    if(id==='summary'){ closeBand(); rerenderSection('summary'); if(window.renderRing){try{renderRing();}catch(e){}} }
+    if(id==='summary'){ closeBand(); rerenderSection('summary'); if(window.renderRing){try{renderRing();}catch(e){}}
+      // BAND CLOSE ESTIMATE (2026-11-12, Johan, unfreeze): closeBand() can add the unused width to the band; the estimate token
+      // was signed for the band before that, so the quote arrived with a token for another design. Ask again - requestEstimate()
+      // does nothing when the design is unchanged.
+      if(typeof requestEstimate==='function'){try{requestEstimate();}catch(e){}}
+    }
     function applyOpenState(){
       V2_STEPS.forEach(function(st){
         const p=panelEl(st.id); if(!p) return;
