@@ -4179,6 +4179,45 @@ function needsProtectedNeighbors(matName){
   if(!d)return false;
   return PROTECTED_NEIGHBOR_GROUPS.has(d.g)||PROTECTED_NEIGHBOR_MATERIALS.has(matName);
 }
+// METAL EDGE RULE (2026-11-12, Johan, unfreeze; CS report): every inlay material except
+// meteorite, Mokume and solid metal needs a metal edge on the outside of the ring. The edge is
+// the base metal at its own minimum width (KV material mi.edge_same_sleeve: Titanium 0.5,
+// precious 0.75, ...). Precut blanks are exempt. Tolerant KV overrides in builder_config.rules:
+// metal_edge_required (false = rule off), metal_edge_exempt_groups (replaces the default list),
+// metal_edge_exempt_materials (extra single materials). The worker enforces the same rule.
+function metalEdgeRuleOn(){
+  const v=BUILDER.rules.metal_edge_required;
+  return !(v===false||v===0||v==='0'||v==='n');
+}
+function isEdgeExempt(matName){
+  if(matName==='(choose)'||isMetal(matName))return true;
+  const d=DATA.m[matName];
+  if(!d)return true;
+  const r=BUILDER.rules;
+  const groups=Array.isArray(r.metal_edge_exempt_groups)?r.metal_edge_exempt_groups:[...BUILDER.metal_groups,BUILDER.groups.meteorite,BUILDER.groups.mokume_composite];
+  const mats=Array.isArray(r.metal_edge_exempt_materials)?r.metal_edge_exempt_materials:[];
+  return groups.includes(d.g)||mats.includes(matName);
+}
+function isPrecutBase(){
+  const pb=BUILDER.rules.precut_blanks;
+  const list=pb&&pb[state.baseMetal];
+  return Array.isArray(list)&&list.length>0;
+}
+// Returns {side,material,min,remainder} for the first outside edge that is missing its metal, else null.
+function metalEdgeProblem(strips){
+  if(!state.baseMetal||!strips||!strips.length||!metalEdgeRuleOn()||isPrecutBase())return null;
+  if(strips.some(s=>!s||typeof s.width!=='number'))return null;
+  const min=getBaseMetalMinWidth();
+  const eps=BUILDER.width_epsilon||0.01;
+  const remainder=state.ringWidth-strips.reduce((sum,s)=>sum+s.width,0);
+  const first=strips[0], last=strips[strips.length-1];
+  if(!isEdgeExempt(first.material))return {side:'left',material:first.material,min:min,remainder:remainder};
+  if(!isEdgeExempt(last.material)&&remainder<min-eps)return {side:'right',material:last.material,min:min,remainder:remainder};
+  return null;
+}
+function metalEdgeMessage(p){
+  return `"${p.material}" cannot be the outside edge of the ring - it needs a ${p.min}mm ${state.baseMetal} edge on its ${p.side} side. Make the inlay narrower to leave room for the edge.`;
+}
 
 // Check if two adjacent non-metal materials violate a rule.
 // Returns error message string or null if OK.
@@ -4304,6 +4343,9 @@ function validateProposedStrips(strips){
       return `"${s.material}" requires minimum width of ${minW}mm (currently ${s.width}mm).`;
     }
   }
+  // METAL EDGE RULE (2026-11-12, Johan, unfreeze): no inlay on the outside edge without its metal edge.
+  const metalEdgeMissing=metalEdgeProblem(strips);
+  if(metalEdgeMissing) return metalEdgeMessage(metalEdgeMissing);
   return null;
 }
 
@@ -5459,6 +5501,8 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     // metal existed — "null (same as base metal)" label and no Continue button until
     // the card was clicked. Re-render on every open so it defaults correctly.
     if(id==='sleeve'){ rerenderSection('sleeve'); }
+    // METAL EDGE RULE (2026-11-12, Johan, unfreeze): repair the outside edges before the band is closed (share links open here).
+    if(id==='summary'){ try{ v2MetalEdgeSweep(); }catch(e){} }
     if(id==='summary'){ closeBand(); rerenderSection('summary'); if(window.renderRing){try{renderRing();}catch(e){}}
       // BAND CLOSE ESTIMATE (2026-11-12, Johan, unfreeze): closeBand() can add the unused width to the band; the estimate token
       // was signed for the band before that, so the quote arrived with a token for another design. Ask again - requestEstimate()
@@ -6202,7 +6246,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       gMoveGrp.appendChild(gLeft); gMoveGrp.appendChild(gRight);
       var gWGrp=document.createElement('span'); gWGrp.className='v2-row-group';
       var rwStep=BUILDER.ring_width.step;
-      var rwMin=Math.max(BUILDER.ring_width.min,snapToStep(used,BUILDER.ring_width,'ceil'));
+      var rwMin=Math.max(BUILDER.ring_width.min,snapToStep(used+v2TrailEdgeReserve(),BUILDER.ring_width,'ceil')); // METAL EDGE RULE (2026-11-12, Johan, unfreeze): keep the last inlay's metal edge
       var gPrecut=(typeof v2IsPrecut==='function')&&v2IsPrecut();
       var gMinus=document.createElement('button');
       gMinus.type='button'; gMinus.className='v2-row-btn'; gMinus.textContent='−';
@@ -6233,7 +6277,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var used=strips.reduce(function(a,st){return a+st.width;},0);
     var step=BUILDER.ring_width.step;
     var v=parseFloat((state.ringWidth+dir*step).toFixed(2));
-    var minW=Math.max(BUILDER.ring_width.min,snapToStep(used,BUILDER.ring_width,'ceil'));
+    var minW=Math.max(BUILDER.ring_width.min,snapToStep(used+v2TrailEdgeReserve(),BUILDER.ring_width,'ceil')); // METAL EDGE RULE (2026-11-12, Johan, unfreeze): keep the last inlay's metal edge
     if(v>BUILDER.ring_width.max+BUILDER.width_epsilon){
       showRuleToast('The ring is already at its '+BUILDER.ring_width.max+'mm maximum width.');
       return;
@@ -6497,6 +6541,8 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
         if(min>0&&s.width<min-eps) issues.push('A '+s.material+' edge that differs from the '+effSleeve+' sleeve must be at least '+min+'mm wide.');
       });
     }
+    // METAL EDGE RULE (2026-11-12, Johan, unfreeze): an outside edge the sweep below could not repair.
+    try{ var metalEdgeMissing=metalEdgeProblem(strips); if(metalEdgeMissing) issues.push(metalEdgeMessage(metalEdgeMissing)); }catch(e){}
     return issues;
   }
   // Self-heal (2026-08-20, Johan): edge strips of a hard base metal that sit below the
@@ -6512,6 +6558,49 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
     var oldSleeve=state.sleeve;
     state.sleeve=state.baseMetal;
     try{ showRuleToast('Only the crushed version of a stone can be used as a sleeve, so the "'+oldSleeve+'" sleeve was removed from your design.'); }catch(e){}
+  }
+  // METAL EDGE RULE (2026-11-12, Johan, unfreeze): free width the last strip must keep as its metal edge.
+  function v2TrailEdgeReserve(){
+    try{
+      var st=state.strips||[];
+      if(!st.length||!metalEdgeRuleOn()||isPrecutBase()) return 0;
+      return isEdgeExempt(st[st.length-1].material)?0:getBaseMetalMinWidth();
+    }catch(e){ return 0; }
+  }
+  // METAL EDGE RULE (2026-11-12, Johan, unfreeze; CS report): self-heal. An inlay that sits on
+  // the outside edge without its metal edge (deleted edge, old share link, a strip widened to the
+  // rim) gets the base-metal edge back at the base metal's minimum width: from free width first,
+  // otherwise the inlay itself is made narrower. When neither is possible the orange note stays
+  // and the server refuses the layout.
+  function v2MetalEdgeSweep(){
+    if(typeof metalEdgeProblem!=='function') return;
+    var strips=state.strips||[]; if(!strips.length) return;
+    var eps=(BUILDER.width_epsilon||0.01);
+    var healed=null, guard=0, p;
+    while((p=metalEdgeProblem(strips))&&guard++<2){
+      var left=p.side==='left';
+      var s=left?strips[0]:strips[strips.length-1];
+      var free=Math.max(0,p.remainder);
+      var reserve=(left&&!isEdgeExempt(strips[strips.length-1].material))?p.min:0;
+      var fromFree=left?Math.max(0,Math.min(p.min,free-reserve)):free;
+      var shrink=p.min-fromFree;
+      if(shrink>eps){
+        var inc=v2MaterialIncrement(s.material)||BUILDER.strip_width.step;
+        shrink=Math.ceil((shrink-eps)/inc)*inc;
+        var minW=Math.max(v2MaterialMin(s.material),BUILDER.strip_width.min);
+        if(s.width-shrink<minW-eps) break;
+        s.width=parseFloat((s.width-shrink).toFixed(2));
+      }
+      if(left){
+        strips.unshift({material:state.baseMetal,width:p.min});
+        if(state.selectedStrip>=0) state.selectedStrip++;
+      }
+      healed=p;
+    }
+    if(!healed) return;
+    try{ showRuleToast('A '+healed.min+'mm '+state.baseMetal+' edge was added: "'+healed.material+'" cannot be the outside edge of the ring.'); }catch(e){}
+    try{ renderRing(); }catch(e){}
+    try{ if(typeof requestEstimate==='function') requestEstimate(); }catch(e){}
   }
   function v2EdgeAutoBump(){
     var base=state.baseMetal; if(!base) return;
@@ -6867,6 +6956,7 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
       try{ v2FinishSweep(); }catch(e){}
       try{ v2BaseRuleSweep(); }catch(e){}
       try{ v2SleeveRuleSweep(); }catch(e){}
+      try{ v2MetalEdgeSweep(); }catch(e){} // METAL EDGE RULE (2026-11-12, Johan, unfreeze)
       try{ v2EdgeAutoBump(); }catch(e){}
       var keepY=(_v2LockY===null&&v2PageScrolls())?(window.scrollY||window.pageYOffset||0):null; // 2026-08-23: page must stay put on mobile edits
       var out=_v2PrevRenderComposePanel(col);
