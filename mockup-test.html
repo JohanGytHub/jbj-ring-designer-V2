@@ -969,6 +969,10 @@ html.v2-modal-lock body{position:fixed!important;left:0;right:0;width:100%;overf
 .v2-row-w{min-width:52px;text-align:center;font-size:.78rem;color:var(--gold);font-weight:600;font-family:var(--font-display)}
 @media(max-width:840px){.v2-row-btn{width:38px;height:38px;font-size:.92rem}.v2-strip-row{padding:8px 10px;gap:6px}.v2-row-name{font-size:.82rem}.v2-row-w{min-width:46px}}
 .v2-preview #crossSectionHost #profileImg{background:#e9edf4;border-color:rgba(255,255,255,.28)}
+/* ===== FORM FIELDS NEVER UNDER 16px (2026-11-11, Johan, unfreeze) =====
+   An iPhone zooms the whole page when a field under 16px gets focus. Size only - no layout change. */
+.form-row input,.form-row textarea,.engraving-input,.exit-modal input,.mat-search,.eng-font-select,
+input[type="text"],input[type="email"],input[type="number"],input[type="search"],input[type="tel"],textarea,select{font-size:16px !important}
 </style>
 </head>
 <body>
@@ -7347,6 +7351,103 @@ const PROFILE_IMAGES = {"Flat":"iVBORw0KGgoAAAANSUhEUgAAAMgAAAA5CAYAAABzlmQiAAAD
   window.addEventListener('pagehide',function(){ send(true); });
   window.__V2_FUNNEL__={ snapshot:snap, flush:function(){ clearTimeout(timer); send(false); } };
 })();
+/* ===== RING PICTURE THAT ALWAYS FITS + FORM FIELD HELP (2026-11-11, Johan, unfreeze) =====
+   Same block as the new builder's tested part 365-router-05-ring-picture-and-form.js. The engine is not changed:
+   this block replaces ONE engine helper from outside (_getCanvasImage) and adds helpers.
+   1. Ring picture: the engine sent the preview canvas at the phone's full pixel size; on a x3 phone a wide textured
+      ring went over the server's limit (KV builder_config.limits.ring_image_max_characters) and the quote was
+      refused ("Invalid ring image"). Now the picture is at most 900px wide and is scaled down further, step by
+      step, until it is under the server's limit. If nothing fits, no picture is sent (the quote still goes).
+   2. Safety net: if the server still answers "Invalid ring image", the same quote is sent once more without the picture.
+   3. Staff only: the server's reason for a failed quote is shown under the button.
+   4. Email fields get the keyboard and autofill hints phones use.
+   No price, formula or rule is touched. */
+(function(){
+  var MAX_PICTURE_WIDTH=900, SHRINK_STEP=0.8, MAX_TRIES=7;
+  function pictureLimit(){
+    // BUILDER = builder_config from /designer-config (engine global). The limit is the server's own number.
+    try{ var n=(typeof BUILDER!=='undefined')&&BUILDER&&BUILDER.limits&&BUILDER.limits.ring_image_max_characters; return (typeof n==='number'&&n>0)?n:null; }catch(e){ return null; }
+  }
+  var lastPicture={ w:0, h:0, len:0, tries:0, sent:false }, lastFailReason='';
+  function capture(){
+    var c=document.querySelector('#ringPreview canvas');
+    if(!c||!c.width||!c.height) return null;
+    var limit=pictureLimit();
+    try{
+      var scale=Math.min(1, MAX_PICTURE_WIDTH/c.width);
+      for(var i=1;i<=MAX_TRIES;i++){
+        var w=Math.max(1,Math.round(c.width*scale)), h=Math.max(1,Math.round(c.height*scale)), out;
+        if(scale>=1){ out=c.toDataURL('image/png').split(',')[1]; }
+        else{
+          var t=document.createElement('canvas'); t.width=w; t.height=h;
+          var g=t.getContext('2d'); g.imageSmoothingEnabled=true; try{ g.imageSmoothingQuality='high'; }catch(e){}
+          g.drawImage(c,0,0,w,h);
+          out=t.toDataURL('image/png').split(',')[1];
+        }
+        if(out&&(!limit||out.length<=limit)){ lastPicture={ w:w, h:h, len:out.length, tries:i, sent:true }; return out; }
+        scale*=SHRINK_STEP;
+      }
+      lastPicture={ w:0, h:0, len:0, tries:MAX_TRIES, sent:false };
+      return null;
+    }catch(e){ return null; }
+  }
+  window._getCanvasImage=capture;
+  window.__V2_PICTURE__={ last:function(){ return lastPicture; }, limit:pictureLimit, lastFailReason:function(){ return lastFailReason; } };
+
+  // 2. safety net: one resend without the picture
+  var nativeFetch=window.fetch;
+  window.fetch=function(input,init){
+    try{
+      var url=(typeof input==='string')?input:(input&&input.url);
+      if(url&&typeof SERVICES!=='undefined'&&SERVICES&&url===SERVICES.quote_url&&init&&typeof init.body==='string'){
+        var self=this;
+        lastFailReason='';
+        return nativeFetch.call(self,input,init).then(function(res){
+          if(res.ok) return res;
+          return res.clone().json().then(function(j){
+            var why=[].concat((j&&j.error)||[],(j&&j.validationErrors)||[]).join(' | ');
+            lastFailReason=('HTTP '+res.status+(why?': '+why:'')).slice(0,300);
+            if(res.status!==400||!/Invalid ring image/.test(why)) return res;
+            var body; try{ body=JSON.parse(init.body); }catch(e){ return res; }
+            if(body.ringImage==null) return res;
+            body.ringImage=null;
+            try{ if(typeof ringAudit!=='undefined'&&ringAudit.record) ringAudit.record('quote','quote_picture_rejected_resent',{ reason:why.slice(0,160) }); }catch(e){}
+            var again={}; for(var k in init){ again[k]=init[k]; } again.body=JSON.stringify(body);
+            return nativeFetch.call(self,input,again);
+          },function(){ lastFailReason='HTTP '+res.status; return res; });
+        },function(err){ lastFailReason='No answer from the server ('+String((err&&err.message)||err).slice(0,120)+')'; throw err; });
+      }
+    }catch(e){}
+    return nativeFetch.apply(this,arguments);
+  };
+
+  // 3. staff only: show the server's reason under the button   4. field hints
+  function isStaff(){ try{ return typeof _staffToken!=='undefined'&&!!_staffToken; }catch(e){ return false; } }
+  function tidy(){
+    try{
+      var f=document.querySelectorAll('input[type="email"]');
+      for(var i=0;i<f.length;i++){ var el=f[i];
+        if(el.getAttribute('autocomplete')!=='email') el.setAttribute('autocomplete','email');
+        if(el.getAttribute('inputmode')!=='email') el.setAttribute('inputmode','email');
+        if(!el.getAttribute('enterkeyhint')) el.setAttribute('enterkeyhint','done');
+        if(el.getAttribute('autocapitalize')!=='off') el.setAttribute('autocapitalize','off');
+        if(el.getAttribute('spellcheck')!=='false') el.setAttribute('spellcheck','false');
+      }
+      if(lastFailReason&&isStaff()){
+        // the engine's status line has no id: it is the leaf element that starts with its fixed failure sentence
+        var d=document.querySelectorAll('div');
+        for(var n=0;n<d.length;n++){ var el2=d[n];
+          if(el2.childElementCount===0&&/^Something went wrong\./.test(el2.textContent||'')&&el2.textContent.indexOf('[Staff: ')===-1) el2.textContent=el2.textContent+' [Staff: '+lastFailReason+']';
+        }
+      }
+    }catch(e){}
+  }
+  var scheduled=false;
+  function schedule(){ if(scheduled) return; scheduled=true; setTimeout(function(){ scheduled=false; tidy(); },120); }
+  try{ new MutationObserver(schedule).observe(document.documentElement,{ childList:true, subtree:true, characterData:true }); }catch(e){}
+  schedule();
+})();
+/* ===== END RING PICTURE THAT ALWAYS FITS (2026-11-11) ===== */
 </script>
 <script>
 // ══ MOCKUP TEST PAGE (2026-08-31) ═══════════════════════════════════════
