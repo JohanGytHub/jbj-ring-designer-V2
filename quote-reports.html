@@ -226,7 +226,7 @@ async function boot() {
 }
 
 // ── controls ─────────────────────────────────────────────────────────────────
-var GROUP_ORDER = ['Tracking', 'Customer', 'Design', 'Strips', 'Order', 'Emails'];
+var GROUP_ORDER = ['Tracking', 'Customer', 'Attribution', 'Design', 'Strips', 'Order', 'Emails']; // 2026-11-16 ATTRIBUTION GROUP: 'Attribution' added - the tracker's Traffic source / UTM / gclid fields were never listed in Filters and Totals by
 function fieldOptions(includeStrips, includeEmails) {
   var html = '';
   GROUP_ORDER.forEach(function (g) {
